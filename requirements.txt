@@ -1,0 +1,3 @@
+git+https://github.com/clane9/elbow.git
+ipython
+jupyter
