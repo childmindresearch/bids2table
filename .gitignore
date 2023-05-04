@@ -31,3 +31,6 @@ htmlcov
 
 # Jupyter
 .ipynb_checkpoints
+
+# Example generated tables
+example/tables
