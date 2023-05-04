@@ -72,6 +72,10 @@ class BIDSEntities:
     datatype: str = bids_field(name="Data type", allowed_values=BIDS_DATATYPES)
     suffix: str = bids_field(name="Suffix")
     ext: str = bids_field(name="Extension")
+    _is_valid: bool = bids_field(name="Is valid")
+
+    def __post_init__(self):
+        self._is_valid = self._validate()
 
     @classmethod
     def from_dict(cls, entities: Dict[str, Any]):
@@ -92,9 +96,11 @@ class BIDSEntities:
 
         return cls(**filtered)
 
-    def is_valid(self) -> bool:
+    def _validate(self) -> bool:
         """
         Check if the entities are valid.
+
+        TODO: is there a better way to do validation? pydantic?
         """
 
         def check_field(f: Field):

@@ -3,11 +3,12 @@ import logging
 import traceback
 from functools import lru_cache
 from pathlib import Path
-from typing import Dict, Generator, List, Optional
+from typing import Dict, Generator, List
 
 from elbow.record import Record
 from elbow.typing import StrOrPath
 
+from .dataset import is_dataset_root
 from .entities import parse_bids_entities
 
 
@@ -17,7 +18,7 @@ def json_sidecar(path: StrOrPath) -> Record:
     inheritance by searching up the directory tree for matching JSON files.
     """
     entities = parse_bids_entities(path)
-    query = dict(entities, extension=".json")
+    query = dict(entities, ext=".json")
     root = Path(path).parent
 
     metadata = {}
@@ -36,23 +37,13 @@ def json_sidecar(path: StrOrPath) -> Record:
     return rec
 
 
-def find_first_bids_parent(
-    query: Dict[str, str], root: StrOrPath, depth: int = 4
-) -> Optional[str]:
-    """
-    Find the first BIDS parent file matching the ``query`` entities dict. Returns
-    ``None`` if no parents found. See :func:`find_bids_parents` for more details.
-    """
-    return next(find_bids_parents(query, root, depth), None)
-
-
 def find_bids_parents(
     query: Dict[str, str], root: StrOrPath, depth: int = 4
 ) -> Generator[str, None, None]:
     """
     Find all BIDS files satisfying the inheritance principle requirements for the given
     ``query`` entities dict. The ``query`` must contain at least one of ``'suffix'`` or
-    ``'extension'``. Search up the directory hierarchy at most ``depth`` levels,
+    ``'ext'``. Search up the directory hierarchy at most ``depth`` levels,
     starting from and including ``root``. Yields matching ``path``s in decreasing
     topological order.
 
@@ -61,11 +52,9 @@ def find_bids_parents(
     ``dataset_description.json`` is found.
     """
     suffix = query.get("suffix")
-    ext = query.get("extension")
+    ext = query.get("ext")
     if not (suffix or ext):
-        raise ValueError(
-            "At least one of 'suffix' or 'extension' are required in `query`."
-        )
+        raise ValueError("At least one of 'suffix' or 'ext' are required in `query`.")
     pattern = f"*_{suffix}{ext}" if suffix else f"*{ext}"
 
     root = Path(root)
@@ -93,16 +82,8 @@ def _glob(path: Path, pattern: str) -> List[Path]:
 
 
 def _test_bids_match(query: Dict[str, str], entities: Dict[str, str]) -> bool:
-    entities = {k: v for k, v in entities.items() if k not in {"datatype"}}
-
+    entities = entities.copy()
+    entities.pop("datatype", None)
     return set(entities).issubset(query) and all(
         query[k] == v for k, v in entities.items()
     )
-
-
-@lru_cache(maxsize=512)
-def is_dataset_root(path: Path) -> bool:
-    """
-    Test if ``path`` is a BIDS dataset root directory.
-    """
-    return path.is_dir() and (path / "dataset_description.json").exists()

@@ -5,6 +5,7 @@ from elbow import Record, concat
 from elbow.extractors import file_meta
 from elbow.typing import StrOrPath
 
+from .dataset import dataset_meta
 from .entities import all_bids_entities, bids_entities
 from .sidecar import json_sidecar
 
@@ -15,13 +16,21 @@ def bids_extract(path: StrOrPath) -> Optional[Record]:
     """
     # Exclude JSON files, only want data files
     # TODO: other checks?
-    if Path(path).suffix == ".json":
+    path = Path(path)
+    if path.is_dir() or path.suffix == ".json":
         return None
 
-    file_info = file_meta(path)
-    known_ents = bids_entities(path)
+    dset_info = dataset_meta(path)
+    if dset_info is None:
+        return None
+    try:
+        known_ents = bids_entities(path)
+    # Raised in case of missing required entities
+    except TypeError:
+        return None
     all_ents = all_bids_entities(path)
     sidecar = json_sidecar(path)
+    file_info = file_meta(path)
 
-    rec = concat([known_ents, all_ents, sidecar, file_info])
+    rec = concat([dset_info, known_ents, all_ents, sidecar, file_info])
     return rec
