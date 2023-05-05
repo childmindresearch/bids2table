@@ -2,26 +2,22 @@ import logging
 import shutil
 from pathlib import Path
 
-from elbow import load_parquet
-
-from bids2table.extractors.bids import bids_extract
+from bids2table import load_bids_parquet
 
 logging.basicConfig(level=logging.INFO)
 
 
 root = Path(__file__).parent
-bids_examples_path = root / "bids-examples"
-pattern = str(bids_examples_path / "*" / "**")
-where = root / "tables" / f"bids-examples.parquet"
+# Match all BIDS data directories under bids-examples
+path = root / "bids-examples" / "*"
+where = root / "tables" / "bids-examples.parquet"
 
 if where.exists():
     shutil.rmtree(where)
 
-dset = load_parquet(
-    source=pattern,
-    extract=bids_extract,
+dset = load_bids_parquet(
+    path=path,
     where=where,
     incremental=False,
     workers=None,
-    max_failures=0,
 )
