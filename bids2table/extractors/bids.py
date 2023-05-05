@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from typing import Optional
 
@@ -19,17 +20,18 @@ def bids_extract(path: StrOrPath) -> Optional[Record]:
     # TODO: other checks?
     #   - skip files matching patterns in .bidsignore?
     path = Path(path)
-    if path.is_dir() or path.suffix == ".json":
+    if path.is_dir() or path.suffix == ".json" or not path.name.startswith("sub-"):
+        return None
+
+    try:
+        known_ents = bids_entities(path)
+    except (TypeError, ValueError) as exc:
+        logging.warning(
+            f"Incomplete and/or invalid entities in file '{path}'", exc_info=exc
+        )
         return None
 
     dset_info = dataset_meta(path)
-    if dset_info is None:
-        return None
-    try:
-        known_ents = bids_entities(path)
-    # Raised in case of missing required entities
-    except TypeError:
-        return None
     all_ents = all_bids_entities(path)
     sidecar = json_sidecar(path)
     image_info = image_meta(path)

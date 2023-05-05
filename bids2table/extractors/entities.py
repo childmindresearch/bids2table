@@ -173,7 +173,7 @@ def parse_bids_entities(path: StrOrPath) -> Dict[str, Optional[str]]:
         if "-" in part:
             key, val = part.split("-", maxsplit=1)
         else:
-            key, val = part, True
+            key, val = part, None
         entities[key] = val
 
     entities["datatype"] = datatype

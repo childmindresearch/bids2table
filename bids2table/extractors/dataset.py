@@ -8,16 +8,18 @@ from elbow.record import Record
 from elbow.typing import StrOrPath
 
 
-def dataset_meta(path: StrOrPath) -> Optional[Record]:
+def dataset_meta(path: StrOrPath) -> Record:
     """
     Get info about the BIDS dataset that ``path`` belongs to.
     """
     name, root = identify_bids_dataset(path)
-    if name is None:
-        return None
-    desc = get_dataset_description(root)
+    desc = get_dataset_description(root) if root is not None else None
     rec = Record(
-        {"dataset": name, "dataset_path": str(root), "dataset_description": desc},
+        {
+            "dataset": name,
+            "dataset_path": str(root) if root else None,
+            "dataset_description": desc,
+        },
         types={"dataset_description": "json"},
     )
     return rec
