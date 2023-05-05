@@ -8,6 +8,8 @@ from elbow.typing import StrOrPath
 
 from .extractors.bids import bids_extract
 
+__all__ = ["load_bids_table", "load_bids_parquet"]
+
 
 def load_bids_table(path: StrOrPath) -> pd.DataFrame:
     """

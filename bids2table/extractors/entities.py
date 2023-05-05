@@ -1,5 +1,5 @@
 import re
-from dataclasses import Field, dataclass, field, fields
+from dataclasses import dataclass, field, fields
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
@@ -40,7 +40,16 @@ def bids_field(
 
 @dataclass
 class BIDSEntities:
-    # Copied from: https://bids-specification.readthedocs.io/en/stable/appendices/entities.html
+    """
+    A dataclass representing known BIDS entities.
+
+    NOTE: Only minimal validation of the entity values is performed. Use
+    `bids_validator` for thorough validation of BIDS datasets.
+
+    Reference:
+        https://bids-specification.readthedocs.io/en/stable/appendices/entities.html
+    """
+
     sub: str = bids_field(name="Subject", required=True)
     ses: str = bids_field(name="Session")
     sample: str = bids_field(name="Sample")
@@ -72,10 +81,6 @@ class BIDSEntities:
     datatype: str = bids_field(name="Data type", allowed_values=BIDS_DATATYPES)
     suffix: str = bids_field(name="Suffix")
     ext: str = bids_field(name="Extension")
-    _is_valid: bool = bids_field(name="Is valid")
-
-    def __post_init__(self):
-        self._is_valid = self._validate()
 
     @classmethod
     def from_dict(cls, entities: Dict[str, Any]):
@@ -87,28 +92,23 @@ class BIDSEntities:
             val = entities.get(f.name)
             if val is not None:
                 try:
-                    filtered[f.name] = f.type(val)
+                    val = f.type(val)
                 except ValueError as exc:
                     raise ValueError(
                         f"Unable to coerce {repr(val)} to type {f.type} for "
                         f"entity {f.name}"
                     ) from exc
 
+                allowed_values = f.metadata.get("allowed_values")
+                if allowed_values and val not in allowed_values:
+                    raise ValueError(
+                        f"Value {val} for entity {f.name} isn't one of the "
+                        f"allowed values {allowed_values}"
+                    )
+
+                filtered[f.name] = val
+
         return cls(**filtered)
-
-    def _validate(self) -> bool:
-        """
-        Check if the entities are valid.
-
-        TODO: is there a better way to do validation? pydantic?
-        """
-
-        def check_field(f: Field):
-            allowed_values = f.metadata.get("allowed_values")
-            value = getattr(self, f.name)
-            return value is None or allowed_values is None or value in allowed_values
-
-        return all(map(check_field, fields(self)))
 
 
 def bids_entities(path: StrOrPath) -> BIDSEntities:
