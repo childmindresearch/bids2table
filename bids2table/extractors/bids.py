@@ -27,7 +27,7 @@ def bids_extract(path: StrOrPath) -> Optional[Record]:
         known_ents = bids_entities(path)
     except (TypeError, ValueError) as exc:
         logging.warning(
-            f"Incomplete and/or invalid entities in file '{path}'", exc_info=exc
+            "Incomplete and/or invalid entities in file %s", path, exc_info=exc
         )
         return None
 

@@ -52,7 +52,7 @@ def identify_bids_dataset(path: StrOrPath) -> Tuple[Optional[str], Optional[Path
         parent = parent.parent
 
     if len(parts) == 0:
-        logging.warning(f"File '{path}' is not part of any valid BIDS dataset.")
+        logging.warning("File %s is not part of any valid BIDS dataset.", path)
         return None, None
 
     parts = parts[: top_idx + 1]

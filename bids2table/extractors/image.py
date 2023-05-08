@@ -24,7 +24,7 @@ def image_meta(path: StrOrPath) -> Record:
             header = _load_image_header(img)
             affine = np.asarray(img.affine)
         except ImageFileError as exc:
-            logging.warning(f"Failed to load image {path}", exc_info=exc)
+            logging.warning("Failed to load image %s", path, exc_info=exc)
 
     rec = Record(
         {"image_header": header, "image_affine": affine},
