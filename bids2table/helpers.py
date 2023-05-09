@@ -21,9 +21,10 @@ def join_bids_path(row: Union[pd.Series, Dict[str, Any]]) -> Path:
 
     special = {"datatype", "suffix", "ext"}
     keys = [f.name for f in fields(BIDSEntities) if f.name not in special]
-
     filename = "_".join(f"{k}-{row[k]}" for k in keys if not pd.isna(row.get(k)))
 
+    sub = row.get("sub")
+    ses = row.get("ses")
     datatype = row.get("datatype")
     suffix = row.get("suffix")
     ext = row.get("ext")
@@ -33,8 +34,18 @@ def join_bids_path(row: Union[pd.Series, Dict[str, Any]]) -> Path:
     if ext:
         filename = filename + ext
 
+    path = Path(filename)
     if datatype:
-        path = Path(datatype) / filename
+        path = datatype / path
     else:
         raise KeyError("Row is missing a valid datatype")
+
+    if ses:
+        path = f"ses-{ses}" / path
+
+    if sub:
+        path = f"sub-{sub}" / path
+    else:
+        raise KeyError("Row is missing a valid sub")
+
     return path
