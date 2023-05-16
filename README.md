@@ -4,11 +4,11 @@ Organize neuroimaging data and derivatives into tables.
 
 ## Installation
 
-Install the latest pre-released versions of [elbow](https://github.com/clane9/elbow) and bids2table
+Install the latest pre-released versions of [elbow](https://github.com/cmi-dair/elbow) and bids2table
 
 ```
-pip install -U git+https://github.com/clane9/elbow.git
-pip install -U git+https://github.com/clane9/bids2table-v2.git
+pip install -U git+https://github.com/cmi-dair/elbow.git
+pip install -U git+https://github.com/cmi-dair/bids2table.git
 ```
 
 ## Example

@@ -1,3 +1,4 @@
-git+https://github.com/clane9/elbow.git
+elbow @ git+https://github.com/cmi-dair/elbow
 ipython
 jupyter
+nibabel

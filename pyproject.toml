@@ -44,8 +44,8 @@ dev = [
     "setuptools-scm",
 ]
 
-# [project.urls]
-# "Homepage" = "https://github.com/clane9/bids2table"
+[project.urls]
+"Homepage" = "https://github.com/cmi-dair/bids2table"
 
 [tool.setuptools_scm]
 write_to = "bids2table/_version.py"
