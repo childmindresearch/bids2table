@@ -89,7 +89,9 @@ class BIDSEntities:
     )
     suffix: Optional[str] = bids_field(name="Suffix")
     ext: Optional[str] = bids_field(name="Extension")
-    _extra: Optional[Dict[str, Any]] = bids_field(name="Extra entities")
+    _extra: Optional[Dict[str, Union[str, int, float]]] = bids_field(
+        name="Extra entities"
+    )
 
     @classmethod
     def from_dict(cls, entities: Dict[str, Any], valid_only: bool = True):
@@ -97,8 +99,20 @@ class BIDSEntities:
         Initialize from a dict of entities.
         """
         filtered = {}
-        extra = {}
+        extra: Dict[str, Union[str, int, float]] = {}
         fields_map = {f.name: f for f in fields(cls) if not f.name.startswith("_")}
+
+        def add_to_extra(k: Any, v: Any):
+            if not isinstance(key, str):
+                raise TypeError(
+                    f"Extra entity {k} has type {type(k)}; only str supported"
+                )
+            if not isinstance(v, (str, int, float)):
+                raise TypeError(
+                    f"Value {v} for extra entity {k} has type {type(v)}; "
+                    f"only str, int, float supported"
+                )
+            extra[k] = v
 
         for key, val in entities.items():
             if _is_na(val):
@@ -123,12 +137,16 @@ class BIDSEntities:
                     )
 
                 filtered[key] = val
+
+            # If there's an "_extra" dict, always pass these values through regardless
+            # of valid_only. This makes it easy to reconstruct entities from a df row.
+            elif key == "_extra":
+                assert isinstance(val, dict), "Value for '_extra' key must be a dict"
+                for k, v in val.items():
+                    add_to_extra(k, v)
+
             elif not valid_only:
-                if not isinstance(key, str):
-                    raise TypeError(
-                        f"Extra key {key} has type {type(key)}; only str supported"
-                    )
-                extra[key] = val
+                add_to_extra(key, val)
 
         return cls(**filtered, _extra=extra)
 
