@@ -1,15 +1,18 @@
-from dataclasses import fields
 from pathlib import Path
-from typing import Any, Dict, Union
+from typing import Any, Dict, Optional, Union
 
 import pandas as pd
 
 from .extractors.entities import BIDSEntities
 
 
-def join_bids_path(row: Union[pd.Series, Dict[str, Any]]) -> Path:
+def join_bids_path(
+    row: Union[pd.Series, Dict[str, Any]],
+    prefix: Optional[Union[str, Path]] = None,
+    valid_only: bool = True,
+) -> Path:
     """
-    Reconstruct a valid BIDS path from a table row/record.
+    Reconstruct a BIDS path from a table row/record or entities dict.
 
     Example::
 
@@ -19,33 +22,6 @@ def join_bids_path(row: Union[pd.Series, Dict[str, Any]]) -> Path:
     if isinstance(row, pd.Series):
         row = row.to_dict()
 
-    special = {"datatype", "suffix", "ext"}
-    keys = [f.name for f in fields(BIDSEntities) if f.name not in special]
-    filename = "_".join(f"{k}-{row[k]}" for k in keys if not pd.isna(row.get(k)))
-
-    sub = row.get("sub")
-    ses = row.get("ses")
-    datatype = row.get("datatype")
-    suffix = row.get("suffix")
-    ext = row.get("ext")
-
-    if suffix:
-        filename = filename + "_" + suffix
-    if ext:
-        filename = filename + ext
-
-    path = Path(filename)
-    if datatype:
-        path = datatype / path
-    else:
-        raise KeyError("Row is missing a valid datatype")
-
-    if ses:
-        path = f"ses-{ses}" / path
-
-    if sub:
-        path = f"sub-{sub}" / path
-    else:
-        raise KeyError("Row is missing a valid sub")
-
+    entities = BIDSEntities.from_dict(row)
+    path = entities.to_path(prefix=prefix, valid_only=valid_only)
     return path
