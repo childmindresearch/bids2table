@@ -7,7 +7,7 @@ from elbow.extractors import file_meta
 from elbow.typing import StrOrPath
 
 from .dataset import dataset_meta
-from .entities import all_bids_entities, bids_entities
+from .entities import BIDSEntities
 from .image import image_meta
 from .sidecar import json_sidecar
 
@@ -24,7 +24,7 @@ def bids_extract(path: StrOrPath) -> Optional[Record]:
         return None
 
     try:
-        known_ents = bids_entities(path)
+        entities = BIDSEntities.from_path(path)
     except (TypeError, ValueError) as exc:
         logging.warning(
             "Incomplete and/or invalid entities in file %s", path, exc_info=exc
@@ -32,10 +32,9 @@ def bids_extract(path: StrOrPath) -> Optional[Record]:
         return None
 
     dset_info = dataset_meta(path)
-    all_ents = all_bids_entities(path)
     sidecar = json_sidecar(path)
     image_info = image_meta(path)
     file_info = file_meta(path)
 
-    rec = concat([dset_info, known_ents, all_ents, sidecar, image_info, file_info])
+    rec = concat([dset_info, entities, sidecar, image_info, file_info])
     return rec
