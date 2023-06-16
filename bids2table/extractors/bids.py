@@ -2,17 +2,17 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from elbow import Record, concat
-from elbow.extractors import file_meta
+from elbow.extractors import extract_file_meta
+from elbow.record import Record, concat
 from elbow.typing import StrOrPath
 
-from .dataset import dataset_meta
-from .entities import all_bids_entities, bids_entities
-from .image import image_meta
-from .sidecar import json_sidecar
+from .dataset import extract_dataset_meta
+from .entities import BIDSEntities
+from .image import extract_image_meta
+from .sidecar import extract_sidecar
 
 
-def bids_extract(path: StrOrPath) -> Optional[Record]:
+def extract_bids(path: StrOrPath) -> Optional[Record]:
     """
     Extract BIDS entities and metadata from a file in a BIDS dataset.
     """
@@ -24,18 +24,24 @@ def bids_extract(path: StrOrPath) -> Optional[Record]:
         return None
 
     try:
-        known_ents = bids_entities(path)
+        entities = BIDSEntities.from_path(path)
     except (TypeError, ValueError) as exc:
         logging.warning(
             "Incomplete and/or invalid entities in file %s", path, exc_info=exc
         )
         return None
 
-    dset_info = dataset_meta(path)
-    all_ents = all_bids_entities(path)
-    sidecar = json_sidecar(path)
-    image_info = image_meta(path)
-    file_info = file_meta(path)
+    dset_meta = extract_dataset_meta(path)
+    sidecar = extract_sidecar(path)
+    image_meta = extract_image_meta(path)
+    file_meta = extract_file_meta(path)
 
-    rec = concat([dset_info, known_ents, all_ents, sidecar, image_info, file_info])
+    rec = concat(
+        {
+            "dataset": dset_meta,
+            "bids": concat([entities, sidecar]),
+            "image": image_meta,
+            "file": file_meta,
+        }
+    )
     return rec

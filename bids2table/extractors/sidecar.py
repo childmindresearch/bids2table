@@ -10,7 +10,7 @@ from .entities import parse_bids_entities
 from .inheritance import find_bids_parents
 
 
-def json_sidecar(path: StrOrPath) -> Record:
+def extract_sidecar(path: StrOrPath) -> Record:
     """
     Load the JSON sidecar metadata associated with ``path``. Supports metadata
     inheritance by searching up the directory tree for matching JSON files.

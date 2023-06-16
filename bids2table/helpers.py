@@ -1,15 +1,18 @@
-from dataclasses import fields
 from pathlib import Path
-from typing import Any, Dict, Union
+from typing import Any, Dict, Optional, Union
 
 import pandas as pd
 
-from .extractors.entities import BIDSEntities
+from bids2table.extractors.entities import BIDSEntities
 
 
-def join_bids_path(row: Union[pd.Series, Dict[str, Any]]) -> Path:
+def join_bids_path(
+    row: Union[pd.Series, Dict[str, Any]],
+    prefix: Optional[Union[str, Path]] = None,
+    valid_only: bool = True,
+) -> Path:
     """
-    Reconstruct a valid BIDS path from a table row/record.
+    Reconstruct a BIDS path from a table row/record or entities dict.
 
     Example::
 
@@ -19,33 +22,42 @@ def join_bids_path(row: Union[pd.Series, Dict[str, Any]]) -> Path:
     if isinstance(row, pd.Series):
         row = row.to_dict()
 
-    special = {"datatype", "suffix", "ext"}
-    keys = [f.name for f in fields(BIDSEntities) if f.name not in special]
-    filename = "_".join(f"{k}-{row[k]}" for k in keys if not pd.isna(row.get(k)))
-
-    sub = row.get("sub")
-    ses = row.get("ses")
-    datatype = row.get("datatype")
-    suffix = row.get("suffix")
-    ext = row.get("ext")
-
-    if suffix:
-        filename = filename + "_" + suffix
-    if ext:
-        filename = filename + ext
-
-    path = Path(filename)
-    if datatype:
-        path = datatype / path
-    else:
-        raise KeyError("Row is missing a valid datatype")
-
-    if ses:
-        path = f"ses-{ses}" / path
-
-    if sub:
-        path = f"sub-{sub}" / path
-    else:
-        raise KeyError("Row is missing a valid sub")
-
+    entities = BIDSEntities.from_dict(row)
+    path = entities.to_path(prefix=prefix, valid_only=valid_only)
     return path
+
+
+def flat_to_multi_columns(df: pd.DataFrame, sep: str = "__") -> pd.DataFrame:
+    """
+    Convert a flat column index to a MultiIndex by splitting on `sep`.
+    """
+    # Do nothing if already a MultiIndex
+    if isinstance(df.columns, pd.MultiIndex):
+        return df
+
+    columns = df.columns
+    split_columns = [col.split(sep) for col in columns]
+    num_levels = max(map(len, split_columns))
+
+    def _pad_col(col):
+        return tuple((num_levels - len(col)) * [None] + col)
+
+    df = df.copy(deep=False)
+    df.columns = pd.MultiIndex.from_tuples(map(_pad_col, split_columns))
+    return df
+
+
+def multi_to_flat_columns(df: pd.DataFrame, sep: str = "__") -> pd.DataFrame:
+    """
+    Convert a column MultiIndex to a flat index by joining on `sep`.
+    """
+    # Do nothing if already flat
+    if not isinstance(df.columns, pd.MultiIndex):
+        return df
+
+    columns = df.columns.to_flat_index()
+    join_columns = [sep.join(col) for col in columns]
+
+    df = df.copy(deep=False)
+    df.columns = pd.Index(join_columns)
+    return df
