@@ -89,7 +89,7 @@ class BIDSEntities:
     )
     suffix: Optional[str] = bids_field(name="Suffix")
     ext: Optional[str] = bids_field(name="Extension")
-    _extra: Optional[Dict[str, Union[str, int, float]]] = bids_field(
+    extra_entities: Optional[Dict[str, Union[str, int, float]]] = bids_field(
         name="Extra entities"
     )
 
@@ -99,7 +99,7 @@ class BIDSEntities:
         Initialize from a dict of entities.
         """
         filtered = {}
-        extra: Dict[str, Union[str, int, float]] = {}
+        extra_entities: Dict[str, Union[str, int, float]] = {}
         fields_map = {f.name: f for f in fields(cls) if not f.name.startswith("_")}
 
         def add_to_extra(k: Any, v: Any):
@@ -112,7 +112,7 @@ class BIDSEntities:
                     f"Value {v} for extra entity {k} has type {type(v)}; "
                     f"only str, int, float supported"
                 )
-            extra[k] = v
+            extra_entities[k] = v
 
         for key, val in entities.items():
             if _is_na(val):
@@ -138,17 +138,20 @@ class BIDSEntities:
 
                 filtered[key] = val
 
-            # If there's an "_extra" dict, always pass these values through regardless
-            # of valid_only. This makes it easy to reconstruct entities from a df row.
-            elif key == "_extra":
-                assert isinstance(val, dict), "Value for '_extra' key must be a dict"
+            # If there are extra entities dict, always pass these values through
+            # regardless of valid_only. This makes it easy to reconstruct entities from
+            # a df row.
+            elif key == "extra_entities":
+                assert isinstance(
+                    val, dict
+                ), "Value for 'extra_entities' key must be a dict"
                 for k, v in val.items():
                     add_to_extra(k, v)
 
             elif not valid_only:
                 add_to_extra(key, val)
 
-        return cls(**filtered, _extra=extra)
+        return cls(**filtered, extra_entities=extra_entities)
 
     @classmethod
     def from_path(cls, path: StrOrPath, valid_only: bool = True):
@@ -163,7 +166,7 @@ class BIDSEntities:
         Convert entities to a plain dict.
         """
         data = asdict(self)
-        extra = data.pop("_extra")
+        extra = data.pop("extra_entities")
         if not valid_only and extra:
             data.update(extra)
         return data

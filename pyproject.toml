@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bids2table"
-description = "Organize neuroimaging data and derivatives into tables"
+description = "Efficiently index large-scale BIDS datasets and derivatives"
 authors = [
     {name = "Connor Lane", email = "connor.lane858@gmail.com"},
 ]
@@ -46,6 +46,10 @@ dev = [
 
 [project.urls]
 "Homepage" = "https://github.com/cmi-dair/bids2table"
+
+[project.scripts]
+bids2table = "bids2table.__main__:main"
+b2t = "bids2table.__main__:main"
 
 [tool.setuptools_scm]
 write_to = "bids2table/_version.py"

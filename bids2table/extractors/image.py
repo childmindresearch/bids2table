@@ -3,7 +3,7 @@ from typing import Any, Dict
 
 import nibabel as nib
 import numpy as np
-from elbow import Record
+from elbow.record import Record
 from elbow.typing import StrOrPath
 from nibabel.filebasedimages import ImageFileError
 
@@ -13,7 +13,7 @@ from .entities import parse_bids_entities
 IMAGE_EXTENSIONS = {".nii", ".nii.gz"}
 
 
-def image_meta(path: StrOrPath) -> Record:
+def extract_image_meta(path: StrOrPath) -> Record:
     entities = parse_bids_entities(path)
     ext = entities.get("ext")
 

@@ -1,10 +1,12 @@
 # bids2table
 
-Organize neuroimaging data and derivatives into tables.
+bids2table is a lightweight tool to index large-scale BIDS neuroimaging datasets and derivatives. It is similar to [PyBIDS](https://github.com/bids-standard/pybids), but focused narrowly on just efficient index building.
+
+bids2table represents a BIDS dataset index as a simple table with columns for BIDS entities and file metadata. The index is stored in [Parquet](https://parquet.apache.org/) format, a binary tabular file format optimized for efficient storage and retrieval. bids2table is built with [elbow](https://github.com/cmi-dair/elbow).
 
 ## Installation
 
-Install the latest pre-released versions of [elbow](https://github.com/cmi-dair/elbow) and bids2table
+Install the latest pre-release versions of [elbow](https://github.com/cmi-dair/elbow) and bids2table
 
 ```
 pip install -U git+https://github.com/cmi-dair/elbow.git
@@ -16,21 +18,13 @@ pip install -U git+https://github.com/cmi-dair/bids2table.git
 ```python
 import pandas as pd
 
-from bids2table import load_bids_table, load_bids_parquet
+from bids2table import bids2table
 
-# Load as pandas dataframe
-df = load_bids_table(
-    path=path_to_bids_dataset,
-)
+# Load in memory as pandas dataframe
+df = bids2table("/path/to/dataset")
 
-# Load as parquet dataset
-load_bids_parquet(
-    path=path_to_bids_dataset,
-    where="dataset.parquet",
-)
-
-# Open parquet dataset with pandas
-df = pd.read_parquet("dataset.parquet")
+# Load in parallel and stream to disk as a Parquet dataset
+df = bids2table("/path/to/dataset", persistent=True, workers=8)
 ```
 
-See [here](example/) for a more complete example.
+See [here](example/example.ipynb) for a more complete example.
