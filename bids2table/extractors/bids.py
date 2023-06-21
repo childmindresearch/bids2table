@@ -1,6 +1,7 @@
 import logging
+from glob import iglob
 from pathlib import Path
-from typing import Optional
+from typing import Generator, Optional
 
 from elbow.extractors import extract_file_meta
 from elbow.record import Record, concat
@@ -12,7 +13,7 @@ from .image import extract_image_meta
 from .sidecar import extract_sidecar
 
 
-def extract_bids(path: StrOrPath) -> Optional[Record]:
+def extract_bids_file(path: StrOrPath) -> Optional[Record]:
     """
     Extract BIDS entities and metadata from a file in a BIDS dataset.
     """
@@ -45,3 +46,11 @@ def extract_bids(path: StrOrPath) -> Optional[Record]:
         }
     )
     return rec
+
+
+def extract_bids_subdir(path: StrOrPath) -> Generator[Optional[Record], None, None]:
+    """
+    Extract BIDS records recursively for all files in a sub-directory.
+    """
+    for path in iglob(str(Path(path) / "**"), recursive=True):
+        yield extract_bids_file(path)

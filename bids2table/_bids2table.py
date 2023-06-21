@@ -4,10 +4,11 @@ from typing import Optional
 
 import pandas as pd
 from elbow.builders import build_parquet, build_table
+from elbow.sources.filesystem import Crawler
 from elbow.typing import StrOrPath
 from elbow.utils import setup_logging
 
-from bids2table.extractors.bids import extract_bids
+from bids2table.extractors.bids import extract_bids_subdir
 from bids2table.helpers import flat_to_multi_columns
 
 setup_logging()
@@ -55,7 +56,13 @@ def bids2table(
         raise ValueError("persistent and return_df should not both be False")
 
     root = Path(root)
-    source = str(root / "**")
+    source = Crawler(
+        root=root,
+        include=["sub-*"],  # find subject dirs
+        skip=["sub-*"],  # but don't crawl into subject dirs
+        dirs_only=True,
+        follow_links=True,
+    )
 
     if output is None:
         output = root / "index.b2t"
@@ -74,7 +81,7 @@ def bids2table(
         logging.info("Building index in memory")
         df = build_table(
             source=source,
-            extract=extract_bids,
+            extract=extract_bids_subdir,
             max_failures=max_failures,
         )
         df = flat_to_multi_columns(df)
@@ -83,7 +90,7 @@ def bids2table(
     logging.info("Building persistent Parquet index")
     build_parquet(
         source=source,
-        extract=extract_bids,
+        extract=extract_bids_subdir,
         output=output,
         incremental=incremental,
         overwrite=overwrite,
