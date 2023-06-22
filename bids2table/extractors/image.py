@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Tuple
 
 import nibabel as nib
 import numpy as np
@@ -8,6 +8,13 @@ from elbow.typing import StrOrPath
 from nibabel.filebasedimages import ImageFileError
 
 from .entities import parse_bids_entities
+
+try:
+    import nifti
+
+    has_nifti = True
+except ModuleNotFoundError:
+    has_nifti = False
 
 # TODO: add more
 IMAGE_EXTENSIONS = {".nii", ".nii.gz"}
@@ -20,10 +27,8 @@ def extract_image_meta(path: StrOrPath) -> Record:
     header = affine = None
     if ext in IMAGE_EXTENSIONS:
         try:
-            img = nib.load(str(path))
-            header = _load_image_header(img)
-            affine = np.asarray(img.affine)
-        except ImageFileError as exc:
+            header, affine = _read_image_meta(str(path))
+        except (ImageFileError, SystemError) as exc:
             logging.warning("Failed to load image %s", path, exc_info=exc)
 
     rec = Record(
@@ -33,13 +38,19 @@ def extract_image_meta(path: StrOrPath) -> Record:
     return rec
 
 
-def _load_image_header(img: Any) -> Dict[str, Any]:
-    """
-    Load a NiBabel image header as a JSON-serializable dict
-    """
-    header = dict(img.header)
+def _read_image_meta(path: str) -> Tuple[Dict[str, Any], np.ndarray]:
+    if has_nifti:
+        # TODO: the nifti C lib prints a lot of error output that I'd like to suppress
+        header = nifti.read_header(path)
+        # TODO: affine not currently implemented for nifti lib
+        affine = None
+    else:
+        img = nib.load(path)
+        header = dict(img.header)
+        affine = np.asarray(img.affine)
+
     header = {k: _cast_header_value(v) for k, v in header.items()}
-    return header
+    return header, affine
 
 
 def _cast_header_value(value: np.ndarray) -> Any:
