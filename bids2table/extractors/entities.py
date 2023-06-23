@@ -2,7 +2,7 @@ import re
 from dataclasses import asdict, dataclass, field, fields
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Dict, Iterable, Optional, Union
+from typing import Any, Callable, Dict, Iterable, Optional, Union
 
 from elbow.typing import StrOrPath
 from typing_extensions import get_args, get_origin
@@ -26,6 +26,8 @@ def bids_field(
     name: str,
     required: bool = False,
     allowed_values: Optional[Iterable] = None,
+    default: Optional[Any] = None,
+    default_factory: Optional[Callable] = None,
 ):
     """
     BIDS entity dataclass field.
@@ -35,8 +37,12 @@ def bids_field(
 
     metadata = dict(name=name, allowed_values=allowed_values)
     if required:
-        return field(metadata=metadata)
-    return field(default=None, metadata=metadata)
+        fld = field(metadata=metadata)
+    elif default_factory is not None:
+        fld = field(default_factory=default_factory, metadata=metadata)
+    else:
+        fld = field(default=default, metadata=metadata)
+    return fld
 
 
 @dataclass
@@ -90,11 +96,12 @@ class BIDSEntities:
     suffix: Optional[str] = bids_field(name="Suffix")
     ext: Optional[str] = bids_field(name="Extension")
     extra_entities: Optional[Dict[str, Union[str, int, float]]] = bids_field(
-        name="Extra entities"
+        name="Extra entities",
+        default_factory=dict,
     )
 
     @classmethod
-    def from_dict(cls, entities: Dict[str, Any], valid_only: bool = True):
+    def from_dict(cls, entities: Dict[str, Any]):
         """
         Initialize from a dict of entities.
         """
@@ -138,9 +145,8 @@ class BIDSEntities:
 
                 filtered[key] = val
 
-            # If there are extra entities dict, always pass these values through
-            # regardless of valid_only. This makes it easy to reconstruct entities from
-            # a df row.
+            # Special handling if the dict already contains 'extra_entities'. This makes
+            # it easy to reconstruct entities from a df row.
             elif key == "extra_entities":
                 assert isinstance(
                     val, dict
@@ -148,20 +154,20 @@ class BIDSEntities:
                 for k, v in val.items():
                     add_to_extra(k, v)
 
-            elif not valid_only:
+            else:
                 add_to_extra(key, val)
 
         return cls(**filtered, extra_entities=extra_entities)
 
     @classmethod
-    def from_path(cls, path: StrOrPath, valid_only: bool = True):
+    def from_path(cls, path: StrOrPath):
         """
         Initialize from a file path.
         """
         entities = parse_bids_entities(path)
-        return cls.from_dict(entities, valid_only=valid_only)
+        return cls.from_dict(entities)
 
-    def to_dict(self, valid_only: bool = True) -> Dict[str, Any]:
+    def to_dict(self, valid_only: bool = False) -> Dict[str, Any]:
         """
         Convert entities to a plain dict.
         """
@@ -172,7 +178,10 @@ class BIDSEntities:
         return data
 
     def to_path(
-        self, prefix: Optional[StrOrPath] = None, valid_only: bool = True
+        self,
+        prefix: Optional[StrOrPath] = None,
+        valid_only: bool = False,
+        int_format: str = "%02d",
     ) -> Path:
         """
         Generate a filepath based on the entitities.
@@ -181,14 +190,14 @@ class BIDSEntities:
         data = self.to_dict(valid_only=valid_only)
 
         name = "_".join(
-            f"{k}-{v}" if len(str(v)) > 0 else str(k)
+            _fmt_ent(k, v, int_format=int_format)
             for k, v in data.items()
             if k not in special and not _is_na(v)
         )
         if self.suffix:
             name += f"_{self.suffix}"
         if self.ext:
-            name += f"_{self.ext}"
+            name += self.ext
 
         path = Path(name)
         if self.datatype:
@@ -238,8 +247,20 @@ def _is_optional(alias: Any) -> bool:
     )
 
 
+def _fmt_ent(
+    k: str,
+    v: Union[str, int],
+    *,
+    int_format: str = "%02d",
+):
+    if isinstance(v, int):
+        v = int_format % v
+    ent = f"{k}-{v}" if len(v) > 0 else k
+    return ent
+
+
 @lru_cache(maxsize=8)
-def parse_bids_entities(path: StrOrPath) -> Dict[str, Optional[str]]:
+def parse_bids_entities(path: StrOrPath) -> Dict[str, str]:
     """
     Parse all BIDS filename ``"{key}-{value}"`` entities as well as special entities:
 
@@ -285,7 +306,7 @@ def parse_bids_entities(path: StrOrPath) -> Dict[str, Optional[str]]:
             key, val = part, ""
         entities[key] = val
 
-    entities["datatype"] = datatype
-    entities["suffix"] = suffix
-    entities["ext"] = ext
+    for k, v in zip(["datatype", "suffix", "ext"], [datatype, suffix, ext]):
+        if v is not None:
+            entities[k] = v
     return entities
