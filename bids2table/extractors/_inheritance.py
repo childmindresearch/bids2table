@@ -9,7 +9,9 @@ from .entities import parse_bids_entities
 
 
 def find_bids_parents(
-    query: Dict[str, str], root: StrOrPath, depth: int = 4
+    query: Dict[str, str],
+    root: StrOrPath,
+    depth: Optional[int] = 4,
 ) -> Generator[str, None, None]:
     """
     Find all BIDS files satisfying the inheritance principle requirements for the given
@@ -19,8 +21,9 @@ def find_bids_parents(
     topological order.
 
     The default depth of 4 is appropriate for directory structures of the form
-    ``{dataset}/sub-{sub}/ses-{ses}/{datatype}``. Note also that the search stops once a
-    ``dataset_description.json`` is found.
+    ``{dataset}/sub-{sub}/ses-{ses}/{datatype}``. If depth is None, search all the way
+    up the tree. Note also that the search stops once a ``dataset_description.json`` is
+    found.
     """
     suffix = query.get("suffix")
     ext = query.get("ext")
@@ -28,9 +31,12 @@ def find_bids_parents(
         raise ValueError("At least one of 'suffix' or 'ext' are required in `query`.")
     pattern = f"*_{suffix}{ext}" if suffix else f"*{ext}"
 
-    root = Path(root)
+    root = Path(root).absolute()
     if not root.is_dir():
         root = root.parent
+
+    if depth is None:
+        depth = len(root.parts)
 
     for _ in range(depth):
         for path in _glob(root, pattern):
@@ -63,6 +69,9 @@ def _glob(path: Path, pattern: str) -> List[Path]:
 
 
 def _test_bids_match(query: Dict[str, str], entities: Dict[str, str]) -> bool:
+    """
+    Test if entities satisfies the inheritance principle for query.
+    """
     entities = entities.copy()
     entities.pop("datatype", None)
     return set(entities).issubset(query) and all(

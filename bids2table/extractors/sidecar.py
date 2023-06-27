@@ -6,8 +6,8 @@ from pathlib import Path
 from elbow.record import Record
 from elbow.typing import StrOrPath
 
+from ._inheritance import find_bids_parents
 from .entities import parse_bids_entities
-from .inheritance import find_bids_parents
 
 
 def extract_sidecar(path: StrOrPath) -> Record:
