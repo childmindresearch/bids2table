@@ -20,14 +20,14 @@ except ModuleNotFoundError:
 IMAGE_EXTENSIONS = {".nii", ".nii.gz"}
 
 
-def extract_image_meta(path: StrOrPath) -> Record:
+def extract_image_meta(path: StrOrPath, *, backend: str = "nibabel") -> Record:
     entities = parse_bids_entities(path)
     ext = entities.get("ext")
 
     header = affine = None
     if ext in IMAGE_EXTENSIONS:
         try:
-            header, affine = _read_image_meta(str(path))
+            header, affine = _read_image_meta(str(path), backend=backend)
         except (ImageFileError, SystemError) as exc:
             logging.warning("Failed to load image %s", path, exc_info=exc)
 
@@ -38,8 +38,13 @@ def extract_image_meta(path: StrOrPath) -> Record:
     return rec
 
 
-def _read_image_meta(path: str) -> Tuple[Dict[str, Any], np.ndarray]:
-    if has_nifti:
+def _read_image_meta(
+    path: str, backend: str = "nibabel"
+) -> Tuple[Dict[str, Any], np.ndarray]:
+    if backend == "nifti":
+        if not has_nifti:
+            raise ModuleNotFoundError("nifti image backend not installed")
+
         # TODO: the nifti C lib prints a lot of error output that I'd like to suppress
         header = nifti.read_header(path)
         # TODO: affine not currently implemented for nifti lib
