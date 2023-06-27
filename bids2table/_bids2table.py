@@ -64,6 +64,8 @@ def bids2table(
 
     if output is None:
         output = root / "index.b2t"
+    else:
+        output = Path(output)
 
     stale = overwrite or incremental or worker_id is not None
     if output.exists() and not stale:
