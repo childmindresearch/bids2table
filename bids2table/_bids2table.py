@@ -123,7 +123,7 @@ def _filter(df: pd.DataFrame, filters: Optional[Dict[str, Any]]) -> pd.DataFrame
     Filter a pandas DataFrame based on a dictionary of filters.
 
     Args:
-        df: The DataFrame to filter.
+        df: The bids2table DataFrame to filter.
         filters: A dictionary of filters to apply to the DataFrame. Format must be
         either a single value or a list of values. If None, does not filter.
 
@@ -137,7 +137,7 @@ def _filter(df: pd.DataFrame, filters: Optional[Dict[str, Any]]) -> pd.DataFrame
         if not isinstance(value, list):
             value = [value]
         try:
-            df = df[df[key].isin(value)]
+            df = df[df["entities"][key].isin(value)]
         except KeyError as exc_info:
             raise exceptions.InvalidFilterError(
                 f"Invalid filter: {key} is not a valid column."
