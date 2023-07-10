@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, Optional
 
 import pandas as pd
 from elbow.builders import build_parquet, build_table
@@ -8,6 +8,7 @@ from elbow.sources.filesystem import Crawler
 from elbow.typing import StrOrPath
 from elbow.utils import setup_logging
 
+from bids2table import exceptions
 from bids2table.extractors.bids import extract_bids_subdir
 from bids2table.helpers import flat_to_multi_columns
 
@@ -25,6 +26,7 @@ def bids2table(
     worker_id: Optional[int] = None,
     max_failures: Optional[int] = 0,
     return_df: bool = True,
+    filters: Optional[Dict[str, Any]] = None,
 ) -> Optional[pd.DataFrame]:
     """
     Index a BIDS dataset directory and load as a pandas DataFrame.
@@ -44,6 +46,8 @@ def bids2table(
             overwrite.
         max_failures: number of extract failures to tolerate.
         return_df: whether to return the dataframe or just build the persistent index.
+        filters: optional dictionary of filters to apply to the index. Keys are
+            column names and values are values or lists of values to keep.
 
     Returns:
         A DataFrame containing the BIDS Index.
@@ -75,7 +79,7 @@ def bids2table(
         else:
             logging.info("Found cached index %s; nothing to do", output)
             df = None
-        return df
+        return _filter(df, filters)
 
     if not persistent:
         logging.info("Building index in memory")
@@ -85,7 +89,7 @@ def bids2table(
             max_failures=max_failures,
         )
         df = flat_to_multi_columns(df)
-        return df
+        return _filter(df, filters)
 
     logging.info("Building persistent Parquet index")
     build_parquet(
@@ -99,7 +103,7 @@ def bids2table(
         max_failures=max_failures,
     )
     df = load_index(output) if return_df else None
-    return df
+    return _filter(df, filters)
 
 
 def load_index(
@@ -111,4 +115,32 @@ def load_index(
     df = pd.read_parquet(path)
     if split_columns:
         df = flat_to_multi_columns(df, sep=sep)
+    return df
+
+
+def _filter(df: pd.DataFrame, filters: Optional[Dict[str, Any]]) -> pd.DataFrame:
+    """
+    Filter a pandas DataFrame based on a dictionary of filters.
+
+    Args:
+        df: The DataFrame to filter.
+        filters: A dictionary of filters to apply to the DataFrame. Format must be
+        either a single value or a list of values. If None, does not filter.
+
+    Returns:
+        pd.DataFrame: The filtered DataFrame.
+    """
+    if filters is None:
+        return df
+
+    for key, value in filters.items():
+        if not isinstance(value, list):
+            value = [value]
+        try:
+            df = df[df[key].isin(value)]
+        except KeyError as exc_info:
+            raise exceptions.InvalidFilterError(
+                f"Invalid filter: {key} is not a valid column."
+            ) from exc_info
+
     return df
