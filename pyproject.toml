@@ -51,6 +51,9 @@ dev = [
 bids2table = "bids2table.__main__:main"
 b2t = "bids2table.__main__:main"
 
+[tool.setuptools.packages.find]
+include = ["bids2table*"]
+
 [tool.setuptools_scm]
 write_to = "bids2table/_version.py"
 
