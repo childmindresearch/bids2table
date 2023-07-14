@@ -30,6 +30,8 @@ def identify_bids_dataset(path: StrOrPath) -> Tuple[Optional[str], Optional[Path
     Identify the BIDS dataset that ``path`` belongs to. Return the dataset directory
     name and the full dataset path. For nested derivatives datasets, a composite name of
     the form ``"ds000001/derivatives/fmriprep"`` is returned.
+
+    Note that the name is extracted from the path, not the dataset description JSON.
     """
     path = Path(path)
     parent = path if path.is_dir() else path.parent

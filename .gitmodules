@@ -1,3 +1,3 @@
-[submodule "examples/bids-examples"]
-	path = example/bids-examples
+[submodule "bids-examples"]
+	path = bids-examples
 	url = https://github.com/bids-standard/bids-examples.git

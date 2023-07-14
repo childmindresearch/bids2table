@@ -1,4 +1,1 @@
 elbow @ git+https://github.com/cmi-dair/elbow
-ipython
-jupyter
-nibabel

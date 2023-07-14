@@ -14,7 +14,7 @@ build
 */_version.py
 
 # Unit test / coverage reports
-.coverage
+.coverage*
 .pytest_cache
 .mypy_cache
 htmlcov
