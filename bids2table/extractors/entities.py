@@ -4,6 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, Optional, Union
 
+import pandas as pd
 from elbow.typing import StrOrPath
 from typing_extensions import get_args, get_origin
 
@@ -122,7 +123,7 @@ class BIDSEntities:
             extra_entities[k] = v
 
         for key, val in entities.items():
-            if _is_na(val):
+            if pd.isna(val):
                 continue
 
             if key in fields_map:
@@ -192,7 +193,7 @@ class BIDSEntities:
         name = "_".join(
             _fmt_ent(k, v, int_format=int_format)
             for k, v in data.items()
-            if k not in special and not _is_na(v)
+            if k not in special and not pd.isna(v)
         )
         if self.suffix:
             name += f"_{self.suffix}"
@@ -221,10 +222,6 @@ class BIDSEntities:
         if kwargs:
             data.update(kwargs)
         return BIDSEntities.from_dict(data)
-
-
-def _is_na(value: Any) -> bool:
-    return value is None or value == float("nan")
 
 
 def _get_type(alias: Any) -> type:
