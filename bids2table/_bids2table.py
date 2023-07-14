@@ -9,7 +9,7 @@ from elbow.typing import StrOrPath
 from elbow.utils import setup_logging
 
 from bids2table.extractors.bids import extract_bids_subdir
-from bids2table.helpers import flat_to_multi_columns
+from bids2table.helpers import flat_to_multi_columns, load_index
 
 setup_logging()
 
@@ -94,16 +94,4 @@ def bids2table(
         worker_id=worker_id,
     )
     df = load_index(output) if return_df else None
-    return df
-
-
-def load_index(
-    path: StrOrPath, split_columns: bool = True, sep: str = "__"
-) -> pd.DataFrame:
-    """
-    Load a bids2table index, optionally splitting columns into a multi index on `sep`.
-    """
-    df = pd.read_parquet(path)
-    if split_columns:
-        df = flat_to_multi_columns(df, sep=sep)
     return df
