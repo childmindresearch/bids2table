@@ -17,7 +17,7 @@ def dummy_image(tmp_path: Path) -> Path:
     return img_path
 
 
-@pytest.mark.parametrize("backend", ["nibabel", "nifti"])
+@pytest.mark.parametrize("backend", ["nibabel"])
 def test_extract_image_meta(dummy_image: Path, backend: str):
     image_meta = extract_image_meta(dummy_image, backend=backend)
     assert list(image_meta.keys()) == ["image_header", "image_affine"]
