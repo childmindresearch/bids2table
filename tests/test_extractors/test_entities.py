@@ -1,4 +1,5 @@
 import logging
+from dataclasses import asdict
 from pathlib import Path
 from typing import Dict, Tuple
 
@@ -65,7 +66,19 @@ def test_bids_entities_from_path(
 ):
     path, _, expected = bids_example
     entities = BIDSEntities.from_path(path)
-    for k, v in expected.__dict__.items():
+    for k, v in asdict(expected).items():
+        v2 = getattr(entities, k)
+        if v != v2:
+            logging.warning("Entity mismatch: %s, %s, %s", k, v, v2)
+    assert entities == expected
+
+
+def test_bids_entities_from_dict(
+    bids_example: Tuple[str, Dict[str, str], BIDSEntities]
+):
+    _, _, expected = bids_example
+    entities = BIDSEntities.from_dict(asdict(expected))
+    for k, v in asdict(expected).items():
         v2 = getattr(entities, k)
         if v != v2:
             logging.warning("Entity mismatch: %s, %s, %s", k, v, v2)

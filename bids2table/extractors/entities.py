@@ -108,7 +108,7 @@ class BIDSEntities:
         """
         filtered = {}
         extra_entities: Dict[str, Union[str, int, float]] = {}
-        fields_map = {f.name: f for f in fields(cls) if not f.name.startswith("_")}
+        fields_map = {f.name: f for f in fields(cls) if f.name != "extra_entities"}
 
         def add_to_extra(k: Any, v: Any):
             if not isinstance(key, str):
