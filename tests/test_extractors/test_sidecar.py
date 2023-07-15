@@ -35,16 +35,21 @@ def bids_dataset(tmp_path: Path):
     with (ds_dir / "ses-1_T1w.json").open("w") as f:
         json.dump({"B": True}, f)
 
+    # dummy inherited root sidecar
+    # applies to all sessions
+    with (ds_dir / "T1w.json").open("w") as f:
+        json.dump({"C": True}, f)
+
     # dummy non-matching root sidecar
     with (ds_dir / "ses-2_T1w.json").open("w") as f:
-        json.dump({"C": True}, f)
+        json.dump({"D": True}, f)
 
     # dummy local key-value data, not sidecar
     with (anat_dir / "sub-A01_ses-1_keyvalue.json").open("w") as f:
-        json.dump({"D": True}, f)
+        json.dump({"E": True}, f)
 
     # Inherited from first json but not second
-    expected_sidecar = {"A": True, "B": True}
+    expected_sidecar = {"A": True, "B": True, "C": True}
     return ds_dir, image_path, expected_sidecar
 
 
