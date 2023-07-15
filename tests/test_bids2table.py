@@ -31,7 +31,7 @@ def test_bids2table(tmp_path: Path, persistent: bool):
     output = tmp_path / "index.b2t"
 
     df = bids2table(root=root, persistent=persistent, output=output)
-    assert df.shape == (128, 39)
+    assert df.shape == (128, 40)
 
     # Reload from cache
     df2 = bids2table(root=root, persistent=persistent, output=output)

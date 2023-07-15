@@ -6,7 +6,7 @@ from pathlib import Path
 from elbow.record import Record
 from elbow.typing import StrOrPath
 
-from ._inheritance import find_bids_parents
+from ._inheritance import _glob, find_bids_parents
 from .entities import parse_bids_entities
 
 
@@ -33,3 +33,34 @@ def extract_sidecar(path: StrOrPath) -> Record:
     # TODO: type aliases for json, pickle, etc so we can use a dataclass here.
     rec = Record({"sidecar": metadata or None}, types={"sidecar": "json"})
     return rec
+
+
+def is_associated_sidecar(path: StrOrPath) -> bool:
+    """
+    Check if a file is a JSON sidecar associated with other data file(s).
+    """
+    path = Path(path)
+
+    # Must be JSON
+    if not path.suffix == ".json":
+        return False
+
+    entities = parse_bids_entities(path)
+
+    # Assume all JSON above the lowest level of hierarchy are associated
+    if entities.get("datatype") is None:
+        return True
+
+    # All sidecars must contain a suffix
+    suffix = entities.get("suffix")
+    if suffix is None:
+        return False
+
+    # Finally, check if there are any matches at the lowest level
+    # If not, we are a key-value file or solo sidecar like an MRIQC IQM JSON.
+    # Note this pattern always matches the file itself, so we check if there are any
+    # extra matches.
+    if len(_glob(path.parent, f"*_{suffix}.*")) > 1:
+        return True
+
+    return False

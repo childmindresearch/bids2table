@@ -63,7 +63,7 @@ def find_first_bids_parent(
     return next(find_bids_parents(query, root, depth), None)
 
 
-@lru_cache(maxsize=16)
+@lru_cache()
 def _glob(path: Path, pattern: str) -> List[Path]:
     return list(path.glob(pattern))
 

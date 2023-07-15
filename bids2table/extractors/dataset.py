@@ -17,6 +17,7 @@ def extract_dataset_meta(path: StrOrPath) -> Record:
     rec = Record(
         {
             "dataset": name,
+            "dataset_type": desc.get("DatasetType"),
             "dataset_path": str(root) if root else None,
             "dataset_description": desc,
         },

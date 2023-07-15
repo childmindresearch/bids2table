@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from bids2table.extractors.sidecar import extract_sidecar
+from bids2table.extractors.sidecar import extract_sidecar, is_associated_sidecar
 
 
 @pytest.fixture
@@ -39,6 +39,10 @@ def bids_dataset(tmp_path: Path):
     with (ds_dir / "ses-2_T1w.json").open("w") as f:
         json.dump({"C": True}, f)
 
+    # dummy local key-value data, not sidecar
+    with (anat_dir / "sub-A01_ses-1_keyvalue.json").open("w") as f:
+        json.dump({"D": True}, f)
+
     # Inherited from first json but not second
     expected_sidecar = {"A": True, "B": True}
     return ds_dir, image_path, expected_sidecar
@@ -48,6 +52,21 @@ def test_extract_sidecar(bids_dataset):
     _, image_path, expected_sidecar = bids_dataset
     rec = extract_sidecar(image_path)
     assert rec["sidecar"] == expected_sidecar
+
+
+@pytest.mark.parametrize(
+    "path,expected",
+    [
+        ("sub-A01/ses-1/anat/sub-A01_ses-1_T1w.json", True),
+        ("ses-1_T1w.json", True),
+        ("sub-A01/ses-1/anat/sub-A01_ses-1_keyvalue.json", False),
+    ],
+)
+def test_is_associated_sidecar(path, expected, bids_dataset):
+    ds_dir, _, _ = bids_dataset
+    path = ds_dir / path
+    assert path.exists()
+    assert is_associated_sidecar(path) == expected
 
 
 if __name__ == "__main__":
