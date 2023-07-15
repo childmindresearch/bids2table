@@ -47,5 +47,10 @@ def test_bids2table_empty(empty_dataset: Path):
     assert df.equals(df2)
 
 
+def test_bids2table_nonexist(tmp_path: Path):
+    with pytest.raises(FileNotFoundError):
+        bids2table(root=tmp_path / "nonexistent_dataset")
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
