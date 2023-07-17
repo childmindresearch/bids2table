@@ -34,3 +34,8 @@ htmlcov
 
 # Example generated tables
 example/tables
+
+# Benchmark data
+benchmark/**/envs
+benchmark/**/results
+slurm-*
