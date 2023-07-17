@@ -54,6 +54,9 @@ def bids2table(
         raise ValueError("persistent and return_df should not both be False")
 
     root = Path(root)
+    if not root.is_dir():
+        raise FileNotFoundError(f"root directory {root} does not exists")
+
     source = Crawler(
         root=root,
         include=["sub-*"],  # find subject dirs

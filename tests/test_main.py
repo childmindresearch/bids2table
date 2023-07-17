@@ -37,7 +37,7 @@ def test_main(tmp_path: Path):
         cli.main()
 
     df = load_index(output)
-    assert df.shape == (128, 39)
+    assert df.shape == (128, 40)
 
 
 if __name__ == "__main__":

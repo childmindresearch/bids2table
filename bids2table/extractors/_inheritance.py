@@ -29,7 +29,7 @@ def find_bids_parents(
     ext = query.get("ext")
     if not (suffix or ext):
         raise ValueError("At least one of 'suffix' or 'ext' are required in `query`.")
-    pattern = f"*_{suffix}{ext}" if suffix else f"*{ext}"
+    pattern = f"*{suffix}{ext}" if suffix else f"*{ext}"
 
     root = Path(root).absolute()
     if not root.is_dir():
@@ -63,7 +63,7 @@ def find_first_bids_parent(
     return next(find_bids_parents(query, root, depth), None)
 
 
-@lru_cache(maxsize=16)
+@lru_cache()
 def _glob(path: Path, pattern: str) -> List[Path]:
     return list(path.glob(pattern))
 

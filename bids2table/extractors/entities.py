@@ -256,7 +256,7 @@ def _fmt_ent(
     return ent
 
 
-@lru_cache(maxsize=8)
+@lru_cache()
 def parse_bids_entities(path: StrOrPath) -> Dict[str, str]:
     """
     Parse all BIDS filename ``"{key}-{value}"`` entities as well as special entities:
