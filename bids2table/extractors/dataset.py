@@ -17,10 +17,11 @@ def extract_dataset_meta(path: StrOrPath) -> Record:
     rec = Record(
         {
             "dataset": name,
-            "dataset_path": str(root) if root else None,
+            "dataset_type": desc.get("DatasetType") if desc else None,
+            "dataset_path": str(root.absolute()) if root else None,
             "dataset_description": desc,
         },
-        types={"dataset_description": "json"},
+        types={"dataset_type": str, "dataset_description": "json"},
     )
     return rec
 

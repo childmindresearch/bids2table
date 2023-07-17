@@ -31,7 +31,7 @@ def test_bids2table(tmp_path: Path, persistent: bool):
     output = tmp_path / "index.b2t"
 
     df = bids2table(root=root, persistent=persistent, output=output)
-    assert df.shape == (128, 39)
+    assert df.shape == (128, 40)
 
     # Reload from cache
     df2 = bids2table(root=root, persistent=persistent, output=output)
@@ -45,6 +45,11 @@ def test_bids2table_empty(empty_dataset: Path):
     # Reload from cache
     df2 = bids2table(root=empty_dataset)
     assert df.equals(df2)
+
+
+def test_bids2table_nonexist(tmp_path: Path):
+    with pytest.raises(FileNotFoundError):
+        bids2table(root=tmp_path / "nonexistent_dataset")
 
 
 if __name__ == "__main__":
