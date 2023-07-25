@@ -53,7 +53,7 @@ def bids2table(
     if not (return_df or persistent):
         raise ValueError("persistent and return_df should not both be False")
 
-    root = Path(root)
+    root = Path(root).expanduser().resolve()
     if not root.is_dir():
         raise FileNotFoundError(f"root directory {root} does not exists")
 
@@ -68,7 +68,7 @@ def bids2table(
     if output is None:
         output = root / "index.b2t"
     else:
-        output = Path(output)
+        output = Path(output).expanduser().resolve()
 
     stale = overwrite or incremental or worker_id is not None
     if output.exists() and not stale:
