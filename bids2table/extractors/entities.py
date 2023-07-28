@@ -102,7 +102,7 @@ class BIDSEntities:
     )
 
     @classmethod
-    def from_dict(cls, entities: Dict[str, Any]):
+    def from_dict(cls, entities: Dict[str, Any], valid_only: bool = False):
         """
         Initialize from a dict of entities.
         """
@@ -155,7 +155,7 @@ class BIDSEntities:
                 for k, v in val.items():
                     add_to_extra(k, v)
 
-            else:
+            elif not valid_only:
                 add_to_extra(key, val)
 
         return cls(**filtered, extra_entities=extra_entities)
@@ -182,7 +182,7 @@ class BIDSEntities:
         self,
         prefix: Optional[StrOrPath] = None,
         valid_only: bool = False,
-        int_format: str = "%02d",
+        int_format: str = "%d",
     ) -> Path:
         """
         Generate a filepath based on the entitities.
@@ -248,7 +248,7 @@ def _fmt_ent(
     k: str,
     v: Union[str, int],
     *,
-    int_format: str = "%02d",
+    int_format: str = "%d",
 ):
     if isinstance(v, int):
         v = int_format % v

@@ -10,12 +10,12 @@ from bids2table.extractors.entities import BIDSEntities, parse_bids_entities
 
 EXAMPLES = (
     (
-        "dataset/sub-A01/ses-B02/func/sub-A01_ses-B02_task-rest_run-01_bold.nii",
+        "dataset/sub-A01/ses-B02/func/sub-A01_ses-B02_task-rest_run-1_bold.nii",
         {
             "sub": "A01",
             "ses": "B02",
             "task": "rest",
-            "run": "01",
+            "run": "1",
             "datatype": "func",
             "suffix": "bold",
             "ext": ".nii",

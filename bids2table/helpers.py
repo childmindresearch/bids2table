@@ -20,10 +20,13 @@ def join_bids_path(
         df = pd.read_parquet("dataset.parquet")
         paths = df.apply(join_bids_path, axis=1)
     """
+    if "entities" in row:
+        row = row["entities"]
+
     if isinstance(row, pd.Series):
         row = row.to_dict()
 
-    entities = BIDSEntities.from_dict(row)
+    entities = BIDSEntities.from_dict(row, valid_only=valid_only)
     path = entities.to_path(prefix=prefix, valid_only=valid_only)
     return path
 
