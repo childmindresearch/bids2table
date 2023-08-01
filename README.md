@@ -31,11 +31,11 @@ See [here](example/example.ipynb) for a more complete example.
 
 ## Performance
 
-bids2table significantly outperformance both [PyBIDS](https://github.com/bids-standard/pybids) and [ancpBIDS](https://github.com/ANCPLabOldenburg/ancp-bids) in terms of indexing run time, index size on disk, and query run time.
+bids2table significantly outperforms both [PyBIDS](https://github.com/bids-standard/pybids) and [ancpBIDS](https://github.com/ANCPLabOldenburg/ancp-bids) in terms of indexing run time, index size on disk, and query run time.
 
 ### Indexing performance
 
-Indexing run time and index size on disk for the NKI Rockland Sample dataset. See the [indexing benchmark](benchmark/indexing) for more details.
+Indexing run time and index size on disk for the [NKI Rockland Sample](https://fcon_1000.projects.nitrc.org/indi/pro/nki.html) dataset. See the [indexing benchmark](benchmark/indexing) for more details.
 
 | Index | Num workers | Run time (s) | Index size (MB) |
 | -- | -- | -- | -- |
@@ -48,7 +48,7 @@ Indexing run time and index size on disk for the NKI Rockland Sample dataset. Se
 
 ### Query performance
 
-Query run times for the Chinese Color Nest Project dataset. See the [query benchmark](benchmark/query) for more details.
+Query run times for the [Chinese Color Nest Project](http://deepneuro.bnu.edu.cn/?p=163) dataset. See the [query benchmark](benchmark/query) for more details.
 
 | Index | Get subjects (ms) | Get BOLD (ms) | Query metadata (ms) | Get morning scans (ms) |
 | -- | -- | -- | -- | -- |
