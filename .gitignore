@@ -38,4 +38,5 @@ example/tables
 # Benchmark data
 benchmark/**/envs
 benchmark/**/results
+benchmark/**/indexes
 slurm-*
