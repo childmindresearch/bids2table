@@ -1,4 +1,5 @@
 import re
+import warnings
 from dataclasses import asdict, dataclass, field, fields
 from functools import lru_cache
 from pathlib import Path
@@ -96,18 +97,18 @@ class BIDSEntities:
     )
     suffix: Optional[str] = bids_field(name="Suffix")
     ext: Optional[str] = bids_field(name="Extension")
-    extra_entities: Optional[Dict[str, Union[str, int, float]]] = bids_field(
+    extra_entities: Optional[Dict[str, Union[str, int]]] = bids_field(
         name="Extra entities",
         default_factory=dict,
     )
 
     @classmethod
-    def from_dict(cls, entities: Dict[str, Any]):
+    def from_dict(cls, entities: Dict[str, Any], valid_only: bool = False):
         """
         Initialize from a dict of entities.
         """
         filtered = {}
-        extra_entities: Dict[str, Union[str, int, float]] = {}
+        extra_entities: Dict[str, Union[str, int]] = {}
         fields_map = {f.name: f for f in fields(cls) if f.name != "extra_entities"}
 
         def add_to_extra(k: Any, v: Any):
@@ -115,12 +116,13 @@ class BIDSEntities:
                 raise TypeError(
                     f"Extra entity {k} has type {type(k)}; only str supported"
                 )
-            if not isinstance(v, (str, int, float)):
-                raise TypeError(
+            if isinstance(v, (str, int)):
+                extra_entities[k] = v
+            else:
+                warnings.warn(
                     f"Value {v} for extra entity {k} has type {type(v)}; "
-                    f"only str, int, float supported"
+                    f"only str, int supported"
                 )
-            extra_entities[k] = v
 
         for key, val in entities.items():
             if pd.isna(val):
@@ -155,7 +157,7 @@ class BIDSEntities:
                 for k, v in val.items():
                     add_to_extra(k, v)
 
-            else:
+            elif not valid_only:
                 add_to_extra(key, val)
 
         return cls(**filtered, extra_entities=extra_entities)
@@ -182,7 +184,7 @@ class BIDSEntities:
         self,
         prefix: Optional[StrOrPath] = None,
         valid_only: bool = False,
-        int_format: str = "%02d",
+        int_format: str = "%d",
     ) -> Path:
         """
         Generate a filepath based on the entitities.
@@ -248,7 +250,7 @@ def _fmt_ent(
     k: str,
     v: Union[str, int],
     *,
-    int_format: str = "%02d",
+    int_format: str = "%d",
 ):
     if isinstance(v, int):
         v = int_format % v
