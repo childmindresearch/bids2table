@@ -8,7 +8,7 @@ from elbow.record import Record
 from elbow.typing import StrOrPath
 
 
-def extract_dataset_meta(path: StrOrPath) -> Record:
+def extract_dataset(path: StrOrPath) -> Record:
     """
     Get info about the BIDS dataset that ``path`` belongs to.
     """

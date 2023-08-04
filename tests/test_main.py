@@ -3,10 +3,10 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import List
 
+import pandas as pd
 import pytest
 
 from bids2table import __main__ as cli
-from bids2table import load_index
 
 BIDS_EXAMPLES = Path(__file__).parent.parent / "bids-examples"
 
@@ -36,7 +36,7 @@ def test_main(tmp_path: Path):
     with patch_argv(argv):
         cli.main()
 
-    df = load_index(output)
+    df = pd.read_parquet(output)
     assert df.shape == (128, 40)
 
 

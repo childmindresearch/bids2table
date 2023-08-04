@@ -7,9 +7,9 @@ from elbow.extractors import extract_file_meta
 from elbow.record import Record, concat
 from elbow.typing import StrOrPath
 
-from .dataset import extract_dataset_meta
+from .dataset import extract_dataset
 from .entities import BIDSEntities
-from .sidecar import extract_sidecar, is_associated_sidecar
+from .metadata import extract_metadata, is_associated_sidecar
 
 
 def extract_bids_file(path: StrOrPath) -> Optional[Record]:
@@ -27,18 +27,11 @@ def extract_bids_file(path: StrOrPath) -> Optional[Record]:
         )
         return None
 
-    dset_meta = extract_dataset_meta(path)
-    bids_meta = extract_sidecar(path)
-    file_meta = extract_file_meta(path)
+    dset_rec = extract_dataset(path)
+    meta_rec = extract_metadata(path)
+    file_rec = extract_file_meta(path)
 
-    rec = concat(
-        {
-            "dataset": dset_meta,
-            "entities": entities,
-            "metadata": bids_meta,
-            "file": file_meta,
-        }
-    )
+    rec = concat({"ds": dset_rec, "ent": entities, "meta": meta_rec, "file": file_rec})
     return rec
 
 
