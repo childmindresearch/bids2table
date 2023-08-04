@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from bids2table.extractors.dataset import extract_dataset_meta
+from bids2table.extractors.dataset import extract_dataset
 
 
 @pytest.fixture
@@ -22,8 +22,8 @@ def bids_dataset(tmp_path: Path) -> Path:
     return ds_dir
 
 
-def test_extract_dataset_meta(bids_dataset: Path):
-    dataset_meta = extract_dataset_meta(bids_dataset)
+def test_extract_dataset(bids_dataset: Path):
+    dataset_meta = extract_dataset(bids_dataset)
     assert dataset_meta["dataset"] == "dummy_dataset"
     assert dataset_meta["dataset_path"] == str(bids_dataset)
     assert dataset_meta["dataset_description"]["Name"] == "Dummy dataset"

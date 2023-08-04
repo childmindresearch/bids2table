@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from bids2table.extractors.sidecar import extract_sidecar, is_associated_sidecar
+from bids2table.extractors.metadata import extract_metadata, is_associated_sidecar
 
 
 @pytest.fixture
@@ -49,14 +49,14 @@ def bids_dataset(tmp_path: Path):
         json.dump({"E": True}, f)
 
     # Inherited from first json but not second
-    expected_sidecar = {"A": True, "B": True, "C": True}
-    return ds_dir, image_path, expected_sidecar
+    expected_json = {"A": True, "B": True, "C": True}
+    return ds_dir, image_path, expected_json
 
 
-def test_extract_sidecar(bids_dataset):
-    _, image_path, expected_sidecar = bids_dataset
-    rec = extract_sidecar(image_path)
-    assert rec["sidecar"] == expected_sidecar
+def test_extract_metadata(bids_dataset):
+    _, image_path, expected_json = bids_dataset
+    rec = extract_metadata(image_path)
+    assert rec["json"] == expected_json
 
 
 @pytest.mark.parametrize(

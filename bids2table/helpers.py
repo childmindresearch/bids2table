@@ -2,7 +2,6 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
 import pandas as pd
-from elbow.typing import StrOrPath
 
 from bids2table.extractors.entities import BIDSEntities
 
@@ -69,16 +68,4 @@ def multi_to_flat_columns(df: pd.DataFrame, sep: str = "__") -> pd.DataFrame:
 
     df = df.copy(deep=False)
     df.columns = pd.Index(join_columns)
-    return df
-
-
-def load_index(
-    path: StrOrPath, split_columns: bool = True, sep: str = "__"
-) -> pd.DataFrame:
-    """
-    Load a bids2table index, optionally splitting columns into a multi index on `sep`.
-    """
-    df = pd.read_parquet(path)
-    if split_columns:
-        df = flat_to_multi_columns(df, sep=sep)
     return df

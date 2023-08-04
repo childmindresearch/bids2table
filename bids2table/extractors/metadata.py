@@ -10,17 +10,16 @@ from ._inheritance import _glob, find_bids_parents
 from .entities import parse_bids_entities
 
 
-def extract_sidecar(path: StrOrPath) -> Record:
+def extract_metadata(path: StrOrPath) -> Record:
     """
     Load the JSON sidecar metadata associated with ``path``. Supports metadata
     inheritance by searching up the directory tree for matching JSON files.
     """
     entities = parse_bids_entities(path)
     query = dict(entities, ext=".json")
-    root = Path(path).parent
 
     metadata = {}
-    sidecars = reversed(list(find_bids_parents(query, root=root)))
+    sidecars = reversed(list(find_bids_parents(query, start=Path(path).parent)))
     for path in sidecars:
         with open(path) as f:
             try:
@@ -31,7 +30,7 @@ def extract_sidecar(path: StrOrPath) -> Record:
                 )
 
     # TODO: type aliases for json, pickle, etc so we can use a dataclass here.
-    rec = Record({"sidecar": metadata or None}, types={"sidecar": "json"})
+    rec = Record({"json": metadata or None}, types={"json": "json"})
     return rec
 
 

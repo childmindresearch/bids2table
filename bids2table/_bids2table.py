@@ -9,7 +9,6 @@ from elbow.typing import StrOrPath
 from elbow.utils import setup_logging
 
 from bids2table.extractors.bids import extract_bids_subdir
-from bids2table.helpers import flat_to_multi_columns, load_index
 
 setup_logging()
 
@@ -74,7 +73,7 @@ def bids2table(
     if output.exists() and not stale:
         if return_df:
             logging.info("Loading cached index %s", output)
-            df = load_index(output)
+            df = pd.read_parquet(output)
         else:
             logging.info("Found cached index %s; nothing to do", output)
             df = None
@@ -83,7 +82,6 @@ def bids2table(
     if not persistent:
         logging.info("Building index in memory")
         df = build_table(source=source, extract=extract_bids_subdir)
-        df = flat_to_multi_columns(df)
         return df
 
     logging.info("Building persistent Parquet index")
@@ -95,6 +93,8 @@ def bids2table(
         overwrite=overwrite,
         workers=workers,
         worker_id=worker_id,
+        path_column="file__file_path",
+        mtime_column="file__mod_time",
     )
-    df = load_index(output) if return_df else None
+    df = pd.read_parquet(output) if return_df else None
     return df
