@@ -7,8 +7,9 @@ from elbow.extractors import extract_file_meta
 from elbow.record import Record, concat
 from elbow.typing import StrOrPath
 
+from bids2table.entities import BIDSEntities
+
 from .dataset import extract_dataset
-from .entities import BIDSEntities
 from .metadata import extract_metadata, is_associated_sidecar
 
 

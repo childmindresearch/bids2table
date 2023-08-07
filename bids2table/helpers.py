@@ -3,7 +3,7 @@ from typing import Any, Dict, Optional, Union
 
 import pandas as pd
 
-from bids2table.extractors.entities import BIDSEntities
+from bids2table.entities import BIDSEntities
 
 
 def join_bids_path(

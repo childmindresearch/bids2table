@@ -4,8 +4,9 @@ from typing import Dict, Generator, List, Optional
 
 from elbow.typing import StrOrPath
 
+from bids2table.entities import parse_bids_entities
+
 from .dataset import is_dataset_root
-from .entities import parse_bids_entities
 
 
 def find_bids_parents(
