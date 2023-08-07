@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any, Dict
 
 import pytest
 
@@ -8,8 +9,12 @@ from bids2table.table import BIDSTable
 BIDS_EXAMPLES = Path(__file__).parent.parent / "bids-examples"
 
 
-def test_table():
-    tab = bids2table(BIDS_EXAMPLES / "ds001")
+@pytest.fixture(scope="module")
+def tab() -> BIDSTable:
+    return bids2table(BIDS_EXAMPLES / "ds001")
+
+
+def test_table(tab: BIDSTable):
     assert tab.shape == (128, 40)
 
     groups = tab.nested.columns.unique(0).tolist()
@@ -23,6 +28,26 @@ def test_table():
 
     subtab: BIDSTable = tab.iloc[:10]
     assert subtab.dataset.shape == (10, 4)
+
+
+@pytest.mark.parametrize(
+    "key,filter,expected_count",
+    [
+        ("sub", {"value": "04"}, 8),
+        ("subject", {"value": "04"}, 8),
+        ("RepetitionTime", {"value": 2.0}, 48),
+        ("subject", {"value": "04"}, 8),
+        ("sub", {"items": ["04", "06"]}, 16),
+        ("sub", {"like": "4"}, 16),
+        ("sub", {"regex": "0[456]"}, 24),
+    ],
+)
+def test_table_filter(
+    tab: BIDSTable, key: str, filter: Dict[str, Any], expected_count: int
+):
+    subtab = tab.filter(key, **filter)
+    assert isinstance(subtab, BIDSTable)
+    assert len(subtab) == expected_count
 
 
 if __name__ == "__main__":

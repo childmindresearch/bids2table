@@ -1,8 +1,10 @@
 from functools import cached_property
 from pathlib import Path
+from typing import Any, Iterable, Optional
 
 import pandas as pd
 
+from bids2table.entities import ENTITY_NAMES_TO_KEYS
 from bids2table.helpers import flat_to_multi_columns
 
 
@@ -61,6 +63,60 @@ class BIDSTable(pd.DataFrame):
         A table of flattened JSON metadata.
         """
         return pd.json_normalize(self["meta__json"])
+
+    def filter(
+        self,
+        key: str,
+        value: Optional[Any] = None,
+        *,
+        items: Optional[Iterable[Any]] = None,
+        like: Optional[str] = None,
+        regex: Optional[str] = None,
+    ) -> "BIDSTable":
+        """
+        Filter the rows of the table.
+
+        Args:
+            key: Column to filter. Can be a BIDS entity short or long name or metadata
+                field that's present in the dataset.
+            value: Keep rows with this exact value.
+            items: Keep rows whose value is in `items`.
+            like: Keep rows whose value contains `like` (string only).
+            regex: Keep rows whose value matches `regex` (string only).
+        """
+        if sum(k is not None for k in [value, items, like, regex]) != 1:
+            raise ValueError(
+                "Exactly one of value, items, like, or regex must not be None"
+            )
+
+        try:
+            # JSON metadata field
+            # NOTE: Assuming all JSON metadata fields are uppercase. Is this good
+            # enough? I believe metadata fields are supposed to be CamelCase, whereas
+            # entities are lowercase.
+            if key[:1].isupper():
+                col = self.flat_metadata[key]
+            # Long name entity
+            elif key in ENTITY_NAMES_TO_KEYS:
+                col = self.entities[ENTITY_NAMES_TO_KEYS[key]]
+            # Short key entity
+            else:
+                col = self.entities[key]
+        except KeyError as exc:
+            raise KeyError(
+                f"Invalid key {key}; expected a valid BIDS entity or metadata field "
+                "present in the dataset"
+            ) from exc
+
+        if value is not None:
+            mask = col == value
+        elif items is not None:
+            mask = col.isin(items)
+        elif like is not None:
+            mask = col.str.contains(like)
+        else:
+            mask = col.str.match(regex)
+        return self.loc[mask]
 
     @classmethod
     def from_parquet(cls, path: Path):
