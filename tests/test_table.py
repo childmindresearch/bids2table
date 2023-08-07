@@ -20,14 +20,19 @@ def test_table(tab: BIDSTable):
     groups = tab.nested.columns.unique(0).tolist()
     assert groups == ["ds", "ent", "meta", "finfo"]
 
-    assert tab.dataset.shape == (128, 4)
-    assert tab.entities.shape == (128, 32)
-    assert tab.metadata.shape == (128, 1)
+    assert tab.ds.shape == (128, 4)
+    assert tab.ent.shape == (128, 32)
+    assert tab.meta.shape == (128, 1)
     assert tab.flat_metadata.shape == (128, 2)
     assert tab.finfo.shape == (128, 3)
 
     subtab: BIDSTable = tab.iloc[:10]
-    assert subtab.dataset.shape == (10, 4)
+    assert subtab.ds.shape == (10, 4)
+
+    assert len(tab.datatypes) == 2
+    assert len(tab.modalities) == 1
+    assert len(tab.subjects) == 16
+    assert len(tab.entities) == 3
 
 
 def test_table_files(tab: BIDSTable):

@@ -4,7 +4,7 @@ from dataclasses import asdict, dataclass, field, fields
 from functools import lru_cache
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Callable, Dict, Iterable, Optional, Union
+from typing import Any, Callable, Dict, Iterable, List, Optional, Union
 
 import pandas as pd
 from elbow.typing import StrOrPath
@@ -124,6 +124,13 @@ class BIDSEntities:
         display_name="Extra entities",
         default_factory=dict,
     )
+
+    @staticmethod
+    def special() -> List[str]:
+        """
+        Get list of field keys which are not standard entities.
+        """
+        return ["datatype", "suffix", "ext", "extra_entities"]
 
     @classmethod
     def from_dict(cls, entities: Dict[str, Any], valid_only: bool = False):

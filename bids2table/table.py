@@ -44,21 +44,21 @@ class BIDSTable(pd.DataFrame):
         return self.nested.droplevel(0, axis=1)
 
     @cached_property
-    def dataset(self) -> pd.DataFrame:
+    def ds(self) -> pd.DataFrame:
         """
         The dataset info subtable.
         """
         return self.nested["ds"]
 
     @cached_property
-    def entities(self) -> pd.DataFrame:
+    def ent(self) -> pd.DataFrame:
         """
         The entities subtable.
         """
         return self.nested["ent"]
 
     @cached_property
-    def metadata(self) -> pd.DataFrame:
+    def meta(self) -> pd.DataFrame:
         """
         The metadata subtable
         """
@@ -102,6 +102,37 @@ class BIDSTable(pd.DataFrame):
             for _, row in self.nested.iterrows()
         ]
 
+    @cached_property
+    def datatypes(self) -> List[str]:
+        """
+        Get all datatypes present in the table.
+        """
+        return self.ent["datatype"].unique().tolist()
+
+    @cached_property
+    def modalities(self) -> List[str]:
+        """
+        Get all modalities present in the table.
+        """
+        # TODO: Is this the right way to get the modality
+        return self.ent["mod"].unique().tolist()
+
+    @cached_property
+    def subjects(self) -> List[str]:
+        """
+        Get all unique subjects in the table
+        """
+        return self.ent["sub"].unique().tolist()
+
+    @cached_property
+    def entities(self) -> List[str]:
+        """
+        Get all entity keys with at least one non-NA entry in the table.
+        """
+        entities = self.ent.dropna(axis=1, how="all").columns.tolist()
+        special = set(BIDSEntities.special())
+        return [key for key in entities if key not in special]
+
     def filter(
         self,
         key: str,
@@ -138,10 +169,10 @@ class BIDSTable(pd.DataFrame):
                 col = self.flat_metadata[key]
             # Long name entity
             elif key in ENTITY_NAMES_TO_KEYS:
-                col = self.entities[ENTITY_NAMES_TO_KEYS[key]]
+                col = self.ent[ENTITY_NAMES_TO_KEYS[key]]
             # Short key entity
             else:
-                col = self.entities[key]
+                col = self.ent[key]
         except KeyError as exc:
             raise KeyError(
                 f"Invalid key {key}; expected a valid BIDS entity or metadata field "
