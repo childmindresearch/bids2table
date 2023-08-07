@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List, Union
 
 import pytest
 
@@ -63,6 +63,16 @@ def test_table_filter(
     subtab = tab.filter(key, **filter)
     assert isinstance(subtab, BIDSTable)
     assert len(subtab) == expected_count
+
+
+@pytest.mark.parametrize("inplace", [True, False])
+@pytest.mark.parametrize("by", ["sub", ["subject"], ["dataset", "sub"]])
+def test_table_sort_entities(tab: BIDSTable, by: Union[str, List[str]], inplace: bool):
+    tab = tab.copy()
+    sort_tab = tab.sort_entities(by, inplace=inplace)
+    assert isinstance(sort_tab, BIDSTable)
+    assert len(sort_tab) == len(tab)
+    assert sort_tab.subjects == sorted(tab.subjects)
 
 
 if __name__ == "__main__":

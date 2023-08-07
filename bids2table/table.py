@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from functools import cached_property
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Union
 
 import pandas as pd
 
@@ -190,6 +190,35 @@ class BIDSTable(pd.DataFrame):
         mask = mask.fillna(False)
 
         return self.loc[mask]
+
+    def sort_entities(
+        self, by: Union[str, List[str]], inplace: bool = False
+    ) -> "BIDSTable":
+        """
+        Sort the values of the table by entities.
+
+        Args:
+            by: label or list of labels. Can be `"dataset"` or a short or long entity
+                name.
+            inplace: sort the table in place
+        """
+        if isinstance(by, str):
+            by = [by]
+
+        def add_prefix(k: str):
+            if k == "dataset":
+                k = f"ds__{k}"
+            elif k in ENTITY_NAMES_TO_KEYS:
+                k = f"ent__{ENTITY_NAMES_TO_KEYS[k]}"
+            else:
+                k = f"ent__{k}"
+            return k
+
+        by = [add_prefix(k) for k in by]
+        out = self.sort_values(by, inplace=inplace)
+        if inplace:
+            return self
+        return out
 
     @classmethod
     def from_parquet(cls, path: Path):
