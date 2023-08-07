@@ -18,16 +18,26 @@ def test_table(tab: BIDSTable):
     assert tab.shape == (128, 40)
 
     groups = tab.nested.columns.unique(0).tolist()
-    assert groups == ["ds", "ent", "meta", "file"]
+    assert groups == ["ds", "ent", "meta", "finfo"]
 
     assert tab.dataset.shape == (128, 4)
     assert tab.entities.shape == (128, 32)
     assert tab.metadata.shape == (128, 1)
     assert tab.flat_metadata.shape == (128, 2)
-    assert tab.file.shape == (128, 3)
+    assert tab.finfo.shape == (128, 3)
 
     subtab: BIDSTable = tab.iloc[:10]
     assert subtab.dataset.shape == (10, 4)
+
+
+def test_table_files(tab: BIDSTable):
+    files = tab.files
+    assert len(files) == 128
+
+    file = files[0]
+    assert file.path.exists()
+    assert (file.root / file.relative_path).exists()
+    assert file.metadata == {}
 
 
 @pytest.mark.parametrize(

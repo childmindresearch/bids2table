@@ -1,11 +1,25 @@
+from dataclasses import dataclass, field
 from functools import cached_property
 from pathlib import Path
-from typing import Any, Iterable, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 import pandas as pd
 
-from bids2table.entities import ENTITY_NAMES_TO_KEYS
+from bids2table.entities import ENTITY_NAMES_TO_KEYS, BIDSEntities
 from bids2table.helpers import flat_to_multi_columns
+
+
+@dataclass
+class BIDSFile:
+    dataset: str
+    root: Path
+    path: Path
+    entities: BIDSEntities
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def relative_path(self) -> Path:
+        return self.path.relative_to(self.root)
 
 
 class BIDSTable(pd.DataFrame):
@@ -51,11 +65,11 @@ class BIDSTable(pd.DataFrame):
         return self.nested["meta"]
 
     @cached_property
-    def file(self) -> pd.DataFrame:
+    def finfo(self) -> pd.DataFrame:
         """
         The file info subtable
         """
-        return self.nested["file"]
+        return self.nested["finfo"]
 
     @cached_property
     def flat_metadata(self) -> pd.DataFrame:
@@ -63,6 +77,28 @@ class BIDSTable(pd.DataFrame):
         A table of flattened JSON metadata.
         """
         return pd.json_normalize(self["meta__json"])
+
+    @cached_property
+    def files(self) -> List[BIDSFile]:
+        """
+        Get a list of `BIDSFile`s contained in the table.
+        """
+
+        def to_dict(val):
+            if pd.isna(val):
+                return {}
+            return dict(val)
+
+        return [
+            BIDSFile(
+                dataset=row["ds"]["dataset"],
+                root=Path(row["ds"]["dataset_path"]),
+                path=Path(row["finfo"]["file_path"]),
+                entities=BIDSEntities.from_dict(row["ent"]),
+                metadata=to_dict(row["meta"]["json"]),
+            )
+            for _, row in self.nested.iterrows()
+        ]
 
     def filter(
         self,
