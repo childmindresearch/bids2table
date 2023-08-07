@@ -309,3 +309,22 @@ def parse_bids_entities(path: StrOrPath) -> Dict[str, str]:
         if v is not None:
             entities[k] = v
     return entities
+
+
+def join_bids_path(
+    entities: Union[BIDSEntities, pd.Series, Dict[str, Any]],
+    prefix: Optional[Union[str, Path]] = None,
+    valid_only: bool = True,
+) -> Path:
+    """
+    Reconstruct a BIDS path from a table row/record or entities dict.
+
+    Example::
+
+        df = pd.read_parquet("dataset.parquet")
+        paths = df.apply(join_bids_path, axis=1)
+    """
+    if isinstance(entities, (dict, pd.Series)):
+        entities = BIDSEntities.from_dict(entities, valid_only=valid_only)
+    path = entities.to_path(prefix=prefix, valid_only=valid_only)
+    return path

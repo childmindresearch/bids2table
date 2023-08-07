@@ -1,12 +1,13 @@
 import logging
 from dataclasses import asdict
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Any, Dict, Optional, Tuple, Union
 
+import pandas as pd
 import pytest
 from pytest import FixtureRequest
 
-from bids2table.entities import BIDSEntities, parse_bids_entities
+from bids2table.entities import BIDSEntities, join_bids_path, parse_bids_entities
 
 EXAMPLES = (
     (
@@ -99,6 +100,73 @@ def test_bids_entities_with_update(
     entities = BIDSEntities.from_path(path)
     entities = entities.with_update(sub="A02")
     assert entities.sub == "A02"
+
+
+@pytest.mark.parametrize(
+    "entities,prefix,valid_only,expected",
+    [
+        (
+            {"sub": "A01", "ses": "b", "run": 2, "suffix": "bold", "ext": ".json"},
+            None,
+            False,
+            "sub-A01/ses-b/sub-A01_ses-b_run-2_bold.json",
+        ),
+        (
+            {"sub": "A01", "ses": "b", "run": 2, "suffix": "bold", "ext": ".json"},
+            "dataset",
+            False,
+            "dataset/sub-A01/ses-b/sub-A01_ses-b_run-2_bold.json",
+        ),
+        (
+            {
+                "sub": "A01",
+                "ses": "b",
+                "run": 2,
+                "extraKey": 1,
+                "suffix": "bold",
+                "ext": ".json",
+            },
+            None,
+            False,
+            "sub-A01/ses-b/sub-A01_ses-b_run-2_extraKey-1_bold.json",
+        ),
+        (
+            {
+                "sub": "A01",
+                "ses": "b",
+                "run": 2,
+                "extraKey": 1,
+                "suffix": "bold",
+                "ext": ".json",
+            },
+            None,
+            True,
+            "sub-A01/ses-b/sub-A01_ses-b_run-2_bold.json",
+        ),
+        (
+            pd.Series(
+                {
+                    "sub": "A01",
+                    "ses": "b",
+                    "run": 2,
+                    "suffix": "bold",
+                    "ext": ".json",
+                }
+            ),
+            None,
+            False,
+            "sub-A01/ses-b/sub-A01_ses-b_run-2_bold.json",
+        ),
+    ],
+)
+def test_join_bids_path(
+    entities: Union[Dict[str, Any], pd.Series],
+    prefix: Optional[str],
+    valid_only: bool,
+    expected: str,
+):
+    path = join_bids_path(entities, prefix=prefix, valid_only=valid_only)
+    assert str(path) == expected
 
 
 if __name__ == "__main__":
