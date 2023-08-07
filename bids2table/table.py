@@ -76,7 +76,9 @@ class BIDSTable(pd.DataFrame):
         """
         A table of flattened JSON metadata.
         """
-        return pd.json_normalize(self["meta__json"])
+        metadata = pd.json_normalize(self["meta__json"])
+        metadata.index = self.index
+        return metadata
 
     @cached_property
     def files(self) -> List[BIDSFile]:
@@ -113,8 +115,8 @@ class BIDSTable(pd.DataFrame):
         Filter the rows of the table.
 
         Args:
-            key: Column to filter. Can be a BIDS entity short or long name or metadata
-                field that's present in the dataset.
+            key: Column to filter. Can be `"dataset"`, a BIDS entity short or long name,
+                or metadata field that's present in the table.
             value: Keep rows with this exact value.
             items: Keep rows whose value is in `items`.
             like: Keep rows whose value contains `like` (string only).
@@ -126,11 +128,13 @@ class BIDSTable(pd.DataFrame):
             )
 
         try:
+            if key == "dataset":
+                col = self["ds__dataset"]
             # JSON metadata field
             # NOTE: Assuming all JSON metadata fields are uppercase. Is this good
             # enough? I believe metadata fields are supposed to be CamelCase, whereas
             # entities are lowercase.
-            if key[:1].isupper():
+            elif key[:1].isupper():
                 col = self.flat_metadata[key]
             # Long name entity
             elif key in ENTITY_NAMES_TO_KEYS:
@@ -152,6 +156,8 @@ class BIDSTable(pd.DataFrame):
             mask = col.str.contains(like)
         else:
             mask = col.str.match(regex)
+        mask = mask.fillna(False)
+
         return self.loc[mask]
 
     @classmethod
