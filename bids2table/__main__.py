@@ -62,7 +62,7 @@ def main():
         overwrite=args.overwrite,
         workers=args.workers,
         worker_id=args.worker_id,
-        return_df=False,
+        return_table=False,
     )
 
 

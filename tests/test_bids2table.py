@@ -30,21 +30,21 @@ def test_bids2table(tmp_path: Path, persistent: bool):
     root = BIDS_EXAMPLES / "ds001"
     output = tmp_path / "index.b2t"
 
-    df = bids2table(root=root, persistent=persistent, output=output)
-    assert df.shape == (128, 40)
+    tab = bids2table(root=root, persistent=persistent, output=output)
+    assert tab.shape == (128, 40)
 
     # Reload from cache
-    df2 = bids2table(root=root, persistent=persistent, output=output)
-    assert df.equals(df2)
+    tab2 = bids2table(root=root, persistent=persistent, output=output)
+    assert tab.equals(tab2)
 
 
 def test_bids2table_empty(empty_dataset: Path):
-    df = bids2table(root=empty_dataset, persistent=True)
-    assert df.shape == (0, 0)
+    tab = bids2table(root=empty_dataset, persistent=True)
+    assert tab.shape == (0, 0)
 
     # Reload from cache
-    df2 = bids2table(root=empty_dataset)
-    assert df.equals(df2)
+    tab2 = bids2table(root=empty_dataset)
+    assert tab.equals(tab2)
 
 
 def test_bids2table_nonexist(tmp_path: Path):

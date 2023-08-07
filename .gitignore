@@ -23,8 +23,9 @@ htmlcov
 .vscode/
 .env
 
-# Local scratch
+# Local data and scratch
 .scratch
+example/bids-examples.b2t
 
 # Local environment
 .venv

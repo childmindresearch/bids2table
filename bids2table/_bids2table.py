@@ -2,13 +2,13 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-import pandas as pd
 from elbow.builders import build_parquet, build_table
 from elbow.sources.filesystem import Crawler
 from elbow.typing import StrOrPath
 from elbow.utils import setup_logging
 
 from bids2table.extractors.bids import extract_bids_subdir
+from bids2table.table import BIDSTable
 
 setup_logging()
 
@@ -22,8 +22,8 @@ def bids2table(
     overwrite: bool = False,
     workers: Optional[int] = None,
     worker_id: Optional[int] = None,
-    return_df: bool = True,
-) -> Optional[pd.DataFrame]:
+    return_table: bool = True,
+) -> Optional[BIDSTable]:
     """
     Index a BIDS dataset directory and load as a pandas DataFrame.
 
@@ -40,7 +40,8 @@ def bids2table(
         worker_id: optional worker ID to use when scheduling parallel tasks externally.
             Specifying the number of workers is required in this case. Incompatible with
             overwrite.
-        return_df: whether to return the dataframe or just build the persistent index.
+        return_table: whether to return the BIDS table or just build the persistent
+            index.
 
     Returns:
         A DataFrame containing the BIDS Index.
@@ -49,8 +50,8 @@ def bids2table(
         raise ValueError(
             "worker_id is only supported when generating a persistent index"
         )
-    if not (return_df or persistent):
-        raise ValueError("persistent and return_df should not both be False")
+    if not (return_table or persistent):
+        raise ValueError("persistent and return_table should not both be False")
 
     root = Path(root).expanduser().resolve()
     if not root.is_dir():
@@ -71,18 +72,19 @@ def bids2table(
 
     stale = overwrite or incremental or worker_id is not None
     if output.exists() and not stale:
-        if return_df:
+        if return_table:
             logging.info("Loading cached index %s", output)
-            df = pd.read_parquet(output)
+            tab = BIDSTable.from_parquet(output)
         else:
             logging.info("Found cached index %s; nothing to do", output)
-            df = None
-        return df
+            tab = None
+        return tab
 
     if not persistent:
         logging.info("Building index in memory")
         df = build_table(source=source, extract=extract_bids_subdir)
-        return df
+        tab = BIDSTable(df)
+        return tab
 
     logging.info("Building persistent Parquet index")
     build_parquet(
@@ -96,5 +98,5 @@ def bids2table(
         path_column="file__file_path",
         mtime_column="file__mod_time",
     )
-    df = pd.read_parquet(output) if return_df else None
-    return df
+    tab = BIDSTable.from_parquet(output) if return_table else None
+    return tab
