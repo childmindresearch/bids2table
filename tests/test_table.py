@@ -23,7 +23,7 @@ def test_table(tab: BIDSTable):
     assert tab.ds.shape == (128, 4)
     assert tab.ent.shape == (128, 32)
     assert tab.meta.shape == (128, 1)
-    assert tab.flat_metadata.shape == (128, 2)
+    assert tab.flat_meta.shape == (128, 2)
     assert tab.finfo.shape == (128, 3)
 
     subtab: BIDSTable = tab.iloc[:10]
@@ -53,7 +53,7 @@ def test_table_files(tab: BIDSTable):
         ("RepetitionTime", {"value": 2.0}, 48),
         ("subject", {"value": "04"}, 8),
         ("sub", {"items": ["04", "06"]}, 16),
-        ("sub", {"like": "4"}, 16),
+        ("sub", {"contains": "4"}, 16),
         ("sub", {"regex": "0[456]"}, 24),
     ],
 )
@@ -61,6 +61,27 @@ def test_table_filter(
     tab: BIDSTable, key: str, filter: Dict[str, Any], expected_count: int
 ):
     subtab = tab.filter(key, **filter)
+    assert isinstance(subtab, BIDSTable)
+    assert len(subtab) == expected_count
+
+
+@pytest.mark.parametrize(
+    "filters,expected_count",
+    [
+        (
+            {
+                "dataset": "ds001",
+                "sub": {"items": ["04", "06"]},
+                "RepetitionTime": {"value": 2.0},
+            },
+            6,
+        )
+    ],
+)
+def test_table_filter_multi(
+    tab: BIDSTable, filters: Dict[str, Any], expected_count: int
+):
+    subtab = tab.filter_multi(**filters)
     assert isinstance(subtab, BIDSTable)
     assert len(subtab) == expected_count
 
