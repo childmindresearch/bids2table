@@ -6,7 +6,6 @@ from typing import Any, Dict, Iterable, List, Optional, Union
 import pandas as pd
 
 from bids2table.entities import ENTITY_NAMES_TO_KEYS, BIDSEntities
-from bids2table.helpers import flat_to_multi_columns
 
 
 class BIDSTable(pd.DataFrame):
@@ -16,12 +15,13 @@ class BIDSTable(pd.DataFrame):
     Each row in the table corresponds to a BIDS data file. The table is organized with
     several groups of columns:
 
-    - **dataset** (`ds__*`): dataset name, relative dataset path, and the JSON dataset description
-    - **entities** (`ent__*`): All [valid BIDS entities](https://bids-specification.readthedocs.io/en/stable/appendices/entities.html) plus an `extra_entities` dict containing any extra entities
-    - **metadata** (`meta__*`): BIDS JSON metadata
-    - **file info** (`finfo__*`): General file info including the full file path and last modified time
+    - **dataset** (`ds`): dataset name, relative dataset path, and the JSON dataset description
+    - **entities** (`ent`): All [valid BIDS entities](https://bids-specification.readthedocs.io/en/stable/appendices/entities.html) plus an `extra_entities` dict containing any extra entities
+    - **metadata** (`meta`): BIDS JSON metadata
+    - **file info** (`finfo`): General file info including the full file path and last modified time
 
-    It's recommended to create a `BIDSTable` using one of the constructor methods
+    It's recommended to create a `BIDSTable` using the main `bids2table.bids2table`
+    function or use one of the constructor methods:
 
     - `BIDSTable.from_df`
     - `BIDSTable.from_parquet`
@@ -314,3 +314,44 @@ class BIDSFile:
         The file path relative to the dataset root.
         """
         return self.path.relative_to(self.root)
+
+
+def flat_to_multi_columns(df: pd.DataFrame, sep: str = "__") -> pd.DataFrame:
+    """
+    Convert a flat column index to a MultiIndex by splitting on `sep`.
+    """
+    # Do nothing if already a MultiIndex
+    if isinstance(df.columns, pd.MultiIndex):
+        return df
+
+    # Do nothing for empty df
+    # TODO: It would probably be better if the header was initialized even if there are
+    # no records.
+    if len(df.columns) == 0:
+        return df
+
+    split_columns = [col.split(sep) for col in df.columns]
+    num_levels = max(map(len, split_columns))
+
+    def _pad_col(col):
+        return tuple((num_levels - len(col)) * [None] + col)
+
+    df = df.copy(deep=False)
+    df.columns = pd.MultiIndex.from_tuples(map(_pad_col, split_columns))
+    return df
+
+
+def multi_to_flat_columns(df: pd.DataFrame, sep: str = "__") -> pd.DataFrame:
+    """
+    Convert a column MultiIndex to a flat index by joining on `sep`.
+    """
+    # Do nothing if already flat
+    if not isinstance(df.columns, pd.MultiIndex):
+        return df
+
+    columns = df.columns.to_flat_index()
+    join_columns = [sep.join(col) for col in columns]
+
+    df = df.copy(deep=False)
+    df.columns = pd.Index(join_columns)
+    return df

@@ -1,3 +1,7 @@
+"""
+A structured representation for BIDS entities.
+"""
+
 import re
 import warnings
 from dataclasses import asdict, dataclass, field, fields

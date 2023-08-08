@@ -44,7 +44,8 @@ def bids2table(
             index.
 
     Returns:
-        A DataFrame containing the BIDS Index.
+        A `BIDSTable` representing the indexed dataset(s), or `None` if `return_table`
+        is `False`.
     """
     if worker_id is not None and not persistent:
         raise ValueError(
