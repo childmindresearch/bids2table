@@ -416,7 +416,14 @@ def _filter_row(
     """
     prefix = f"{group}{sep}"
     return {
-        k.removeprefix(prefix): v
+        _removeprefix(k, prefix): v
         for k, v in row.items()
         if k.startswith(prefix) or sep not in k
     }
+
+
+def _removeprefix(s: str, prefix: str) -> str:
+    # same as str.removeprefix(), which was introduced in 3.9
+    if s.startswith(prefix):
+        s = s[len(prefix) :]
+    return s
