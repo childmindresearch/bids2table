@@ -8,7 +8,7 @@ from elbow.typing import StrOrPath
 
 from bids2table.entities import parse_bids_entities
 
-from ._inheritance import _glob, find_bids_parents
+from .inheritance import _glob, find_bids_parents
 
 
 def extract_metadata(path: StrOrPath) -> Record:
