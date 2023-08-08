@@ -99,7 +99,10 @@ class BIDSTable(pd.DataFrame):
         - [`pd.json_normalize`](https://pandas.pydata.org/docs/reference/api/pandas.json_normalize.html):
         more general function in pandas.
         """
-        metadata = pd.json_normalize(self["meta__json"])
+        # Need to replace None with empty dict for max_level=0 to work.
+        metadata = pd.json_normalize(
+            self["meta__json"].map(lambda v: v or {}), max_level=0
+        )
         metadata.index = self.index
         return metadata
 
