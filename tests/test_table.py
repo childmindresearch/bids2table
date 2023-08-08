@@ -1,11 +1,16 @@
 from pathlib import Path
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Union
 
 import pandas as pd
 import pytest
 
 from bids2table import bids2table
-from bids2table.table import BIDSTable, flat_to_multi_columns, multi_to_flat_columns
+from bids2table.table import (
+    BIDSTable,
+    flat_to_multi_columns,
+    join_bids_path,
+    multi_to_flat_columns,
+)
 
 BIDS_EXAMPLES = Path(__file__).parent.parent / "bids-examples"
 
@@ -56,6 +61,7 @@ def test_table_files(tab: BIDSTable):
         ("sub", {"items": ["04", "06"]}, 16),
         ("sub", {"contains": "4"}, 16),
         ("sub", {"regex": "0[456]"}, 24),
+        ("RepetitionTime", {"func": lambda v: v <= 2.0}, 48),
     ],
 )
 def test_table_filter(
@@ -114,6 +120,87 @@ def test_flat_to_multi_columns(sep: str):
 
     df_flat = multi_to_flat_columns(df_multi, sep=sep)
     assert df_flat.equals(df)
+
+
+@pytest.mark.parametrize(
+    "entities,prefix,valid_only,expected",
+    [
+        (
+            {"sub": "A01", "ses": "b", "run": 2, "suffix": "bold", "ext": ".json"},
+            None,
+            False,
+            "sub-A01/ses-b/sub-A01_ses-b_run-2_bold.json",
+        ),
+        (
+            {"sub": "A01", "ses": "b", "run": 2, "suffix": "bold", "ext": ".json"},
+            "dataset",
+            False,
+            "dataset/sub-A01/ses-b/sub-A01_ses-b_run-2_bold.json",
+        ),
+        (
+            {
+                "sub": "A01",
+                "ses": "b",
+                "run": 2,
+                "extraKey": 1,
+                "suffix": "bold",
+                "ext": ".json",
+            },
+            None,
+            False,
+            "sub-A01/ses-b/sub-A01_ses-b_run-2_extraKey-1_bold.json",
+        ),
+        (
+            {
+                "sub": "A01",
+                "ses": "b",
+                "run": 2,
+                "extraKey": 1,
+                "suffix": "bold",
+                "ext": ".json",
+            },
+            None,
+            True,
+            "sub-A01/ses-b/sub-A01_ses-b_run-2_bold.json",
+        ),
+        (
+            pd.Series(
+                {
+                    "sub": "A01",
+                    "ses": "b",
+                    "run": 2,
+                    "suffix": "bold",
+                    "ext": ".json",
+                }
+            ),
+            None,
+            False,
+            "sub-A01/ses-b/sub-A01_ses-b_run-2_bold.json",
+        ),
+        # Make sure it still works if applied to the raw df
+        (
+            {
+                "ds__dataset": "ds001",
+                "ent__sub": "A01",
+                "ent__ses": "b",
+                "ent__run": 2,
+                "suffix": "bold",
+                "ext": ".json",
+            },
+            None,
+            False,
+            "sub-A01/ses-b/sub-A01_ses-b_run-2_bold.json",
+        ),
+    ],
+)
+def test_join_bids_path(
+    entities: Union[Dict[str, Any], pd.Series],
+    prefix: Optional[str],
+    valid_only: bool,
+    expected: str,
+):
+    path = join_bids_path(entities, prefix=prefix, valid_only=valid_only)
+    assert str(path) == expected
 
 
 if __name__ == "__main__":

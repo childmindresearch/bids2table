@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from functools import cached_property
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Union
+from typing import Any, Callable, Dict, Iterable, List, Optional, Union
 
 import pandas as pd
 
@@ -34,9 +34,8 @@ class BIDSTable(pd.DataFrame):
         tab = (
             tab
             .filter("dataset", "ds001")
-            .filter("sub", items=["04", "08"])
-            .filter("task", contains="rest")
-            .filter("RepetitionTime", 2.5)
+            .filter("sub", items=["04", "06"])
+            .filter("RepetitionTime", 2.0)
         )
         # Get list of BIDSFiles
         files = tab.files
@@ -167,6 +166,7 @@ class BIDSTable(pd.DataFrame):
         items: Optional[Iterable[Any]] = None,
         contains: Optional[str] = None,
         regex: Optional[str] = None,
+        func: Optional[Callable[[Any], bool]] = None,
     ) -> "BIDSTable":
         """
         Filter the rows of the table.
@@ -178,13 +178,22 @@ class BIDSTable(pd.DataFrame):
             items: Keep rows whose value is in `items`.
             contains: Keep rows whose value contains `contains` (string only).
             regex: Keep rows whose value matches `regex` (string only).
+            func: Apply an arbitrary function and keep values that evaluate to `True`.
 
         Returns:
             A filtered BIDS table.
+
+        Example::
+            filtered = (
+                tab
+                .filter("dataset", "ds001")
+                .filter("sub", items=["04", "06"])
+                .filter("RepetitionTime", 2.0)
+            )
         """
-        if sum(k is not None for k in [value, items, contains, regex]) != 1:
+        if sum(k is not None for k in [value, items, contains, regex, func]) != 1:
             raise ValueError(
-                "Exactly one of value, items, contains, or regex must not be None"
+                "Exactly one of value, items, contains, regex, or func must not be None"
             )
 
         try:
@@ -210,9 +219,11 @@ class BIDSTable(pd.DataFrame):
             mask = col.isin(items)
         elif contains is not None:
             mask = col.str.contains(contains)
-        else:
+        elif regex is not None:
             mask = col.str.match(regex)
-        mask = mask.fillna(False)
+        else:
+            mask = col.apply(func)
+        mask = mask.fillna(False).astype(bool)
 
         return self.loc[mask]
 
@@ -223,10 +234,18 @@ class BIDSTable(pd.DataFrame):
         Args:
             filters: A mapping of column labels to queries. Each query can either be
                 a single value for an exact equality check or a `dict` for a more
-                complex query, e.g. `{"items": [1, 2, 3]}`.
+                complex query, e.g. `{"items": [1, 2, 3]}`, that's passed through to
+                `filter`.
 
         Returns:
             A filtered BIDS table.
+
+        Example::
+            filtered = tab.filter_multi(
+                dataset="ds001"
+                sub={"items": ["04", "06"]},
+                RepetitionTime=2.5,
+            )
         """
         tab = self.copy(deep=False)
 
@@ -355,3 +374,43 @@ def multi_to_flat_columns(df: pd.DataFrame, sep: str = "__") -> pd.DataFrame:
     df = df.copy(deep=False)
     df.columns = pd.Index(join_columns)
     return df
+
+
+def join_bids_path(
+    row: Union[pd.Series, Dict[str, Any]],
+    prefix: Optional[Union[str, Path]] = None,
+    valid_only: bool = True,
+) -> Path:
+    """
+    Reconstruct a BIDS path from a table row or entities dict.
+
+    Args:
+        row: row from a `BIDSTable` or `BIDSTable.ent` subtable.
+        prefix: output file prefix path.
+        valid_only: only include valid BIDS entities.
+
+    Example::
+
+        tab = BIDSTable.from_parquet("dataset/index.b2t")
+        paths = tab.apply(join_bids_path, axis=1)
+    """
+    # Filter in case input is a row from the raw dataframe and not the entities group.
+    row = _filter_row(row, group="ent")
+    entities = BIDSEntities.from_dict(row, valid_only=valid_only)
+    path = entities.to_path(prefix=prefix, valid_only=valid_only)
+    return path
+
+
+def _filter_row(
+    row: Union[pd.Series, Dict[str, Any]], group: str, sep: str = "__"
+) -> Dict[str, Any]:
+    """
+    Filter a table row for fields from a particular group. Keeps all fields without a
+    group prefix.
+    """
+    prefix = f"{group}{sep}"
+    return {
+        k.removeprefix(prefix): v
+        for k, v in row.items()
+        if k.startswith(prefix) or sep not in k
+    }
