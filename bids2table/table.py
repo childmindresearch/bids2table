@@ -191,6 +191,16 @@ class BIDSTable(pd.DataFrame):
                 .filter("RepetitionTime", 2.0)
             )
         """
+        # NOTE: Should be careful about reinventing a new style of query API. There are
+        # some obvious things this can't do:
+        #   - comparison operators <, >, <=, >=
+        #   - negation
+        #   - combining filters with 'or' instead of 'and'
+        # At the bottom of this rabbit hole are more general query interfaces like those
+        # already implemented in pandas, duckdb, polars. The goal should be not to
+        # create a new one, but to make the 95% of use cases as easy as possible, and
+        # empower users to interact with the underlying table using their more powerful
+        # tool of choice if necessary.
         if sum(k is not None for k in [value, items, contains, regex, func]) != 1:
             raise ValueError(
                 "Exactly one of value, items, contains, regex, or func must not be None"
