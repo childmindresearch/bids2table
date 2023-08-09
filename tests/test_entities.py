@@ -6,7 +6,7 @@ from typing import Dict, Tuple
 import pytest
 from pytest import FixtureRequest
 
-from bids2table.extractors.entities import BIDSEntities, parse_bids_entities
+from bids2table.entities import BIDSEntities, parse_bids_entities
 
 EXAMPLES = (
     (

@@ -7,8 +7,9 @@ from elbow.extractors import extract_file_meta
 from elbow.record import Record, concat
 from elbow.typing import StrOrPath
 
+from bids2table.entities import BIDSEntities
+
 from .dataset import extract_dataset
-from .entities import BIDSEntities
 from .metadata import extract_metadata, is_associated_sidecar
 
 
@@ -31,7 +32,7 @@ def extract_bids_file(path: StrOrPath) -> Optional[Record]:
     meta_rec = extract_metadata(path)
     file_rec = extract_file_meta(path)
 
-    rec = concat({"ds": dset_rec, "ent": entities, "meta": meta_rec, "file": file_rec})
+    rec = concat({"ds": dset_rec, "ent": entities, "meta": meta_rec, "finfo": file_rec})
     return rec
 
 

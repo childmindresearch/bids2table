@@ -7,7 +7,7 @@ from elbow.record import Record
 from elbow.typing import StrOrPath
 from nibabel.filebasedimages import ImageFileError
 
-from .entities import parse_bids_entities
+from bids2table.entities import parse_bids_entities
 
 try:
     import nifti
@@ -41,6 +41,9 @@ def extract_image_meta(path: StrOrPath, *, backend: str = "nibabel") -> Record:
 def _read_image_meta(
     path: str, backend: str = "nibabel"
 ) -> Tuple[Dict[str, Any], np.ndarray]:
+    header: Dict[str, Any]
+    affine: np.ndarray
+
     if backend == "nifti":
         if not has_nifti:
             raise ModuleNotFoundError("nifti image backend not installed")
@@ -51,7 +54,12 @@ def _read_image_meta(
         affine = None
     else:
         img = nib.load(path)
-        header = dict(img.header)
+        if not isinstance(img, nib.Nifti1Image):
+            raise TypeError(
+                f"Foung image type {type(img).__name__}; only Nifti1Image supported"
+            )
+
+        header = {k: v for k, v in img.header.items()}
         affine = np.asarray(img.affine)
 
     header = {k: _cast_header_value(v) for k, v in header.items()}

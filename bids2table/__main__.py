@@ -57,12 +57,12 @@ def main():
     bids2table(
         root=args.root,
         persistent=True,
-        output=args.output,
+        index_path=args.output,
         incremental=args.incremental,
         overwrite=args.overwrite,
         workers=args.workers,
         worker_id=args.worker_id,
-        return_df=False,
+        return_table=False,
     )
 
 

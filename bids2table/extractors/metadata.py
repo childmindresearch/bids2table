@@ -6,8 +6,9 @@ from pathlib import Path
 from elbow.record import Record
 from elbow.typing import StrOrPath
 
-from ._inheritance import _glob, find_bids_parents
-from .entities import parse_bids_entities
+from bids2table.entities import parse_bids_entities
+
+from .inheritance import _glob, find_bids_parents
 
 
 def extract_metadata(path: StrOrPath) -> Record:
