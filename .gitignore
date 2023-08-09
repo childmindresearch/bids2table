@@ -26,6 +26,7 @@ htmlcov
 # Local data and scratch
 .scratch
 example/bids-examples.b2t
+docs
 
 # Local environment
 .venv
