@@ -47,10 +47,6 @@ def bids2table(
         A `BIDSTable` representing the indexed dataset(s), or `None` if `return_table`
         is `False`.
     """
-    if worker_id is not None and not persistent:
-        raise ValueError(
-            "worker_id is only supported when generating a persistent index"
-        )
     if not (return_table or persistent):
         raise ValueError("persistent and return_table should not both be False")
 
@@ -69,7 +65,7 @@ def bids2table(
     if index_path is None:
         index_path = root / "index.b2t"
     else:
-        index_path = Path(index_path).expanduser().resolve()
+        index_path = Path(index_path).resolve()
 
     stale = overwrite or incremental or worker_id is not None
     if index_path.exists() and not stale:
@@ -83,7 +79,12 @@ def bids2table(
 
     if not persistent:
         logging.info("Building index in memory")
-        df = build_table(source=source, extract=extract_bids_subdir)
+        df = build_table(
+            source=source,
+            extract=extract_bids_subdir,
+            workers=workers,
+            worker_id=worker_id,
+        )
         tab = BIDSTable.from_df(df)
         return tab
 

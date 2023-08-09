@@ -6,11 +6,16 @@ bids2table represents a BIDS dataset index as a single table with columns for BI
 
 ## Installation
 
-Install the latest pre-release versions of [elbow](https://github.com/cmi-dair/elbow) and bids2table
+A pre-release version of bids2table can be installed with
 
+```sh
+pip install bids2table
 ```
-pip install -U git+https://github.com/cmi-dair/elbow.git
-pip install -U git+https://github.com/cmi-dair/bids2table.git
+
+The latest development version can be installed with
+
+```sh
+pip install git+https://github.com/cmi-dair/bids2table.git
 ```
 
 ## Example

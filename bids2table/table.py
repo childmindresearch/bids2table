@@ -11,46 +11,7 @@ from bids2table.entities import ENTITY_NAMES_TO_KEYS, BIDSEntities
 class BIDSTable(pd.DataFrame):
     """
     A table representing one or more BIDS datasets.
-
-    Each row in the table corresponds to a BIDS data file. The table is organized with
-    several groups of columns:
-
-    - **dataset** (`ds`): dataset name, relative dataset path, and the JSON dataset description
-    - **entities** (`ent`): All [valid BIDS entities](https://bids-specification.readthedocs.io/en/stable/appendices/entities.html) plus an `extra_entities` dict containing any extra entities
-    - **metadata** (`meta`): BIDS JSON metadata
-    - **file info** (`finfo`): General file info including the full file path and last modified time
-
-    It's recommended to create a `BIDSTable` using the main `bids2table.bids2table`
-    function or use one of the constructor methods:
-
-    - `BIDSTable.from_df`
-    - `BIDSTable.from_parquet`
-
-    ### Example
-
-    ```python
-        tab = BIDSTable.from_parquet("dataset/index.b2t")
-        tab = tab.sort_entities(["dataset", "sub", "ses", "task", "run"])
-        tab = (
-            tab
-            .filter("dataset", "ds001")
-            .filter("sub", items=["04", "06"])
-            .filter("RepetitionTime", 2.0)
-        )
-        # Get list of BIDSFiles
-        files = tab.files
-    ```
     """
-
-    @cached_property
-    def nested(self) -> pd.DataFrame:
-        """
-        A copy of the table with column labels organized in a nested
-        [`MultiIndex`](https://pandas.pydata.org/docs/user_guide/advanced.html#hierarchical-indexing-multiindex).
-        """
-        # Cast back to the base class since we no longer have the full BIDS table
-        # structure.
-        return pd.DataFrame(flat_to_multi_columns(self))
 
     @cached_property
     def ds(self) -> pd.DataFrame:
@@ -79,31 +40,6 @@ class BIDSTable(pd.DataFrame):
         The file info (`finfo`) subtable.
         """
         return self.nested["finfo"]
-
-    @cached_property
-    def flat(self) -> pd.DataFrame:
-        """
-        A copy of the table with subtable prefixes e.g. `ds__`, `ent__` removed.
-        """
-        return self.nested.droplevel(0, axis=1)
-
-    @cached_property
-    def flat_meta(self) -> pd.DataFrame:
-        """
-        A table of flattened JSON metadata where each metadata field is converted to its
-        own column, with nested levels separated by `'.'`.
-
-        See also:
-
-        - [`pd.json_normalize`](https://pandas.pydata.org/docs/reference/api/pandas.json_normalize.html):
-        more general function in pandas.
-        """
-        # Need to replace None with empty dict for max_level=0 to work.
-        metadata = pd.json_normalize(
-            self["meta__json"].map(lambda v: v or {}), max_level=0
-        )
-        metadata.index = self.index
-        return metadata
 
     @cached_property
     def files(self) -> List["BIDSFile"]:
@@ -158,6 +94,41 @@ class BIDSTable(pd.DataFrame):
         special = set(BIDSEntities.special())
         return [key for key in entities if key not in special]
 
+    @cached_property
+    def flat_meta(self) -> pd.DataFrame:
+        """
+        A table of flattened JSON metadata where each metadata field is converted to its
+        own column, with nested levels separated by `'.'`.
+
+        See also:
+
+        - [`pd.json_normalize`](https://pandas.pydata.org/docs/reference/api/pandas.json_normalize.html):
+        more general function in pandas.
+        """
+        # Need to replace None with empty dict for max_level=0 to work.
+        metadata = pd.json_normalize(
+            self["meta__json"].map(lambda v: v or {}), max_level=0
+        )
+        metadata.index = self.index
+        return metadata
+
+    @cached_property
+    def nested(self) -> pd.DataFrame:
+        """
+        A copy of the table with column labels organized in a nested
+        [`MultiIndex`](https://pandas.pydata.org/docs/user_guide/advanced.html#hierarchical-indexing-multiindex).
+        """
+        # Cast back to the base class since we no longer have the full BIDS table
+        # structure.
+        return pd.DataFrame(flat_to_multi_columns(self))
+
+    @cached_property
+    def flat(self) -> pd.DataFrame:
+        """
+        A copy of the table with subtable prefixes e.g. `ds__`, `ent__` removed.
+        """
+        return self.nested.droplevel(0, axis=1)
+
     def filter(
         self,
         key: str,
@@ -186,7 +157,7 @@ class BIDSTable(pd.DataFrame):
         Example::
             filtered = (
                 tab
-                .filter("dataset", "ds001")
+                .filter("task", "rest")
                 .filter("sub", items=["04", "06"])
                 .filter("RepetitionTime", 2.0)
             )
@@ -252,9 +223,9 @@ class BIDSTable(pd.DataFrame):
 
         Example::
             filtered = tab.filter_multi(
-                dataset="ds001"
+                task="rest"
                 sub={"items": ["04", "06"]},
-                RepetitionTime=2.5,
+                RepetitionTime=2.0,
             )
         """
         tab = self.copy(deep=False)

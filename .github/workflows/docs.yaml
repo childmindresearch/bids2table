@@ -1,0 +1,35 @@
+name: Docs
+
+permissions:
+  contents: write
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
+    branches:
+      - main
+
+jobs:
+  build-and-publish-docs:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: 'true'
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v3
+        with:
+          python-version: "3.11"
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install .[dev]
+      - name: Build docs
+        run: |
+          pdoc -o docs/ -d google bids2table
+      - uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: docs
