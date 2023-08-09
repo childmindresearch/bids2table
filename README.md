@@ -1,4 +1,9 @@
 # bids2table
+[![Build](https://github.com/cmi-dair/bids2table/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/cmi-dair/bids2table/actions/workflows/ci.yaml?query=branch%3Amain)
+[![Docs](https://github.com/cmi-dair/bids2table/actions/workflows/docs.yaml/badge.svg?branch=main)](https://cmi-dair.github.io/bids2table/bids2table)
+[![codecov](https://codecov.io/gh/cmi-dair/bids2table/branch/main/graph/badge.svg?token=22HWWFWPW5)](https://codecov.io/gh/cmi-dair/bids2table)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 bids2table is a library for efficiently indexing and querying large-scale BIDS neuroimaging datasets and derivatives. It aims to improve upon the efficiency of [PyBIDS](https://github.com/bids-standard/pybids) by leveraging modern data science tools.
 
