@@ -2,6 +2,9 @@
 Efficiently index and query large-scale BIDS datasets and derivatives.
 """
 
+# Register elbow extension types
+import elbow.dtypes  # noqa
+
 from ._b2t import bids2table
 from ._version import __version__, __version_tuple__  # noqa
 from .entities import BIDSEntities, parse_bids_entities
