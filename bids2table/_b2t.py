@@ -17,7 +17,7 @@ def bids2table(
     root: StrOrPath,
     *,
     persistent: bool = False,
-    output: Optional[StrOrPath] = None,
+    index_path: Optional[StrOrPath] = None,
     incremental: bool = False,
     overwrite: bool = False,
     workers: Optional[int] = None,
@@ -30,8 +30,8 @@ def bids2table(
     Args:
         root: path to BIDS dataset
         persistent: whether to save index to disk as a Parquet dataset
-        output: path to output Parquet dataset directory if `persistent` is
-            `True`. Defaults to `root / "index.b2t".
+        index_path: path to BIDS Parquet index to generate or load. Defaults to `root /
+            "index.b2t"`. Index generation requires `persistent=True`.
         incremental: update index incrementally with only new or changed files.
         overwrite: overwrite previous index.
         workers: number of parallel processes. If `None` or 1, run in the main
@@ -66,18 +66,18 @@ def bids2table(
         follow_links=True,
     )
 
-    if output is None:
-        output = root / "index.b2t"
+    if index_path is None:
+        index_path = root / "index.b2t"
     else:
-        output = Path(output).expanduser().resolve()
+        index_path = Path(index_path).expanduser().resolve()
 
     stale = overwrite or incremental or worker_id is not None
-    if output.exists() and not stale:
+    if index_path.exists() and not stale:
         if return_table:
-            logging.info("Loading cached index %s", output)
-            tab = BIDSTable.from_parquet(output)
+            logging.info("Loading cached index %s", index_path)
+            tab = BIDSTable.from_parquet(index_path)
         else:
-            logging.info("Found cached index %s; nothing to do", output)
+            logging.info("Found cached index %s; nothing to do", index_path)
             tab = None
         return tab
 
@@ -91,7 +91,7 @@ def bids2table(
     build_parquet(
         source=source,
         extract=extract_bids_subdir,
-        output=output,
+        output=index_path,
         incremental=incremental,
         overwrite=overwrite,
         workers=workers,
@@ -99,5 +99,5 @@ def bids2table(
         path_column="file__file_path",
         mtime_column="file__mod_time",
     )
-    tab = BIDSTable.from_parquet(output) if return_table else None
+    tab = BIDSTable.from_parquet(index_path) if return_table else None
     return tab

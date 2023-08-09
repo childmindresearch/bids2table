@@ -28,13 +28,13 @@ def empty_dataset(tmp_path: Path) -> Path:
 @pytest.mark.parametrize("persistent", [False, True])
 def test_bids2table(tmp_path: Path, persistent: bool):
     root = BIDS_EXAMPLES / "ds001"
-    output = tmp_path / "index.b2t"
+    index_path = tmp_path / "index.b2t"
 
-    tab = bids2table(root=root, persistent=persistent, output=output)
+    tab = bids2table(root=root, persistent=persistent, index_path=index_path)
     assert tab.shape == (128, 40)
 
     # Reload from cache
-    tab2 = bids2table(root=root, persistent=persistent, output=output)
+    tab2 = bids2table(root=root, persistent=persistent, index_path=index_path)
     assert tab.equals(tab2)
 
 

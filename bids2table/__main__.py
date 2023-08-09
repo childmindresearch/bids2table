@@ -57,7 +57,7 @@ def main():
     bids2table(
         root=args.root,
         persistent=True,
-        output=args.output,
+        index_path=args.output,
         incremental=args.incremental,
         overwrite=args.overwrite,
         workers=args.workers,
