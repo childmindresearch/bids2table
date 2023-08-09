@@ -18,6 +18,10 @@ The latest development version can be installed with
 pip install git+https://github.com/cmi-dair/bids2table.git
 ```
 
+## Documentation
+
+Our documentation is [here](https://cmi-dair.github.io/bids2table/).
+
 ## Example
 
 ```python
