@@ -1,0 +1,4 @@
+pybids==0.16.0
+ancpbids==0.2.2
+elbow @ git+https://github.com/cmi-dair/elbow.git@3117427
+bids2table @ git+https://github.com/cmi-dair/bids2table.git@b7b1658
