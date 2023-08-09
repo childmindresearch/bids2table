@@ -1,8 +1,8 @@
 r"""
-bids2table is a library for efficiently indexing and querying large-scale BIDS
-neuroimaging datasets and derivatives. It aims to improve upon the efficiency of
-[PyBIDS](https://github.com/bids-standard/pybids) by leveraging modern data science
-tools.
+[bids2table](https://github.com/cmi-dair/bids2table) is a library for efficiently
+indexing and querying large-scale BIDS neuroimaging datasets and derivatives. It aims to
+improve upon the efficiency of [PyBIDS](https://github.com/bids-standard/pybids) by
+leveraging modern data science tools.
 
 bids2table represents a BIDS dataset index as a single table with columns for BIDS
 entities and file metadata. The index is constructed using
