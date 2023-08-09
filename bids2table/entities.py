@@ -7,13 +7,14 @@ import warnings
 from dataclasses import asdict, dataclass, field, fields
 from functools import lru_cache
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any, Callable, Dict, Iterable, List, Optional, Union
 
 import pandas as pd
 from elbow.typing import StrOrPath
 from typing_extensions import get_args, get_origin
 
-_BIDS_DATATYPES = (
+BIDS_DATATYPES = (
     "anat",
     "beh",
     "dwi",
@@ -28,7 +29,7 @@ _BIDS_DATATYPES = (
 )
 
 
-def _bids_field(
+def bids_field(
     name: str,
     display_name: str,
     required: bool = False,
@@ -69,60 +70,60 @@ class BIDSEntities:
         https://bids-specification.readthedocs.io/en/stable/appendices/entities.html
     """
 
-    sub: str = _bids_field(name="subject", display_name="Subject", required=True)
-    ses: Optional[str] = _bids_field(name="session", display_name="Session")
-    sample: Optional[str] = _bids_field(name="sample", display_name="Sample")
-    task: Optional[str] = _bids_field(name="task", display_name="Task")
-    acq: Optional[str] = _bids_field(name="acquisition", display_name="Acquisition")
-    ce: Optional[str] = _bids_field(
+    sub: str = bids_field(name="subject", display_name="Subject", required=True)
+    ses: Optional[str] = bids_field(name="session", display_name="Session")
+    sample: Optional[str] = bids_field(name="sample", display_name="Sample")
+    task: Optional[str] = bids_field(name="task", display_name="Task")
+    acq: Optional[str] = bids_field(name="acquisition", display_name="Acquisition")
+    ce: Optional[str] = bids_field(
         name="ceagent", display_name="Contrast Enhancing Agent"
     )
-    trc: Optional[str] = _bids_field(name="tracer", display_name="Tracer")
-    stain: Optional[str] = _bids_field(name="stain", display_name="Stain")
-    rec: Optional[str] = _bids_field(
+    trc: Optional[str] = bids_field(name="tracer", display_name="Tracer")
+    stain: Optional[str] = bids_field(name="stain", display_name="Stain")
+    rec: Optional[str] = bids_field(
         name="reconstruction", display_name="Reconstruction"
     )
-    dir: Optional[str] = _bids_field(
+    dir: Optional[str] = bids_field(
         name="direction", display_name="Phase-Encoding Direction"
     )
-    run: Optional[int] = _bids_field(name="run", display_name="Run")
-    mod: Optional[str] = _bids_field(
+    run: Optional[int] = bids_field(name="run", display_name="Run")
+    mod: Optional[str] = bids_field(
         name="modality", display_name="Corresponding Modality"
     )
-    echo: Optional[int] = _bids_field(name="echo", display_name="Echo")
-    flip: Optional[int] = _bids_field(name="flip", display_name="Flip Angle")
-    inv: Optional[int] = _bids_field(name="inversion", display_name="Inversion Time")
-    mt: Optional[str] = _bids_field(
+    echo: Optional[int] = bids_field(name="echo", display_name="Echo")
+    flip: Optional[int] = bids_field(name="flip", display_name="Flip Angle")
+    inv: Optional[int] = bids_field(name="inversion", display_name="Inversion Time")
+    mt: Optional[str] = bids_field(
         name="mtransfer",
         display_name="Magnetization Transfer",
         allowed_values={"on", "off"},
     )
-    part: Optional[str] = _bids_field(
+    part: Optional[str] = bids_field(
         name="part",
         display_name="Part",
         allowed_values={"mag", "phase", "real", "imag"},
     )
-    proc: Optional[str] = _bids_field(
+    proc: Optional[str] = bids_field(
         name="processing", display_name="Processed (on device)"
     )
-    hemi: Optional[str] = _bids_field(
+    hemi: Optional[str] = bids_field(
         name="hemisphere", display_name="Hemisphere", allowed_values={"L", "R"}
     )
-    space: Optional[str] = _bids_field(name="space", display_name="Space")
-    split: Optional[int] = _bids_field(name="split", display_name="Split")
-    recording: Optional[str] = _bids_field(name="recording", display_name="Recording")
-    chunk: Optional[int] = _bids_field(name="chunk", display_name="Chunk")
-    atlas: Optional[str] = _bids_field(name="atlas", display_name="Atlas")
-    res: Optional[str] = _bids_field(name="resolution", display_name="Resolution")
-    den: Optional[str] = _bids_field(name="density", display_name="Density")
-    label: Optional[str] = _bids_field(name="label", display_name="Label")
-    desc: Optional[str] = _bids_field(name="description", display_name="Description")
-    datatype: Optional[str] = _bids_field(
-        name="datatype", display_name="Data type", allowed_values=_BIDS_DATATYPES
+    space: Optional[str] = bids_field(name="space", display_name="Space")
+    split: Optional[int] = bids_field(name="split", display_name="Split")
+    recording: Optional[str] = bids_field(name="recording", display_name="Recording")
+    chunk: Optional[int] = bids_field(name="chunk", display_name="Chunk")
+    atlas: Optional[str] = bids_field(name="atlas", display_name="Atlas")
+    res: Optional[str] = bids_field(name="resolution", display_name="Resolution")
+    den: Optional[str] = bids_field(name="density", display_name="Density")
+    label: Optional[str] = bids_field(name="label", display_name="Label")
+    desc: Optional[str] = bids_field(name="description", display_name="Description")
+    datatype: Optional[str] = bids_field(
+        name="datatype", display_name="Data type", allowed_values=BIDS_DATATYPES
     )
-    suffix: Optional[str] = _bids_field(name="suffix", display_name="Suffix")
-    ext: Optional[str] = _bids_field(name="extension", display_name="Extension")
-    extra_entities: Optional[Dict[str, Union[str, int]]] = _bids_field(
+    suffix: Optional[str] = bids_field(name="suffix", display_name="Suffix")
+    ext: Optional[str] = bids_field(name="extension", display_name="Extension")
+    extra_entities: Optional[Dict[str, Union[str, int]]] = bids_field(
         name="extra_entities",
         display_name="Extra entities",
         default_factory=dict,
@@ -309,7 +310,7 @@ def parse_bids_entities(path: StrOrPath) -> Dict[str, str]:
 
     # datatype
     match = re.search(
-        f"/({'|'.join(_BIDS_DATATYPES)})/",
+        f"/({'|'.join(BIDS_DATATYPES)})/",
         path.as_posix(),
     )
     datatype = match.group(1) if match is not None else None
@@ -342,3 +343,8 @@ def parse_bids_entities(path: StrOrPath) -> Dict[str, str]:
         if v is not None:
             entities[k] = v
     return entities
+
+
+ENTITY_NAMES_TO_KEYS = MappingProxyType(
+    {f.metadata["name"]: f.name for f in fields(BIDSEntities)}
+)

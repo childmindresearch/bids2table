@@ -1,16 +1,11 @@
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, field
 from functools import cached_property
 from pathlib import Path
-from types import MappingProxyType
 from typing import Any, Callable, Dict, Iterable, List, Optional, Union
 
 import pandas as pd
 
-from bids2table.entities import BIDSEntities
-
-_ENTITY_NAMES_TO_KEYS = MappingProxyType(
-    {f.metadata["name"]: f.name for f in fields(BIDSEntities)}
-)
+from bids2table.entities import ENTITY_NAMES_TO_KEYS, BIDSEntities
 
 
 class BIDSTable(pd.DataFrame):
@@ -207,8 +202,8 @@ class BIDSTable(pd.DataFrame):
             if key[:1].isupper():
                 col = self.flat_meta[key]
             # Long name entity
-            elif key in _ENTITY_NAMES_TO_KEYS:
-                col = self.ent[_ENTITY_NAMES_TO_KEYS[key]]
+            elif key in ENTITY_NAMES_TO_KEYS:
+                col = self.ent[ENTITY_NAMES_TO_KEYS[key]]
             # Any other unprefixed column
             else:
                 col = self.flat[key]
@@ -281,8 +276,8 @@ class BIDSTable(pd.DataFrame):
         def add_prefix(k: str):
             if k == "dataset":
                 k = f"ds__{k}"
-            elif k in _ENTITY_NAMES_TO_KEYS:
-                k = f"ent__{_ENTITY_NAMES_TO_KEYS[k]}"
+            elif k in ENTITY_NAMES_TO_KEYS:
+                k = f"ent__{ENTITY_NAMES_TO_KEYS[k]}"
             else:
                 k = f"ent__{k}"
             return k

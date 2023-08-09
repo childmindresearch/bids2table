@@ -84,7 +84,7 @@ def bids2table(
     if not persistent:
         logging.info("Building index in memory")
         df = build_table(source=source, extract=extract_bids_subdir)
-        tab = BIDSTable(df)
+        tab = BIDSTable.from_df(df)
         return tab
 
     logging.info("Building persistent Parquet index")
