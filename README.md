@@ -1,7 +1,7 @@
 # bids2table
-[![Build](https://github.com/cmi-dair/bids2table/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/cmi-dair/bids2table/actions/workflows/ci.yaml?query=branch%3Amain)
-[![Docs](https://github.com/cmi-dair/bids2table/actions/workflows/docs.yaml/badge.svg?branch=main)](https://cmi-dair.github.io/bids2table/bids2table)
-[![codecov](https://codecov.io/gh/cmi-dair/bids2table/branch/main/graph/badge.svg?token=22HWWFWPW5)](https://codecov.io/gh/cmi-dair/bids2table)
+[![Build](https://github.com/childmindresearch/bids2table/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/childmindresearch/bids2table/actions/workflows/ci.yaml?query=branch%3Amain)
+[![Docs](https://github.com/childmindresearch/bids2table/actions/workflows/docs.yaml/badge.svg?branch=main)](https://childmindresearch.github.io/bids2table/bids2table)
+[![codecov](https://codecov.io/gh/childmindresearch/bids2table/branch/main/graph/badge.svg?token=22HWWFWPW5)](https://codecov.io/gh/childmindresearch/bids2table)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
@@ -20,12 +20,12 @@ pip install bids2table
 The latest development version can be installed with
 
 ```sh
-pip install git+https://github.com/cmi-dair/bids2table.git
+pip install git+https://github.com/childmindresearch/bids2table.git
 ```
 
 ## Documentation
 
-Our documentation is [here](https://cmi-dair.github.io/bids2table/).
+Our documentation is [here](https://childmindresearch.github.io/bids2table/).
 
 ## Example
 

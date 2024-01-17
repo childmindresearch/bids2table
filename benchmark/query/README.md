@@ -1,6 +1,6 @@
 # Query benchmark
 
-In this benchmark we compare the query performance for [PyBIDS](https://github.com/bids-standard/pybids), [ancpBIDS](https://github.com/ANCPLabOldenburg/ancp-bids), and [bids2table](https://github.com/cmi-dair/bids2table). The queries are modeled after the [PyBIDS `BIDSLayout` tutorial](https://bids-standard.github.io/pybids/examples/pybids_tutorial.html#querying-the-bidslayout).
+In this benchmark we compare the query performance for [PyBIDS](https://github.com/bids-standard/pybids), [ancpBIDS](https://github.com/ANCPLabOldenburg/ancp-bids), and [bids2table](https://github.com/childmindresearch/bids2table). The queries are modeled after the [PyBIDS `BIDSLayout` tutorial](https://bids-standard.github.io/pybids/examples/pybids_tutorial.html#querying-the-bidslayout).
 
 For this benchmark, we use raw data from the [Chinese Color Nest Project](http://deepneuro.bnu.edu.cn/?p=163) (195 subjects, 2 resting state sessions per subject).
 

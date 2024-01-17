@@ -47,7 +47,7 @@ dev = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/cmi-dair/bids2table"
+"Homepage" = "https://github.com/childmindresearch/bids2table"
 
 [project.scripts]
 bids2table = "bids2table.__main__:main"
