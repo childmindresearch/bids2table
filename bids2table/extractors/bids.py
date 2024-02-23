@@ -12,6 +12,8 @@ from bids2table.entities import BIDSEntities
 from .dataset import extract_dataset
 from .metadata import extract_metadata, is_associated_sidecar
 
+logger = logging.getLogger(__name__)
+
 
 def extract_bids_file(path: StrOrPath) -> Optional[Record]:
     """
@@ -23,7 +25,7 @@ def extract_bids_file(path: StrOrPath) -> Optional[Record]:
     try:
         entities = BIDSEntities.from_path(path)
     except (TypeError, ValueError) as exc:
-        logging.warning(
+        logger.warning(
             "Incomplete and/or invalid entities in file %s", path, exc_info=exc
         )
         return None

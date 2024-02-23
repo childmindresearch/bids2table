@@ -7,6 +7,8 @@ from typing import Any, Dict, List, Optional, Tuple
 from elbow.record import Record
 from elbow.typing import StrOrPath
 
+logger = logging.getLogger(__name__)
+
 
 def extract_dataset(path: StrOrPath) -> Record:
     """
@@ -55,7 +57,7 @@ def identify_bids_dataset(path: StrOrPath) -> Tuple[Optional[str], Optional[Path
         parent = parent.parent
 
     if len(parts) == 0:
-        logging.warning("File %s is not part of any valid BIDS dataset.", path)
+        logger.warning("File %s is not part of any valid BIDS dataset.", path)
         return None, None
 
     parts = parts[: top_idx + 1]

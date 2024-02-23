@@ -16,6 +16,8 @@ try:
 except ModuleNotFoundError:
     has_nifti = False
 
+logger = logging.getLogger(__name__)
+
 # TODO: add more
 IMAGE_EXTENSIONS = {".nii", ".nii.gz"}
 
@@ -29,7 +31,7 @@ def extract_image_meta(path: StrOrPath, *, backend: str = "nibabel") -> Record:
         try:
             header, affine = _read_image_meta(str(path), backend=backend)
         except (ImageFileError, SystemError) as exc:
-            logging.warning("Failed to load image %s", path, exc_info=exc)
+            logger.warning("Failed to load image %s", path, exc_info=exc)
 
     rec = Record(
         {"image_header": header, "image_affine": affine},

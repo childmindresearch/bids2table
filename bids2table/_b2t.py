@@ -5,12 +5,11 @@ from typing import Optional
 from elbow.builders import build_parquet, build_table
 from elbow.sources.filesystem import Crawler
 from elbow.typing import StrOrPath
-from elbow.utils import setup_logging
 
 from bids2table.extractors.bids import extract_bids_subdir
 from bids2table.table import BIDSTable
 
-setup_logging()
+logger = logging.getLogger("bids2table")
 
 
 def bids2table(
@@ -70,15 +69,15 @@ def bids2table(
     stale = overwrite or incremental or worker_id is not None
     if index_path.exists() and not stale:
         if return_table:
-            logging.info("Loading cached index %s", index_path)
+            logger.info("Loading cached index %s", index_path)
             tab = BIDSTable.from_parquet(index_path)
         else:
-            logging.info("Found cached index %s; nothing to do", index_path)
+            logger.info("Found cached index %s; nothing to do", index_path)
             tab = None
         return tab
 
     if not persistent:
-        logging.info("Building index in memory")
+        logger.info("Building index in memory")
         df = build_table(
             source=source,
             extract=extract_bids_subdir,
@@ -88,7 +87,7 @@ def bids2table(
         tab = BIDSTable.from_df(df)
         return tab
 
-    logging.info("Building persistent Parquet index")
+    logger.info("Building persistent Parquet index")
     build_parquet(
         source=source,
         extract=extract_bids_subdir,
