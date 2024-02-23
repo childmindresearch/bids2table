@@ -2,9 +2,8 @@ import argparse
 import sys
 from pathlib import Path
 
-from elbow.utils import setup_logging
-
 from bids2table import bids2table
+from bids2table.logging import setup_logging
 
 
 def main():
@@ -52,7 +51,7 @@ def main():
 
     args = parser.parse_args()
 
-    setup_logging("INFO" if args.verbose else "ERROR")
+    setup_logging(level="INFO" if args.verbose else "WARNING")
 
     bids2table(
         root=args.root,

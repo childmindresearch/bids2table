@@ -10,6 +10,8 @@ from bids2table.entities import parse_bids_entities
 
 from .inheritance import _glob, find_bids_parents
 
+logger = logging.getLogger(__name__)
+
 
 def extract_metadata(path: StrOrPath) -> Record:
     """
@@ -26,7 +28,7 @@ def extract_metadata(path: StrOrPath) -> Record:
             try:
                 metadata.update(json.load(f))
             except (json.JSONDecodeError, TypeError):
-                logging.warning(
+                logger.warning(
                     f"Bad JSON sidecar data {path}\n\n" + traceback.format_exc()
                 )
 
