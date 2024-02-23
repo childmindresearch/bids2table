@@ -1,6 +1,6 @@
 # Indexing benchmark
 
-In this benchmark we compare the indexing performance for [PyBIDS](https://github.com/bids-standard/pybids), [ancpBIDS](https://github.com/ANCPLabOldenburg/ancp-bids), and [bids2table](https://github.com/cmi-dair/bids2table) using the raw data from the [NKI Rockland Sample](https://fcon_1000.projects.nitrc.org/indi/pro/nki.html) (1334 subjects, 1.5TB).
+In this benchmark we compare the indexing performance for [PyBIDS](https://github.com/bids-standard/pybids), [ancpBIDS](https://github.com/ANCPLabOldenburg/ancp-bids), and [bids2table](https://github.com/childmindresearch/bids2table) using the raw data from the [NKI Rockland Sample](https://fcon_1000.projects.nitrc.org/indi/pro/nki.html) (1334 subjects, 1.5TB).
 
 ## Setup environment
 

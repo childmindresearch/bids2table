@@ -1,3 +1,3 @@
 """
-[Elbow](https://github.com/cmi-dair/elbow) extract functions for BIDS datasets.
+[Elbow](https://github.com/childmindresearch/elbow) extract functions for BIDS datasets.
 """

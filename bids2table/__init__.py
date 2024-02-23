@@ -1,5 +1,5 @@
 r"""
-[bids2table](https://github.com/cmi-dair/bids2table) is a library for efficiently
+[bids2table](https://github.com/childmindresearch/bids2table) is a library for efficiently
 indexing and querying large-scale BIDS neuroimaging datasets and derivatives. It aims to
 improve upon the efficiency of [PyBIDS](https://github.com/bids-standard/pybids) by
 leveraging modern data science tools.
@@ -20,7 +20,7 @@ pip install bids2table
 The latest development version can be installed with
 
 ```sh
-pip install git+https://github.com/cmi-dair/bids2table.git
+pip install git+https://github.com/childmindresearch/bids2table.git
 ```
 
 ## Quickstart

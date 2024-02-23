@@ -21,6 +21,6 @@ python3.10 -m venv envs/ancpbids && \
 python3.10 -m venv envs/bids2table && \
     source envs/bids2table/bin/activate && \
     pip install -U pip && \
-    pip install -U git+https://github.com/cmi-dair/elbow.git@3117427 && \
-    pip install -U git+https://github.com/cmi-dair/bids2table.git@b7b1658 && \
+    pip install -U git+https://github.com/childmindresearch/elbow.git@3117427 && \
+    pip install -U git+https://github.com/childmindresearch/bids2table.git@b7b1658 && \
     deactivate
