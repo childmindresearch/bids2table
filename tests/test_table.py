@@ -3,6 +3,7 @@ from typing import Any, Dict, List, Optional, Union
 
 import pandas as pd
 import pytest
+import json
 
 from bids2table import bids2table
 from bids2table.table import (
@@ -41,14 +42,30 @@ def test_table(tab: BIDSTable):
     assert len(tab.entities) == 3
 
 
-def test_table_files(tab: BIDSTable):
+@pytest.mark.parametrize(
+    "expected_file_count, file_relpath,expected_metadata",
+    [
+        (
+            128,
+            "sub-09/func/sub-09_task-balloonanalogrisktask_run-01_bold.nii.gz",
+            {"RepetitionTime": 2.0, "TaskName": "balloon analog risk task"},
+        )
+    ],
+)
+def test_table_files(
+    tab: BIDSTable, expected_file_count: int, file_relpath: str, expected_metadata: dict
+):
     files = tab.files
-    assert len(files) == 128
+    assert len(files) == expected_file_count
+    file = None
+    for f in files:
+        if f.path.relative_to(f.root) == Path(file_relpath):
+            file = f
 
-    file = files[0]
+    assert file is not None
     assert file.path.exists()
     assert (file.root / file.relative_path).exists()
-    assert file.metadata == {}
+    assert file.metadata == expected_metadata
 
 
 @pytest.mark.parametrize(
