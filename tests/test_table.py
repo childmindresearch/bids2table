@@ -17,7 +17,10 @@ BIDS_EXAMPLES = Path(__file__).parent.parent / "bids-examples"
 
 @pytest.fixture(scope="module")
 def tab() -> BIDSTable:
-    return bids2table(BIDS_EXAMPLES / "ds001")
+    tab = bids2table(BIDS_EXAMPLES / "ds001")
+    # sort rows to get deterministic order
+    tab = tab.sort_values("finfo__file_path", ignore_index=True)
+    return tab
 
 
 def test_table(tab: BIDSTable):
@@ -45,10 +48,20 @@ def test_table_files(tab: BIDSTable):
     files = tab.files
     assert len(files) == 128
 
-    file = files[0]
+    file = files[2]
+    assert file.dataset == "ds001"
+
     assert file.path.exists()
     assert (file.root / file.relative_path).exists()
-    assert file.metadata == {}
+
+    assert file.path.name == "sub-01_task-balloonanalogrisktask_run-01_bold.nii.gz"
+    assert file.metadata == {
+        "RepetitionTime": 2.0,
+        "TaskName": "balloon analog risk task",
+    }
+
+    ents = file.entities
+    assert (ents.sub, ents.task, ents.run) == ("01", "balloonanalogrisktask", 1)
 
 
 @pytest.mark.parametrize(
