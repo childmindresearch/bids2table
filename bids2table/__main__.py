@@ -47,11 +47,18 @@ def main():
         "Incompatible with --overwrite. (default: None)",
         default=None,
     )
-    parser.add_argument("--verbose", "-v", help="Verbose logging.", action="store_true")
+    parser.add_argument(
+        "--verbose",
+        "-v",
+        action="count",
+        default=0,
+        help="Increase verbosity level.",
+    )
 
     args = parser.parse_args()
 
-    setup_logging(level="INFO" if args.verbose else "WARNING")
+    log_level = ["ERROR", "WARNING", "INFO"][min(args.verbose, 2)]
+    setup_logging(level=log_level)
 
     bids2table(
         root=args.root,

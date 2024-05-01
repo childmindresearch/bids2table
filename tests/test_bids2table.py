@@ -25,16 +25,25 @@ def empty_dataset(tmp_path: Path) -> Path:
     return root
 
 
-@pytest.mark.parametrize("persistent", [False, True])
-def test_bids2table(tmp_path: Path, persistent: bool):
+@pytest.mark.parametrize(
+    "persistent,with_meta", [(False, True), (True, True), (False, False)]
+)
+def test_bids2table(tmp_path: Path, persistent: bool, with_meta: bool):
     root = BIDS_EXAMPLES / "ds001"
     index_path = tmp_path / "index.b2t"
 
-    tab = bids2table(root=root, persistent=persistent, index_path=index_path)
+    tab = bids2table(
+        root=root, with_meta=with_meta, persistent=persistent, index_path=index_path
+    )
     assert tab.shape == (128, 40)
 
+    if not with_meta:
+        assert tab.loc[0, "meta__json"] is None
+
     # Reload from cache
-    tab2 = bids2table(root=root, persistent=persistent, index_path=index_path)
+    tab2 = bids2table(
+        root=root, with_meta=with_meta, persistent=persistent, index_path=index_path
+    )
     assert tab.equals(tab2)
 
 

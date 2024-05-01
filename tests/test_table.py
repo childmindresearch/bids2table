@@ -23,6 +23,14 @@ def tab() -> BIDSTable:
     return tab
 
 
+@pytest.fixture(scope="module")
+def tab_no_meta() -> BIDSTable:
+    tab = bids2table(BIDS_EXAMPLES / "ds001", with_meta=False)
+    # sort rows to get deterministic order
+    tab = tab.sort_values("finfo__file_path", ignore_index=True)
+    return tab
+
+
 def test_table(tab: BIDSTable):
     assert tab.shape == (128, 40)
 
@@ -114,6 +122,16 @@ def test_table_sort_entities(tab: BIDSTable, by: Union[str, List[str]], inplace:
     assert isinstance(sort_tab, BIDSTable)
     assert len(sort_tab) == len(tab)
     assert sort_tab.subjects == sorted(tab.subjects)
+
+
+def test_table_with_meta(tab_no_meta: BIDSTable):
+    tab_no_meta = tab_no_meta.copy()
+    tab_with_meta = tab_no_meta.with_meta(inplace=False)
+    assert tab_no_meta["meta__json"].isna().all()
+    assert not tab_with_meta["meta__json"].isna().all()
+
+    tab_with_meta = tab_no_meta.with_meta(inplace=True)
+    assert not tab_no_meta["meta__json"].isna().all()
 
 
 @pytest.mark.parametrize("sep", ["__", "."])
