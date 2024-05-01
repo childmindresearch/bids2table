@@ -15,7 +15,7 @@ from .metadata import extract_metadata, is_associated_sidecar
 logger = logging.getLogger(__name__)
 
 
-def extract_bids_file(path: StrOrPath) -> Optional[Record]:
+def extract_bids_file(path: StrOrPath, with_meta: bool = True) -> Optional[Record]:
     """
     Extract BIDS entities and metadata from a data file in a BIDS dataset.
     """
@@ -31,19 +31,24 @@ def extract_bids_file(path: StrOrPath) -> Optional[Record]:
         return None
 
     dset_rec = extract_dataset(path)
-    meta_rec = extract_metadata(path)
+    if with_meta:
+        meta_rec = extract_metadata(path)
+    else:
+        meta_rec = Record({"json": None}, types={"json": "json"})
     file_rec = extract_file_meta(path)
 
     rec = concat({"ds": dset_rec, "ent": entities, "meta": meta_rec, "finfo": file_rec})
     return rec
 
 
-def extract_bids_subdir(path: StrOrPath) -> Generator[Optional[Record], None, None]:
+def extract_bids_subdir(
+    path: StrOrPath, with_meta: bool = True
+) -> Generator[Optional[Record], None, None]:
     """
     Extract BIDS records recursively for all files in a sub-directory.
     """
     for path in iglob(str(Path(path) / "**"), recursive=True):
-        yield extract_bids_file(path)
+        yield extract_bids_file(path, with_meta=with_meta)
 
 
 def is_bids_file(path: StrOrPath) -> bool:

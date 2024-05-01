@@ -1,4 +1,5 @@
 import logging
+from functools import partial
 from pathlib import Path
 from typing import Optional
 
@@ -15,6 +16,7 @@ logger = logging.getLogger("bids2table")
 def bids2table(
     root: StrOrPath,
     *,
+    with_meta: bool = True,
     persistent: bool = False,
     index_path: Optional[StrOrPath] = None,
     incremental: bool = False,
@@ -28,6 +30,8 @@ def bids2table(
 
     Args:
         root: path to BIDS dataset
+        with_meta: extract JSON sidecar metadata. Excluding metadata can result in much
+            faster indexing.
         persistent: whether to save index to disk as a Parquet dataset
         index_path: path to BIDS Parquet index to generate or load. Defaults to `root /
             "index.b2t"`. Index generation requires `persistent=True`.
@@ -60,6 +64,7 @@ def bids2table(
         dirs_only=True,
         follow_links=True,
     )
+    extract = partial(extract_bids_subdir, with_meta=with_meta)
 
     if index_path is None:
         index_path = root / "index.b2t"
@@ -80,7 +85,7 @@ def bids2table(
         logger.info("Building index in memory")
         df = build_table(
             source=source,
-            extract=extract_bids_subdir,
+            extract=extract,
             workers=workers,
             worker_id=worker_id,
         )
@@ -90,7 +95,7 @@ def bids2table(
     logger.info("Building persistent Parquet index")
     build_parquet(
         source=source,
-        extract=extract_bids_subdir,
+        extract=extract,
         output=index_path,
         incremental=incremental,
         overwrite=overwrite,
