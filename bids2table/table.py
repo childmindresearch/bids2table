@@ -6,6 +6,7 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Union
 import pandas as pd
 
 from bids2table.entities import ENTITY_NAMES_TO_KEYS, BIDSEntities
+from bids2table.extractors.metadata import extract_metadata
 
 
 class BIDSTable(pd.DataFrame):
@@ -267,6 +268,16 @@ class BIDSTable(pd.DataFrame):
         out = self.sort_values(by, inplace=inplace)
         if inplace:
             return self
+        return out
+
+    def with_meta(self, inplace: bool = False) -> "BIDSTable":
+        """
+        Returns a new BIDS table complete with JSON sidecar metadata.
+        """
+        out = self if inplace else self.copy()
+        file_paths = out.finfo["file_path"]
+        meta_json = file_paths.apply(lambda path: extract_metadata(path)["json"])
+        out.loc[:, "meta__json"] = meta_json
         return out
 
     @classmethod
