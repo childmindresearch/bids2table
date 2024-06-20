@@ -8,7 +8,7 @@ from dataclasses import asdict, dataclass, field, fields, make_dataclass
 from functools import lru_cache
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Iterable, List, Optional, Self, Tuple, Union
 
 import bidsschematools.schema
 import pandas as pd
@@ -35,7 +35,7 @@ def _get_bids_schema() -> Any:
 
 
 BIDS_DATATYPES = tuple(
-    o.value for o in dict(_get_bids_schema().objects.datatypes).values()
+    o.value for o in _get_bids_schema().objects.datatypes.values()
 )
 
 
@@ -213,7 +213,7 @@ class _BIDSEntitiesBase:
 
     def with_update(
         self, entitities: Optional[Dict[str, Any]] = None, **kwargs
-    ) -> "_BIDSEntitiesBase":
+    ) -> Self:
         """
         Create a new instance with updated entities.
         """
@@ -236,7 +236,7 @@ def make_bids_field(
         "display_name": entity_schema["display_name"],
         "allowed_values": entity_schema.get("enum"),
     }
-    type_ = {"integer": int}.get(entity_schema["type"], str)
+    type_ = {"index": int}.get(entity_schema["format"], str)
     field_ = field(default=None, metadata=metadata)
     return entity_schema["name"], Optional[type_], field_
 
