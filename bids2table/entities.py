@@ -34,9 +34,7 @@ def _get_bids_schema() -> Any:
     return bidsschematools.schema.load_schema(schema_path=_bids_schema_path)
 
 
-BIDS_DATATYPES = tuple(
-    o.value for o in _get_bids_schema().objects.datatypes.values()
-)
+BIDS_DATATYPES = tuple(o.value for o in _get_bids_schema().objects.datatypes.values())
 
 
 def bids_field(
