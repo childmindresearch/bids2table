@@ -241,15 +241,20 @@ def make_bids_field(
     return entity_schema["name"], Optional[type_], field_
 
 
+_sorted_entities = [
+    _get_bids_schema().objects.entities[field_name]
+    for field_name in _get_bids_schema().rules.entities
+]
 BIDSEntities: Any = make_dataclass(
     "BIDSEntities",
     [
         make_bids_field(dict(f))
-        for f in dict(_get_bids_schema().objects.entities).values()
+        for f in _sorted_entities
         if f.name not in {f.name for f in fields(_BIDSEntitiesBase)}
     ],
     bases=(_BIDSEntitiesBase,),
 )
+del _sorted_entities
 
 
 def _get_type(alias: Any) -> type:
