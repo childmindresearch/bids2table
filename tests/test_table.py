@@ -6,6 +6,7 @@ import pytest
 
 from bids2table import bids2table
 from bids2table.table import (
+    ENTITY_NAMES_TO_KEYS,
     BIDSTable,
     flat_to_multi_columns,
     join_bids_path,
@@ -32,13 +33,13 @@ def tab_no_meta() -> BIDSTable:
 
 
 def test_table(tab: BIDSTable):
-    assert tab.shape == (128, 40)
+    assert tab.shape == (128, len(ENTITY_NAMES_TO_KEYS) + 8)
 
     groups = tab.nested.columns.unique(0).tolist()
     assert groups == ["ds", "ent", "meta", "finfo"]
 
     assert tab.ds.shape == (128, 4)
-    assert tab.ent.shape == (128, 32)
+    assert tab.ent.shape == (128, len(ENTITY_NAMES_TO_KEYS))
     assert tab.meta.shape == (128, 1)
     assert tab.flat_meta.shape == (128, 2)
     assert tab.finfo.shape == (128, 3)
@@ -69,7 +70,7 @@ def test_table_files(tab: BIDSTable):
     }
 
     ents = file.entities
-    assert (ents.sub, ents.task, ents.run) == ("01", "balloonanalogrisktask", 1)
+    assert (ents.sub, ents.task, ents.run) == ("01", "balloonanalogrisktask", "01")
 
 
 @pytest.mark.parametrize(

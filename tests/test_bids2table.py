@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from bids2table import bids2table
+from bids2table.entities import ENTITY_NAMES_TO_KEYS
 
 BIDS_EXAMPLES = Path(__file__).parent.parent / "bids-examples"
 
@@ -35,7 +36,7 @@ def test_bids2table(tmp_path: Path, persistent: bool, with_meta: bool):
     tab = bids2table(
         root=root, with_meta=with_meta, persistent=persistent, index_path=index_path
     )
-    assert tab.shape == (128, 40)
+    assert tab.shape == (128, len(ENTITY_NAMES_TO_KEYS) + 8)
 
     if not with_meta:
         assert tab.loc[0, "meta__json"] is None

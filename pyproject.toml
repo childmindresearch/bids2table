@@ -27,6 +27,7 @@ dependencies = [
     "elbow",
     "nibabel",
     "pandas",
+    "bidsschematools",
 ]
 dynamic = ["version"]
 
