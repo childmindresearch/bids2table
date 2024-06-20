@@ -70,7 +70,7 @@ def test_table_files(tab: BIDSTable):
     }
 
     ents = file.entities
-    assert (ents.sub, ents.task, ents.run) == ("01", "balloonanalogrisktask", "01")
+    assert (ents.sub, ents.task, ents.run) == ("01", "balloonanalogrisktask", 1)
 
 
 @pytest.mark.parametrize(
@@ -232,7 +232,7 @@ def test_join_bids_path(
     expected: str,
 ):
     path = join_bids_path(entities, prefix=prefix, valid_only=valid_only)
-    assert str(path) == expected
+    assert Path(path).as_posix() == expected
 
 
 if __name__ == "__main__":
