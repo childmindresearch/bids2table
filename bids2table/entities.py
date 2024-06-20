@@ -8,7 +8,8 @@ from dataclasses import asdict, dataclass, field, fields, make_dataclass
 from functools import lru_cache
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Callable, Dict, Iterable, List, Optional, Self, Tuple, Union
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
+from typing_extensions import Self
 
 import bidsschematools.schema
 import pandas as pd
