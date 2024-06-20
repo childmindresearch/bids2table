@@ -9,12 +9,11 @@ from functools import lru_cache
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
-from typing_extensions import Self
 
 import bidsschematools.schema
 import pandas as pd
 from elbow.typing import StrOrPath
-from typing_extensions import get_args, get_origin
+from typing_extensions import Self, get_args, get_origin
 
 _bids_schema_path: Optional[str] = None
 

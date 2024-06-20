@@ -28,6 +28,7 @@ dependencies = [
     "nibabel",
     "pandas",
     "bidsschematools",
+    "typing_extensions",
 ]
 dynamic = ["version"]
 
