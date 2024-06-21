@@ -7,6 +7,7 @@ import pandas as pd
 import pytest
 
 from bids2table import __main__ as cli
+from bids2table.entities import ENTITY_NAMES_TO_KEYS
 
 BIDS_EXAMPLES = Path(__file__).parent.parent / "bids-examples"
 
@@ -37,7 +38,7 @@ def test_main(tmp_path: Path):
         cli.main()
 
     df = pd.read_parquet(output)
-    assert df.shape == (128, 40)
+    assert df.shape == (128, len(ENTITY_NAMES_TO_KEYS) + 8)
 
 
 if __name__ == "__main__":
