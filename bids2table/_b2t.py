@@ -69,7 +69,7 @@ def bids2table(
         dirs_only=True,
         follow_links=True,
     )
-    extract = partial(extract_bids_subdir, with_meta=with_meta)
+    extract = partial(extract_bids_subdir, exclude=exclude, with_meta=with_meta)
 
     if index_path is None:
         index_path = root / "index.b2t"
