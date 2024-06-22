@@ -61,6 +61,19 @@ def test_bids2table_nonexist(tmp_path: Path):
     with pytest.raises(FileNotFoundError):
         bids2table(root=tmp_path / "nonexistent_dataset")
 
+def test_bids2table_exclude(tmp_path: Path):
+    root = BIDS_EXAMPLES / "ds001"
+    index_path = tmp_path / "index_exclude.b2t"
+    exclude_list = ["sub-01", "sub-02"]
+
+    tab = bids2table(
+        root=root, with_meta=True, persistent=True, index_path=index_path, exclude=exclude_list
+    )
+
+    # Check that the excluded strings are not in the indexed table
+    for excluded in exclude_list:
+        assert excluded not in tab['ent__sub'].values
+
 
 if __name__ == "__main__":
     pytest.main([__file__])
