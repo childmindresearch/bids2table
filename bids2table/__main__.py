@@ -56,7 +56,7 @@ def main():
     )
     parser.add_argument(
         "--exclude", 
-        nargs='*',
+        nargs='+',
         default=None,
         help="List of directory names or glob patterns to exclude from indexing.",
     )
