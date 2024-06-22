@@ -19,12 +19,12 @@ def bids2table(
     with_meta: bool = True,
     persistent: bool = False,
     index_path: Optional[StrOrPath] = None,
+    exclude: Optional[List[str]] = None,
     incremental: bool = False,
     overwrite: bool = False,
     workers: Optional[int] = None,
     worker_id: Optional[int] = None,
     return_table: bool = True,
-    exclude: Optional[List[str]] = None,
 ) -> Optional[BIDSTable]:
     """
     Index a BIDS dataset directory and load as a pandas DataFrame.
@@ -36,6 +36,7 @@ def bids2table(
         persistent: whether to save index to disk as a Parquet dataset
         index_path: path to BIDS Parquet index to generate or load. Defaults to `root /
             "index.b2t"`. Index generation requires `persistent=True`.
+        exclude: Optional list of directory names to exclude from indexing.
         incremental: update index incrementally with only new or changed files.
         overwrite: overwrite previous index.
         workers: number of parallel processes. If `None` or 1, run in the main
