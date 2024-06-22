@@ -1,7 +1,7 @@
 import logging
 from functools import partial
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 from elbow.builders import build_parquet, build_table
 from elbow.sources.filesystem import Crawler
@@ -24,6 +24,7 @@ def bids2table(
     workers: Optional[int] = None,
     worker_id: Optional[int] = None,
     return_table: bool = True,
+    exclude: Optional[List[str]] = None,
 ) -> Optional[BIDSTable]:
     """
     Index a BIDS dataset directory and load as a pandas DataFrame.
@@ -56,11 +57,14 @@ def bids2table(
     root = Path(root).expanduser().resolve()
     if not root.is_dir():
         raise FileNotFoundError(f"root directory {root} does not exists")
-
+    
+    if exclude is None:
+        exclude = []
+        
     source = Crawler(
         root=root,
         include=["sub-*"],  # find subject dirs
-        skip=["sub-*"],  # but don't crawl into subject dirs
+        skip=["sub-*"] + exclude,  # but don't crawl into subject dirs
         dirs_only=True,
         follow_links=True,
     )
