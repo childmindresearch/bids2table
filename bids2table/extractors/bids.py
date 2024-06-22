@@ -1,5 +1,4 @@
 import logging
-from glob import iglob
 from pathlib import Path
 from typing import Generator, List, Optional
 
