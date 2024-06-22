@@ -62,5 +62,23 @@ def test_bids2table_nonexist(tmp_path: Path):
         bids2table(root=tmp_path / "nonexistent_dataset")
 
 
+def test_bids2table_exclude(tmp_path: Path):
+    root = BIDS_EXAMPLES / "ds001"
+    index_path = tmp_path / "index_exclude.b2t"
+    exclude_list = ["anat"]
+
+    tab = bids2table(
+        root=root,
+        with_meta=True,
+        persistent=True,
+        index_path=index_path,
+        exclude=exclude_list,
+    )
+
+    # Check that the excluded strings are not in the indexed table
+    assert "ent__datatype" in tab.columns
+    assert "anat" not in tab["ent__datatype"].values
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

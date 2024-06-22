@@ -1,7 +1,7 @@
 import logging
 from functools import partial
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 from elbow.builders import build_parquet, build_table
 from elbow.sources.filesystem import Crawler
@@ -19,6 +19,7 @@ def bids2table(
     with_meta: bool = True,
     persistent: bool = False,
     index_path: Optional[StrOrPath] = None,
+    exclude: Optional[List[str]] = None,
     incremental: bool = False,
     overwrite: bool = False,
     workers: Optional[int] = None,
@@ -35,6 +36,7 @@ def bids2table(
         persistent: whether to save index to disk as a Parquet dataset
         index_path: path to BIDS Parquet index to generate or load. Defaults to `root /
             "index.b2t"`. Index generation requires `persistent=True`.
+        exclude: Optional list of directory names or glob patterns to exclude from indexing.
         incremental: update index incrementally with only new or changed files.
         overwrite: overwrite previous index.
         workers: number of parallel processes. If `None` or 1, run in the main
@@ -57,14 +59,17 @@ def bids2table(
     if not root.is_dir():
         raise FileNotFoundError(f"root directory {root} does not exists")
 
+    if exclude is None:
+        exclude = []
+
     source = Crawler(
         root=root,
         include=["sub-*"],  # find subject dirs
-        skip=["sub-*"],  # but don't crawl into subject dirs
+        skip=["sub-*"] + exclude,  # but don't crawl into subject dirs
         dirs_only=True,
         follow_links=True,
     )
-    extract = partial(extract_bids_subdir, with_meta=with_meta)
+    extract = partial(extract_bids_subdir, exclude=exclude, with_meta=with_meta)
 
     if index_path is None:
         index_path = root / "index.b2t"

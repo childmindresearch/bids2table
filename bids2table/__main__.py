@@ -54,6 +54,12 @@ def main():
         default=0,
         help="Increase verbosity level.",
     )
+    parser.add_argument(
+        "--exclude",
+        nargs="+",
+        default=None,
+        help="List of directory names or glob patterns to exclude from indexing.",
+    )
 
     args = parser.parse_args()
 
@@ -68,6 +74,7 @@ def main():
         overwrite=args.overwrite,
         workers=args.workers,
         worker_id=args.worker_id,
+        exclude=args.exclude,
         return_table=False,
     )
 
