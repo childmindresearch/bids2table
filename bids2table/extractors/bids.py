@@ -1,10 +1,11 @@
 import logging
 from glob import iglob
 from pathlib import Path
-from typing import Generator, Optional
+from typing import Generator, List, Optional
 
 from elbow.extractors import extract_file_meta
 from elbow.record import Record, concat
+from elbow.sources.filesystem import Crawler
 from elbow.typing import StrOrPath
 
 from bids2table.entities import BIDSEntities
@@ -42,12 +43,21 @@ def extract_bids_file(path: StrOrPath, with_meta: bool = True) -> Optional[Recor
 
 
 def extract_bids_subdir(
-    path: StrOrPath, with_meta: bool = True
+    path: StrOrPath, exclude: List[str],
+    with_meta: bool = True
 ) -> Generator[Optional[Record], None, None]:
     """
     Extract BIDS records recursively for all files in a sub-directory.
     """
-    for path in iglob(str(Path(path) / "**"), recursive=True):
+    
+    # replace glob with crawler
+    source = Crawler(
+        root=path,
+        skip=exclude,
+        follow_links=True,
+    )
+    
+    for path in source:
         yield extract_bids_file(path, with_meta=with_meta)
 
 
