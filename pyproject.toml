@@ -80,5 +80,5 @@ ignore_missing_imports = true
 # Ref: https://github.com/codespell-project/codespell#using-a-config-file
 skip = '.git*'
 check-hidden = true
-ignore-regex = '^\s*"image/\S+": ".*'
+ignore-regex = '(^\s*"image/\S+": ".*|ND)'
 # ignore-words-list = ''
