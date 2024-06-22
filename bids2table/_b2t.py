@@ -36,7 +36,7 @@ def bids2table(
         persistent: whether to save index to disk as a Parquet dataset
         index_path: path to BIDS Parquet index to generate or load. Defaults to `root /
             "index.b2t"`. Index generation requires `persistent=True`.
-        exclude: Optional list of directory names to exclude from indexing.
+        exclude: Optional list of directory names or glob patterns to exclude from indexing.
         incremental: update index incrementally with only new or changed files.
         overwrite: overwrite previous index.
         workers: number of parallel processes. If `None` or 1, run in the main
