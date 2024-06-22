@@ -184,7 +184,7 @@ class _BIDSEntitiesBase:
         int_format: str = "%d",
     ) -> Path:
         """
-        Generate a filepath based on the entitities.
+        Generate a filepath based on the entities.
         """
         special = {"datatype", "suffix", "ext"}
         data = self.to_dict(valid_only=valid_only)
@@ -210,14 +210,14 @@ class _BIDSEntitiesBase:
         return path
 
     def with_update(
-        self, entitities: Optional[Dict[str, Any]] = None, **kwargs
+        self, entities: Optional[Dict[str, Any]] = None, **kwargs
     ) -> Self:
         """
         Create a new instance with updated entities.
         """
         data = self.to_dict(valid_only=False)
-        if entitities:
-            data.update(entitities)
+        if entities:
+            data.update(entities)
         if kwargs:
             data.update(kwargs)
         return self.__class__.from_dict(data)
