@@ -55,8 +55,8 @@ def main():
         help="Increase verbosity level.",
     )
     parser.add_argument(
-        "--exclude", 
-        nargs='+',
+        "--exclude",
+        nargs="+",
         default=None,
         help="List of directory names or glob patterns to exclude from indexing.",
     )

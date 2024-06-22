@@ -58,10 +58,10 @@ def bids2table(
     root = Path(root).expanduser().resolve()
     if not root.is_dir():
         raise FileNotFoundError(f"root directory {root} does not exists")
-    
+
     if exclude is None:
         exclude = []
-        
+
     source = Crawler(
         root=root,
         include=["sub-*"],  # find subject dirs

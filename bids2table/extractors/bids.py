@@ -43,8 +43,7 @@ def extract_bids_file(path: StrOrPath, with_meta: bool = True) -> Optional[Recor
 
 
 def extract_bids_subdir(
-    path: StrOrPath, exclude: List[str],
-    with_meta: bool = True
+    path: StrOrPath, exclude: List[str], with_meta: bool = True
 ) -> Generator[Optional[Record], None, None]:
     """
     Extract BIDS records recursively for all files in a sub-directory.
