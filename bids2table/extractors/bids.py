@@ -49,8 +49,7 @@ def extract_bids_subdir(
     """
     Extract BIDS records recursively for all files in a sub-directory.
     """
-    for path in Crawler(root=path, skip=exclude, 
-                        follow_links=True):
+    for path in Crawler(root=path, skip=exclude, exclude=exclude, follow_links=True):
         yield extract_bids_file(path, with_meta=with_meta)
 
 
