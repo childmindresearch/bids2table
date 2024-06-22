@@ -71,9 +71,8 @@ def test_bids2table_exclude(tmp_path: Path):
     )
 
     # Check that the excluded strings are not in the indexed table
-    for excluded in exclude_list:
-        assert excluded not in tab['ent__sub'].values
-
+    assert 'ent__datatype' in tab.columns
+    assert 'anat' not in tab['ent__datatype'].values
 
 if __name__ == "__main__":
     pytest.main([__file__])
