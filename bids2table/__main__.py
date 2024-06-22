@@ -58,7 +58,7 @@ def main():
         "--exclude", 
         nargs='*',
         default=None,
-        help="List of directory names to exclude from indexing.",
+        help="List of directory names or glob patterns to exclude from indexing.",
     )
 
     args = parser.parse_args()
