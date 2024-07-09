@@ -1,11 +1,11 @@
-from functools import lru_cache
 from pathlib import Path
-from typing import Dict, Generator, List, Optional
+from typing import Dict, Generator, Optional
 
 from elbow.typing import StrOrPath
 
 from bids2table.entities import parse_bids_entities
 
+from ._utils import _glob
 from .dataset import is_dataset_root
 
 
@@ -24,11 +24,11 @@ def find_bids_parents(
 
     Yields matching `path`s in decreasing topological order.
     """
-    suffix = query.get("suffix")
-    ext = query.get("ext")
+    suffix = query.get("suffix", "")
+    ext = query.get("ext", "")
     if not (suffix or ext):
         raise ValueError("At least one of 'suffix' or 'ext' are required in `query`.")
-    pattern = f"*{suffix}{ext}" if suffix else f"*{ext}"
+    pattern = f"*{suffix}{ext}"
 
     start = Path(start).absolute()
     if not start.is_dir():
@@ -60,11 +60,6 @@ def find_first_bids_parent(
     ``None`` if no parents found. See :func:`find_bids_parents` for more details.
     """
     return next(find_bids_parents(query, start, depth), None)
-
-
-@lru_cache()
-def _glob(path: Path, pattern: str) -> List[Path]:
-    return list(path.glob(pattern))
 
 
 def _test_bids_match(query: Dict[str, str], entities: Dict[str, str]) -> bool:

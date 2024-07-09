@@ -8,7 +8,8 @@ from elbow.typing import StrOrPath
 
 from bids2table.entities import parse_bids_entities
 
-from .inheritance import _glob, find_bids_parents
+from ._utils import _list_files
+from .inheritance import find_bids_parents
 
 logger = logging.getLogger(__name__)
 
@@ -42,12 +43,11 @@ def is_associated_sidecar(path: StrOrPath) -> bool:
     Check if a file is a JSON sidecar associated with other data file(s).
     """
     path = Path(path)
+    entities = parse_bids_entities(path)
 
     # Must be JSON
-    if not path.suffix == ".json":
+    if entities.get("ext") != ".json":
         return False
-
-    entities = parse_bids_entities(path)
 
     # Assume all JSON above the lowest level of hierarchy are associated
     if entities.get("datatype") is None:
@@ -59,10 +59,6 @@ def is_associated_sidecar(path: StrOrPath) -> bool:
         return False
 
     # Finally, check if there are any matches at the lowest level
-    # If not, we are a key-value file or solo sidecar like an MRIQC IQM JSON.
-    # Note this pattern always matches the file itself, so we check if there are any
-    # extra matches.
-    if len(_glob(path.parent, f"*_{suffix}.*")) > 1:
-        return True
-
-    return False
+    # If not, we are a key-value file or solo JSON like an MRIQC IQM JSON.
+    file_list = _list_files(path.parent)
+    return file_list.str.contains(f"_{suffix}(?!\\.json)").any()
