@@ -1,6 +1,7 @@
 import json
 import logging
 import traceback
+from functools import lru_cache
 from pathlib import Path
 
 from elbow.record import Record
@@ -60,5 +61,10 @@ def is_associated_sidecar(path: StrOrPath) -> bool:
 
     # Finally, check if there are any matches at the lowest level
     # If not, we are a key-value file or solo JSON like an MRIQC IQM JSON.
-    file_list = _list_files(path.parent)
+    return _contains_matches(path.parent, suffix)
+
+
+@lru_cache()
+def _contains_matches(path: Path, suffix: str) -> bool:
+    file_list = _list_files(path)
     return file_list.str.contains(f"_{suffix}(?!\\.json)").any()
