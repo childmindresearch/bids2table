@@ -53,14 +53,14 @@ def extract_bids_subdir(
 
 def is_bids_file(path: StrOrPath) -> bool:
     """
-    Check if `path` is a valid BIDS data file. E.g. not a directory or JSON sidecar
-    associated to another data file.
+    Check if `path` is a valid BIDS data file.
     """
     # TODO: other checks?
     #   - skip files matching patterns in .bidsignore?
     path = Path(path)
     return (
-        not path.is_dir()
+        path.exists()
+        and path.suffix != ""
         and path.name.startswith("sub-")
         and not is_associated_sidecar(path)
     )
