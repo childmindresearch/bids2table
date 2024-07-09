@@ -27,6 +27,10 @@ def bids_dataset(tmp_path: Path):
     image_path = anat_dir / "sub-A01_ses-1_T1w.nii.gz"
     image_path.touch()
 
+    # dummy surface paths
+    (anat_dir / "sub-A01_ses-1_white.surf.gii").touch()
+    (anat_dir / "sub-A01_ses-1_white.surf.json").touch()
+
     # dummy local sidecar
     with (anat_dir / "sub-A01_ses-1_T1w.json").open("w") as f:
         json.dump({"A": True}, f)
@@ -48,6 +52,12 @@ def bids_dataset(tmp_path: Path):
     with (anat_dir / "sub-A01_ses-1_keyvalue.json").open("w") as f:
         json.dump({"E": True}, f)
 
+    # second local key-value data, not sidecar
+    (anat_dir / "sub-A01_ses-2_keyvalue.json").touch()
+
+    # extra json file
+    (anat_dir / "sub-A01_ses-2_keyvalue.json").touch()
+
     # Inherited from first json but not second
     expected_json = {"A": True, "B": True, "C": True}
     return ds_dir, image_path, expected_json
@@ -65,6 +75,7 @@ def test_extract_metadata(bids_dataset):
         ("sub-A01/ses-1/anat/sub-A01_ses-1_T1w.json", True),
         ("ses-1_T1w.json", True),
         ("sub-A01/ses-1/anat/sub-A01_ses-1_keyvalue.json", False),
+        ("sub-A01/ses-1/anat/sub-A01_ses-1_white.surf.json", False),
     ],
 )
 def test_is_associated_sidecar(path, expected, bids_dataset):
