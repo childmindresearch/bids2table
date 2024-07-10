@@ -6,7 +6,7 @@ from typing import Dict, Tuple
 import pytest
 from pytest import FixtureRequest
 
-from bids2table.entities import BIDSEntities, parse_bids_entities
+from bids2table.entities import BIDSEntities, parse_bids_datatype, parse_bids_entities
 
 EXAMPLES = (
     (
@@ -101,5 +101,19 @@ def test_bids_entities_with_update(
     assert entities.sub == "A02"
 
 
-if __name__ == "__main__":
-    pytest.main([__file__])
+@pytest.mark.parametrize(
+    "path,expected",
+    [
+        ("ds006/sub-01/ses-post/anat/sub-01_ses-post_T1w.nii.gz", "anat"),
+        ("ds006/sub-01/ses-post/func/sub-01_ses-post_run-01_bold.nii.gz", "func"),
+        ("ds006/sub-01/ses-post/anat/sub-01_ses-post_T1w.nii.gz", "anat"),
+        ("ds006/sub-01/ses-post/blah/sub-01_ses-post_T1w.nii.gz", "blah"),
+        ("ds006/sub-01/anat/sub-01_T1w.nii.gz", "anat"),
+        ("ds006/sub-01/ses-post/Blah/sub-01_ses-post_T1w.nii.gz", None),
+        ("ds006/sub-01/ses-post/blah123/sub-01_ses-post_T1w.nii.gz", None),
+        ("ds009/sub-03/sub-03_scans.tsv", None),
+    ],
+)
+def test_datatype_pattern(path, expected):
+    datatype = parse_bids_datatype(path)
+    assert datatype == expected

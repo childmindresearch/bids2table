@@ -35,7 +35,6 @@ def _get_bids_schema() -> Any:
 
 
 BIDS_DATATYPES = tuple(o.value for o in _get_bids_schema().objects.datatypes.values())
-BIDS_DATATYPE_PATTERN = re.compile(f"/({'|'.join(BIDS_DATATYPES)})/")
 
 
 def bids_field(
@@ -304,12 +303,11 @@ def parse_bids_entities(path: StrOrPath) -> Dict[str, str]:
     path = Path(path)
     entities = {}
 
-    # datatype
-    match = re.search(BIDS_DATATYPE_PATTERN, path.as_posix())
-    datatype = match.group(1) if match is not None else None
-
     filename = path.name
     parts = filename.split("_")
+
+    # datatype
+    datatype = parse_bids_datatype(path)
 
     # suffix and extension
     suffix_ext = parts.pop()
@@ -336,6 +334,15 @@ def parse_bids_entities(path: StrOrPath) -> Dict[str, str]:
         if v is not None:
             entities[k] = v
     return entities
+
+
+def parse_bids_datatype(path: StrOrPath) -> Optional[str]:
+    match = re.search(BIDS_DATATYPE_PATTERN, Path(path).as_posix())
+    datatype = match.group(1) if match is not None else None
+    return datatype
+
+
+BIDS_DATATYPE_PATTERN = re.compile(r"/sub-[a-zA-Z0-9]+(?:/ses-[a-zA-Z0-9]+)?/([a-z]+)/")
 
 
 ENTITY_NAMES_TO_KEYS = MappingProxyType(
