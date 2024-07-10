@@ -7,7 +7,7 @@ from elbow.record import Record, concat
 from elbow.sources.filesystem import Crawler
 from elbow.typing import StrOrPath
 
-from bids2table.entities import BIDSEntities
+from bids2table.entities import BIDSEntities, parse_bids_entities
 
 from .dataset import extract_dataset
 from .metadata import extract_metadata, is_associated_sidecar
@@ -53,14 +53,27 @@ def extract_bids_subdir(
 
 def is_bids_file(path: StrOrPath) -> bool:
     """
-    Check if `path` is a valid BIDS data file. E.g. not a directory or JSON sidecar
-    associated to another data file.
+    Check if `path` is a valid BIDS data file.
     """
     # TODO: other checks?
     #   - skip files matching patterns in .bidsignore?
     path = Path(path)
-    return (
-        not path.is_dir()
-        and path.name.startswith("sub-")
-        and not is_associated_sidecar(path)
-    )
+
+    # initial fast checks
+    if not (path.exists() and path.suffix != "" and path.name.startswith("sub-")):
+        return False
+
+    entities = parse_bids_entities(path)
+    if not (entities.get("suffix") and entities.get("datatype")):
+        return False
+
+    if is_associated_sidecar(path):
+        return False
+
+    # very special case for directories that are treated as bids "files"
+    # e.g. microscopy .ome.zarr directories or MEG .ds directories.
+    # Annoying that we have to do this.
+    if is_bids_file(path.parent):
+        return False
+
+    return True

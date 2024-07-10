@@ -81,9 +81,7 @@ class _BIDSEntitiesBase:
     sub: str = bids_field(name="subject", display_name="Subject", required=True)
     ses: Optional[str] = bids_field(name="session", display_name="Session")
 
-    datatype: Optional[str] = bids_field(
-        name="datatype", display_name="Data type", allowed_values=BIDS_DATATYPES
-    )
+    datatype: Optional[str] = bids_field(name="datatype", display_name="Data type")
     suffix: Optional[str] = bids_field(name="suffix", display_name="Suffix")
     ext: Optional[str] = bids_field(name="extension", display_name="Extension")
     extra_entities: Optional[Dict[str, Union[str, int]]] = bids_field(
@@ -303,15 +301,11 @@ def parse_bids_entities(path: StrOrPath) -> Dict[str, str]:
     path = Path(path)
     entities = {}
 
-    # datatype
-    match = re.search(
-        f"/({'|'.join(BIDS_DATATYPES)})/",
-        path.as_posix(),
-    )
-    datatype = match.group(1) if match is not None else None
-
     filename = path.name
     parts = filename.split("_")
+
+    # datatype
+    datatype = parse_bids_datatype(path)
 
     # suffix and extension
     suffix_ext = parts.pop()
@@ -338,6 +332,15 @@ def parse_bids_entities(path: StrOrPath) -> Dict[str, str]:
         if v is not None:
             entities[k] = v
     return entities
+
+
+def parse_bids_datatype(path: StrOrPath) -> Optional[str]:
+    match = re.search(BIDS_DATATYPE_PATTERN, Path(path).as_posix())
+    datatype = match.group(1) if match is not None else None
+    return datatype
+
+
+BIDS_DATATYPE_PATTERN = re.compile(r"/sub-[a-zA-Z0-9]+(?:/ses-[a-zA-Z0-9]+)?/([a-z]+)/")
 
 
 ENTITY_NAMES_TO_KEYS = MappingProxyType(
