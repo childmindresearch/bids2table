@@ -81,9 +81,7 @@ class _BIDSEntitiesBase:
     sub: str = bids_field(name="subject", display_name="Subject", required=True)
     ses: Optional[str] = bids_field(name="session", display_name="Session")
 
-    datatype: Optional[str] = bids_field(
-        name="datatype", display_name="Data type", allowed_values=BIDS_DATATYPES
-    )
+    datatype: Optional[str] = bids_field(name="datatype", display_name="Data type")
     suffix: Optional[str] = bids_field(name="suffix", display_name="Suffix")
     ext: Optional[str] = bids_field(name="extension", display_name="Extension")
     extra_entities: Optional[Dict[str, Union[str, int]]] = bids_field(

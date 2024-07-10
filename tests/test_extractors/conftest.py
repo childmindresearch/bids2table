@@ -31,10 +31,9 @@ def bids_dataset(tmp_path: Path):
 
     # dummy directories that should be treated as data files
     # (I don't like this pattern. IMO these directories should be tar files or sth.)
-    ome_zarr_dir = (
-        ds_dir / "sub-A01" / "ses-1" / "micr" / "sub-A01_ses-1_sample-A_SPIM.ome.zarr"
-    )
+    ome_zarr_dir = ds_dir / "sub-A01" / "ses-1" / "micr" / "sub-A01_ses-1_SPIM.ome.zarr"
     ome_zarr_dir.mkdir(parents=True)
+    (ome_zarr_dir / "sub-A01_ses-1_SPIM.txt").touch()
 
     # dummy local sidecar
     with (anat_dir / "sub-A01_ses-1_T1w.json").open("w") as f:
@@ -62,6 +61,9 @@ def bids_dataset(tmp_path: Path):
 
     # extra json file
     (anat_dir / "sub-A01_ses-2_keyvalue.json").touch()
+
+    # dummy scans tsv
+    (ds_dir / "sub-A01" / "sub-A01_scans.tsv").touch()
 
     # Inherited from first json but not second
     expected_json = {"A": True, "B": True, "C": True}

@@ -7,7 +7,7 @@ from elbow.record import Record, concat
 from elbow.sources.filesystem import Crawler
 from elbow.typing import StrOrPath
 
-from bids2table.entities import BIDSEntities
+from bids2table.entities import BIDSEntities, parse_bids_entities
 
 from .dataset import extract_dataset
 from .metadata import extract_metadata, is_associated_sidecar
@@ -47,8 +47,6 @@ def extract_bids_subdir(
     """
     Extract BIDS records recursively for all files in a sub-directory.
     """
-    # TODO: we should probably not descend into directories that are treated as bids
-    # "files". E.g. MEG '.ds' directories.
     for path in Crawler(root=path, skip=exclude, exclude=exclude, follow_links=True):
         yield extract_bids_file(path, with_meta=with_meta)
 
@@ -60,9 +58,22 @@ def is_bids_file(path: StrOrPath) -> bool:
     # TODO: other checks?
     #   - skip files matching patterns in .bidsignore?
     path = Path(path)
-    return (
-        path.exists()
-        and path.suffix != ""
-        and path.name.startswith("sub-")
-        and not is_associated_sidecar(path)
-    )
+
+    # initial fast checks
+    if not (path.exists() and path.suffix != "" and path.name.startswith("sub-")):
+        return False
+
+    entities = parse_bids_entities(path)
+    if not (entities.get("suffix") and entities.get("datatype")):
+        return False
+
+    if is_associated_sidecar(path):
+        return False
+
+    # very special case for directories that are treated as bids "files"
+    # e.g. microscopy .ome.zarr directories or MEG .ds directories.
+    # Annoying that we have to do this.
+    if is_bids_file(path.parent):
+        return False
+
+    return True
