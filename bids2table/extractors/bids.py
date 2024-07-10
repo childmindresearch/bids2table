@@ -47,6 +47,8 @@ def extract_bids_subdir(
     """
     Extract BIDS records recursively for all files in a sub-directory.
     """
+    # TODO: we should probably not descend into directories that are treated as bids
+    # "files". E.g. MEG '.ds' directories.
     for path in Crawler(root=path, skip=exclude, exclude=exclude, follow_links=True):
         yield extract_bids_file(path, with_meta=with_meta)
 
