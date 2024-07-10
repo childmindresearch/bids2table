@@ -35,6 +35,7 @@ def _get_bids_schema() -> Any:
 
 
 BIDS_DATATYPES = tuple(o.value for o in _get_bids_schema().objects.datatypes.values())
+BIDS_DATATYPE_PATTERN = re.compile(f"/({'|'.join(BIDS_DATATYPES)})/")
 
 
 def bids_field(
@@ -304,10 +305,7 @@ def parse_bids_entities(path: StrOrPath) -> Dict[str, str]:
     entities = {}
 
     # datatype
-    match = re.search(
-        f"/({'|'.join(BIDS_DATATYPES)})/",
-        path.as_posix(),
-    )
+    match = re.search(BIDS_DATATYPE_PATTERN, path.as_posix())
     datatype = match.group(1) if match is not None else None
 
     filename = path.name
