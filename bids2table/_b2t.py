@@ -1,7 +1,7 @@
 import logging
 from functools import partial
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Literal, Optional, overload
 
 from elbow.builders import build_parquet, build_table
 from elbow.sources.filesystem import Crawler
@@ -13,6 +13,34 @@ from bids2table.table import BIDSTable
 logger = logging.getLogger("bids2table")
 
 
+@overload
+def bids2table(
+    root: StrOrPath,
+    *,
+    with_meta: bool = True,
+    persistent: bool = False,
+    index_path: Optional[StrOrPath] = None,
+    exclude: Optional[List[str]] = None,
+    incremental: bool = False,
+    overwrite: bool = False,
+    workers: Optional[int] = None,
+    worker_id: Optional[int] = None,
+    return_table: Literal[True] = True,
+) -> BIDSTable: ...
+@overload
+def bids2table(
+    root: StrOrPath,
+    *,
+    with_meta: bool = True,
+    persistent: bool = False,
+    index_path: Optional[StrOrPath] = None,
+    exclude: Optional[List[str]] = None,
+    incremental: bool = False,
+    overwrite: bool = False,
+    workers: Optional[int] = None,
+    worker_id: Optional[int] = None,
+    return_table: Literal[False],
+) -> None: ...
 def bids2table(
     root: StrOrPath,
     *,
