@@ -209,9 +209,7 @@ class _BIDSEntitiesBase:
             path = prefix / path
         return path
 
-    def with_update(
-        self, entities: Optional[Dict[str, Any]] = None, **kwargs
-    ) -> Self:
+    def with_update(self, entities: Optional[Dict[str, Any]] = None, **kwargs) -> Self:
         """
         Create a new instance with updated entities.
         """
