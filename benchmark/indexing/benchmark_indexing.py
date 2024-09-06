@@ -99,9 +99,9 @@ def benchmark_bids2table(root: Path, workers: int):
         b2t.bids2table(
             root,
             persistent=True,
-            output=Path(tmpdir) / "index.b2t",
+            index_path=Path(tmpdir) / "index.b2t",
             workers=workers,
-            return_df=False,
+            return_table=False,
         )
         size_mb = du(tmpdir)
 
