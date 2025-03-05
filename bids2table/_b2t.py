@@ -25,6 +25,7 @@ def bids2table(
     workers: Optional[int] = None,
     worker_id: Optional[int] = None,
     return_table: bool = True,
+    subject: Optional[List[str]] = None,
 ) -> Optional[BIDSTable]:
     """
     Index a BIDS dataset directory and load as a pandas DataFrame.
@@ -47,6 +48,7 @@ def bids2table(
             overwrite.
         return_table: whether to return the BIDS table or just build the persistent
             index.
+        subject: optional subject label to index only a specific subject directory
 
     Returns:
         A `BIDSTable` representing the indexed dataset(s), or `None` if `return_table`
@@ -62,13 +64,29 @@ def bids2table(
     if exclude is None:
         exclude = []
 
-    source = Crawler(
-        root=root,
-        include=["sub-*"],  # find subject dirs
-        skip=["sub-*"] + exclude,  # but don't crawl into subject dirs
-        dirs_only=True,
-        follow_links=True,
-    )
+    if subject is not None:
+        subjects = [sub.lstrip("sub-") if sub.startswith("sub-") else sub for sub in subject]
+        logger.info(f"Indexing only subjects: {', '.join([f'sub-{sub}' for sub in subjects])}")
+        all_subjects = [d.name for d in root.iterdir() if d.is_dir() and d.name.startswith("sub-")]
+        exclude += [f"{sub}" for sub in all_subjects if sub not in [f"sub-{s}" for s in subjects]]
+        logger.info(f"Excluding subjects: {exclude}")
+        include_patterns = [f"sub-{sub}" for sub in subjects]
+        source = Crawler(
+            root=root,
+            include=include_patterns,
+            exclude=exclude,
+            dirs_only=True,
+            follow_links=True,
+        )
+    else:
+        logger.info("Indexing all subjects")
+        source = Crawler(
+            root=root,
+            include=["sub-*"],  # find subject dirs
+            skip=["sub-*"] + exclude,  # exclude specified patterns
+            dirs_only=True,
+            follow_links=True,
+        )
     extract = partial(extract_bids_subdir, exclude=exclude, with_meta=with_meta)
 
     if index_path is None:

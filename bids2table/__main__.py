@@ -60,7 +60,14 @@ def main():
         default=None,
         help="List of directory names or glob patterns to exclude from indexing.",
     )
-
+    parser.add_argument(
+        "--subject",
+        "-sub",
+        nargs="+",
+        type=str,
+        help="List of subject labels to index (default: None)",
+        default=None,
+    )
     args = parser.parse_args()
 
     log_level = ["ERROR", "WARNING", "INFO"][min(args.verbose, 2)]
@@ -75,6 +82,7 @@ def main():
         workers=args.workers,
         worker_id=args.worker_id,
         exclude=args.exclude,
+        subject=args.subject,
         return_table=False,
     )
 
