@@ -48,7 +48,13 @@ def test_table(tab: BIDSTable):
     assert subtab.ds.shape == (10, 4)
 
     assert len(tab.datatypes) == 2
-    assert len(tab.modalities) == 1
+    assert set(tab.modalities).issuperset(
+        {
+            "T1w",
+            "inplaneT2",
+            "bold",
+        }
+    )
     assert len(tab.subjects) == 16
     assert len(tab.entities) == 3
 
