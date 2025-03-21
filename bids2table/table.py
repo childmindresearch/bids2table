@@ -74,10 +74,19 @@ class BIDSTable(pd.DataFrame):
     @cached_property
     def modalities(self) -> List[str]:
         """
-        Get all modalities present in the table.
+        Get data modalities present in the table.
+
+        Currently includes: https://github.com/bids-standard/bids-specification/blob/master/src/schema/objects/suffixes.yaml
+        which can include events, etc.
         """
-        # TODO: Is this the right way to get the modality
-        return self.ent["mod"].unique().tolist()
+        return self.suffixes
+
+    @cached_property
+    def suffixes(self) -> List[str]:
+        """
+        Get all suffixes present in the table.
+        """
+        return self.ent["suffix"].unique().tolist()
 
     @cached_property
     def subjects(self) -> List[str]:
