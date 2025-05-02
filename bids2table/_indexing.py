@@ -1,9 +1,15 @@
+"""Finding and indexing BIDS datasets.
+
+Uses only `pathlib.Path` methods and string processing to find and filter the files.
+Returns a dataset index as an Arrow table.
+"""
+
 import fnmatch
 import importlib.metadata
 import re
 from concurrent.futures import Executor, ProcessPoolExecutor
 from functools import partial
-from typing import Generator, Iterable
+from typing import Any, Callable, Generator, Iterable
 
 import pyarrow as pa
 from tqdm import tqdm
@@ -173,19 +179,17 @@ def index_bids_dataset(
     subject_dirs = sorted(subject_dirs, key=lambda p: p.name)
 
     tables = []
-    if max_workers == 0:
-        for sub_dir in tqdm(subject_dirs, disable=not show_progress):
-            table = _index_bids_subject_dir(sub_dir, schema=schema, dataset=dataset)
-            tables.append(table)
-    else:
-        with executor_cls(max_workers=max_workers) as executor:
-            func = partial(_index_bids_subject_dir, schema=schema, dataset=dataset)
-            for table in tqdm(
-                executor.map(func, subject_dirs),
-                total=len(subject_dirs),
-                disable=not show_progress,
-            ):
-                tables.append(table)
+    func = partial(_index_bids_subject_dir, schema=schema, dataset=dataset)
+    for sub, table in (
+        pbar := tqdm(
+            _pmap(func, subject_dirs, max_workers, executor_cls),
+            desc=dataset,
+            total=len(subject_dirs),
+            disable=not show_progress,
+        )
+    ):
+        pbar.set_postfix(dict(sub=sub, N=len(table)), refresh=False)
+        tables.append(table)
 
     # NOTE: concat_tables produces a table where each column is a ChunkedArray, with one
     # chunk per original subject table. Is it better to keep the original chunks (one
@@ -266,20 +270,26 @@ def _find_bids_subject_dirs(
 def _is_bids_subject_dir(path: Path) -> bool:
     """Check if a path is a BIDS subject directory."""
     # NOTE: not checking if the path is in fact a directory.
-    # This is a slow op, especially on cloud.
+    # This is a slow op, especially on cloud. Can assume that there are no files
+    # matching the subject dir pattern, and even if there are, the rglob that happens
+    # later will just return empty.
     return bool(re.match(_BIDS_SUBJECT_DIR_PATTERN, path.name))
 
 
 def _index_bids_subject_dir(
     path: Path,
-    schema: pa.Schema,
+    schema: pa.Schema | None = None,
     dataset: str | None = None,
-) -> pa.Table:
+) -> tuple[str, pa.Table]:
     """Index a BIDS subject directory and return an Arrow table."""
     root = path.parent
     root_fmt = str(root.absolute())
     if dataset is None:
         dataset, _ = _get_bids_dataset(root)
+    if schema is None:
+        schema = get_arrow_schema()
+
+    _, subject = path.name.split("-")
 
     records = []
     for p in _find_bids_files(path):
@@ -295,7 +305,7 @@ def _index_bids_subject_dir(
         records.append(record)
 
     table = pa.Table.from_pylist(records, schema=schema)
-    return table
+    return subject, table
 
 
 def _find_bids_files(path: Path) -> Generator[Path, None, None]:
@@ -356,6 +366,19 @@ def _is_bids_json_sidecar(path: Path) -> bool:
     if suffix is None or suffix in _BIDS_JSON_SIDECAR_EXCEPTION_SUFFIXES:
         return False
     return True
+
+
+def _pmap(
+    func: Callable,
+    iterable: Iterable[Any],
+    max_workers: int | None = 0,
+    executor_cls: type[Executor] = ProcessPoolExecutor,
+):
+    if max_workers == 0:
+        yield from map(func, iterable)
+    else:
+        with executor_cls(max_workers=max_workers) as executor:
+            yield from executor.map(func, iterable)
 
 
 def _filter_include_exclude(

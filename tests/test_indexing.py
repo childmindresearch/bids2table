@@ -68,8 +68,7 @@ def test_get_bids_dataset(path: str, expected_name: str):
     ],
 )
 def test_index_subject_dir(path: str, expected_count: int):
-    schema = indexing.get_arrow_schema()
-    table = indexing._index_bids_subject_dir(BIDS_EXAMPLES / path, schema=schema)
+    _, table = indexing._index_bids_subject_dir(BIDS_EXAMPLES / path)
     assert len(table) == expected_count
 
 
