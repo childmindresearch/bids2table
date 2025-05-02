@@ -13,5 +13,5 @@ Index large-scale BIDS datasets fast.
 The latest development version can be installed with
 
 ```sh
-pip install git+https://github.com/childmindresearch/bids2table.git@develop/v2
+pip install git+https://github.com/childmindresearch/bids2table.git@develop/b2t2
 ```
