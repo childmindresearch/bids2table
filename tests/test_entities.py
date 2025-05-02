@@ -80,9 +80,9 @@ def test_parse_validate_bids_entities(bids_example: ExampleCase):
         ("sub-A01_part-phasee_bold.nii.gz", "allowed"),  # Not in allowed values, typo
     ],
 )
-def test_validate_raises(path: str, msg: str):
+def test_validate_warns(path: str, msg: str):
     entities = parse_bids_entities(path)
-    with pytest.raises(ValueError, match=msg):
+    with pytest.warns(RuntimeWarning, match=msg):
         validate_bids_entities(entities)
 
 

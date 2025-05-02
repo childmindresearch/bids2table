@@ -6,6 +6,7 @@ Uses the BIDS schema for validation.
 import enum
 import json
 import re
+import warnings
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -14,7 +15,6 @@ import bidsschematools.schema
 import pyarrow as pa
 from bidsschematools.types import Namespace
 
-StrPath = str | Path
 BIDSValue = str | int
 
 BIDSEntity: enum.StrEnum
@@ -28,7 +28,7 @@ _BIDS_ENTITY_SCHEMA: dict[str, dict[str, Any]]
 _BIDS_NAME_ENTITY_MAP: dict[str, str]
 
 # BIDS schema in Arrow format
-_BIDS_ARROW_SCHEMA: pa.Schema
+_BIDS_ENTITY_ARROW_SCHEMA: pa.Schema
 
 # "Special" entities that are part of the BIDS file name spec but not in the BIDS schema
 # (bc they don't follow the '{key}-{value}' format).
@@ -43,7 +43,7 @@ _BIDS_SPECIAL_ENTITY_SCHEMA = {
     "suffix": {
         "name": "suffix",
         "display_name": "Suffix",
-        "description": "Final part of file name after final '_' and before extension",
+        "description": "Final part of file name after final '_' and before extension.",
         "type": "string",
         "format": "special",
     },
@@ -70,14 +70,16 @@ _BIDS_FORMAT_PY_TYPE_MAP = {
 
 # Matches sub-directory after subject ('sub-abc') and (optionally) session ('ses-01')
 # directories. Must be all lowercase.
-_BIDS_DATATYPE_PATTERN = re.compile(r"sub-[a-zA-Z0-9]+(?:/ses-[a-zA-Z0-9]+)?/([a-z]+)/")
+_BIDS_DATATYPE_PATTERN = re.compile(
+    r"sub-[a-zA-Z0-9]+(?:[/\\]ses-[a-zA-Z0-9]+)?[/\\]([a-z]+)[/\\]"
+)
 
 
-def set_bids_schema(path: StrPath | None = None):
+def set_bids_schema(path: str | Path | None = None):
     """Set the BIDS schema."""
     global BIDSEntity
     global _BIDS_SCHEMA, _BIDS_ENTITY_SCHEMA, _BIDS_NAME_ENTITY_MAP
-    global _BIDS_ARROW_SCHEMA
+    global _BIDS_ENTITY_ARROW_SCHEMA
 
     schema = bidsschematools.schema.load_schema(path)
     entity_schema = {
@@ -94,17 +96,17 @@ def set_bids_schema(path: StrPath | None = None):
     _BIDS_ENTITY_SCHEMA = entity_schema
     _BIDS_NAME_ENTITY_MAP = name_entity_map
 
-    _BIDS_ARROW_SCHEMA = _bids_arrow_schema(
+    _BIDS_ENTITY_ARROW_SCHEMA = _bids_entity_arrow_schema(
         entity_schema,
         bids_version=schema["bids_version"],
         schema_version=schema["schema_version"],
     )
 
 
-def _bids_arrow_schema(
+def _bids_entity_arrow_schema(
     entity_schema: dict[str, dict[str, Any]],
-    bids_version: str | None = None,
-    schema_version: str | None = None,
+    bids_version: str,
+    schema_version: str,
 ) -> pa.Schema:
     """Create Arrow schema from BIDS entity schema."""
     fields = []
@@ -121,11 +123,7 @@ def _bids_arrow_schema(
         field = pa.field(name, dtype, metadata=metadata)
         fields.append(field)
 
-    metadata = {}
-    if bids_version:
-        metadata["bids_version"] = bids_version
-    if schema_version:
-        metadata["schema_version"] = schema_version
+    metadata = {"bids_version": bids_version, "schema_version": schema_version}
     arrow_schema = pa.schema(fields, metadata=metadata)
     return arrow_schema
 
@@ -135,19 +133,19 @@ def get_bids_schema() -> Namespace:
     return _BIDS_SCHEMA
 
 
-def get_bids_arrow_schema() -> pa.Schema:
-    """Get the current BIDS schema in Arrow format."""
-    return _BIDS_ARROW_SCHEMA
+def _get_bids_entity_arrow_schema() -> pa.Schema:
+    """Get the current BIDS entity schema in Arrow format."""
+    return _BIDS_ENTITY_ARROW_SCHEMA
 
 
 @lru_cache()
-def parse_bids_entities(path: StrPath) -> dict[str, str]:
+def parse_bids_entities(path: str | Path) -> dict[str, str]:
     """Parse entities from BIDS file path.
 
     Parses all BIDS filename `"{key}-{value}"` entities as well as special entities:
     datatype, suffix, ext (extension). Does not validate entities or cast to types.
     """
-    path = Path(path)
+    path = _as_path(path)
     entities = {}
 
     filename = path.name
@@ -180,13 +178,13 @@ def parse_bids_entities(path: StrPath) -> dict[str, str]:
     return entities
 
 
-def _parse_bids_datatype(path: StrPath) -> str | None:
+def _parse_bids_datatype(path: Path) -> str | None:
     """Parse BIDS datatype from file path.
 
     Datatype is assumed to be the name of the sub-directory after the subject and
     (optionally) session directories. Returns `None` if no match found.
     """
-    match = re.search(_BIDS_DATATYPE_PATTERN, Path(path).as_posix())
+    match = re.search(_BIDS_DATATYPE_PATTERN, str(path))
     datatype = match.group(1) if match is not None else None
     return datatype
 
@@ -212,17 +210,23 @@ def validate_bids_entities(
             # Cast to target type.
             try:
                 value = typ(value)
-            except ValueError as exc:
-                raise ValueError(
-                    f"Unable to coerce {repr(value)} to type {typ} for entity '{name}'."
-                ) from exc
+            except ValueError:
+                warnings.warn(
+                    f"Unable to coerce {repr(value)} to type {typ} for entity '{name}'.",
+                    RuntimeWarning,
+                )
+                extra_entities[name] = value
+                continue
 
             # Check allowed values.
             if "enum" in cfg and value not in cfg["enum"]:
-                raise ValueError(
+                warnings.warn(
                     f"Value {value} for entity '{name}' isn't one of the "
-                    f"allowed values: {cfg['enum']}."
+                    f"allowed values: {cfg['enum']}.",
+                    RuntimeWarning,
                 )
+                extra_entities[name] = value
+                continue
 
             valid_entities[name] = value
         else:
@@ -260,6 +264,12 @@ def format_path(entities: dict[str, Any], int_format: str = "%d") -> Path:
     if ses := entities.get("ses"):
         path = f"ses-{ses}" / path
     path = f"sub-{entities['sub']}" / path
+    return path
+
+
+def _as_path(path: str | Path) -> Path:
+    if isinstance(path, str):
+        path = Path(path)
     return path
 
 
