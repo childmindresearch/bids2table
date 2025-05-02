@@ -145,7 +145,8 @@ def parse_bids_entities(path: str | Path) -> dict[str, str]:
     Parses all BIDS filename `"{key}-{value}"` entities as well as special entities:
     datatype, suffix, ext (extension). Does not validate entities or cast to types.
     """
-    path = _as_path(path)
+    if isinstance(path, str):
+        path = Path(path)
     entities = {}
 
     filename = path.name
@@ -264,12 +265,6 @@ def format_path(entities: dict[str, Any], int_format: str = "%d") -> Path:
     if ses := entities.get("ses"):
         path = f"ses-{ses}" / path
     path = f"sub-{entities['sub']}" / path
-    return path
-
-
-def _as_path(path: str | Path) -> Path:
-    if isinstance(path, str):
-        path = Path(path)
     return path
 
 

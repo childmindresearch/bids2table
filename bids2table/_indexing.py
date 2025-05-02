@@ -3,7 +3,6 @@ import importlib.metadata
 import re
 from concurrent.futures import Executor, ProcessPoolExecutor
 from functools import partial
-from pathlib import Path
 from typing import Generator, Iterable
 
 import pyarrow as pa
@@ -14,14 +13,7 @@ from ._entities import (
     parse_bids_entities,
     validate_bids_entities,
 )
-
-try:
-    # Overshadow pathlib Path.
-    from cloudpathlib import AnyPath as Path
-
-    _CLOUDPATHLIB_AVAILABLE = True
-except ImportError:
-    _CLOUDPATHLIB_AVAILABLE = False
+from ._pathlib import Path
 
 _BIDS_SUBJECT_DIR_PATTERN = re.compile(r"sub-[a-zA-Z0-9]+")
 
@@ -82,11 +74,6 @@ _INDEX_ARROW_FIELDS = {
         },
     },
 }
-
-
-def cloudpathlib_is_available() -> bool:
-    """Check if cloudpathlib is available."""
-    return _CLOUDPATHLIB_AVAILABLE
 
 
 def get_arrow_schema() -> pa.Schema:
@@ -253,6 +240,7 @@ def _is_bids_dataset_root(path: Path) -> bool:
 
 def _contains_bids_subject_dirs(root: Path) -> bool:
     """Check if a path contains one or more BIDS subject dirs."""
+    # Nb, this will return on the first matching path thanks to the generator.
     return any(_is_bids_subject_dir(path) for path in root.glob("sub-*"))
 
 
