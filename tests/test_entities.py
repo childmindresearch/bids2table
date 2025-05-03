@@ -1,7 +1,8 @@
+import logging
 from typing import Any, NamedTuple
 
 import pytest
-from pytest import FixtureRequest
+from pytest import FixtureRequest, LogCaptureFixture
 
 from bids2table._entities import (
     format_bids_path,
@@ -80,10 +81,11 @@ def test_parse_validate_bids_entities(bids_example: ExampleCase):
         ("sub-A01_part-phasee_bold.nii.gz", "allowed"),  # Not in allowed values, typo
     ],
 )
-def test_validate_warns(path: str, msg: str):
+def test_validate_warns(path: str, msg: str, caplog: LogCaptureFixture):
     entities = parse_bids_entities(path)
-    with pytest.warns(RuntimeWarning, match=msg):
+    with caplog.at_level(logging.WARNING):
         validate_bids_entities(entities)
+    assert msg in caplog.text
 
 
 @pytest.mark.parametrize(

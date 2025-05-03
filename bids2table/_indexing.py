@@ -6,11 +6,11 @@ Returns a dataset index as an Arrow table.
 
 import fnmatch
 import importlib.metadata
+import logging
 import re
-import warnings
 from concurrent.futures import Executor, ProcessPoolExecutor
 from functools import partial
-from typing import Any, Callable, Generator, Iterable
+from typing import Any, Callable, Generator, Iterable, Literal
 
 import pyarrow as pa
 from tqdm import tqdm
@@ -82,6 +82,8 @@ _INDEX_ARROW_FIELDS = {
     },
 }
 
+_logger = logging.getLogger(__package__)
+
 
 def get_arrow_schema() -> pa.Schema:
     """Get Arrow schema of the BIDS dataset index."""
@@ -110,11 +112,12 @@ def find_bids_datasets(
     root: str | Path,
     exclude: str | list[str] | None = None,
     follow_symlinks: bool = True,
+    log_frequency: int | None = None,
 ) -> Generator[Path, None, None]:
     """Find all BIDS datasets under a root directory.
 
     Args:
-        root: Root path to begin search. (Can itself be a BIDS dataset.)
+        root: Root path to begin search.
         exclude: Glob pattern or list of patterns matching sub-directory names to
             exclude from the search.
         follow_symlinks: Search into symlinks that point to directories.
@@ -125,9 +128,15 @@ def find_bids_datasets(
     if isinstance(root, str):
         root = Path(root)
 
+    dir_count = 0
+    ds_count = 0
+
     # NOTE: Path.walk was introduced in 3.12. Otherwise, could use an older python.
     for dirpath, dirnames, _ in root.walk(follow_symlinks=follow_symlinks):
+        dir_count += 1
+
         if _is_bids_dataset_root(dirpath):
+            ds_count += 1
             yield dirpath
 
             # Only descend into specific sub-directories that are allowed to contain
@@ -136,31 +145,40 @@ def find_bids_datasets(
 
         # Filter sub-directories to descend into.
         if exclude:
-            matches = _filter_include_exclude(dirnames, exclude=exclude)
+            matches = _filter_exclude(dirnames, exclude)
             _filter_dirnames(dirnames, matches)
 
+        if log_frequency and dir_count % log_frequency == 0:
+            _logger.info(
+                "Searched %d directories; found %d BIDS datasets.", dir_count, ds_count
+            )
 
-def index_bids_dataset(
+    if log_frequency:
+        _logger.info(
+            "Searched %d directories; found %d BIDS datasets.", dir_count, ds_count
+        )
+
+
+def index_dataset(
     root: str | Path,
     include_subjects: str | list[str] | None = None,
-    exclude_subjects: str | list[str] | None = None,
     max_workers: int | None = 0,
+    chunksize: int = 32,
     executor_cls: type[Executor] = ProcessPoolExecutor,
     show_progress: bool = True,
 ) -> pa.Table:
     """Index a BIDS dataset.
 
     Args:
-        root: BIDS dataset root directory. Should contain one or more subject
-            directories.
+        root: BIDS dataset root directory.
         include_subjects: Glob pattern or list of patterns for matching subjects to
             include in the index.
-        exclude_subjects: Glob pattern or list of patterns for matching subjects to
-            exclude from the index.
         max_workers: Number of indexing processes to run in parallel. Setting
             `max_workers=0` (the default) uses the main process only. Setting
             `max_workers=None` starts as many workers as there are available CPUs. See
             `concurrent.futures.ProcessPoolExecutor` for details.
+        chunksize: Number of subjects per process task. Only used for
+            `ProcessPoolExecutor` when `max_workers > 0`.
         executor_cls: Executor class to use for parallel indexing.
         show_progress: Show progress bar.
 
@@ -172,28 +190,31 @@ def index_bids_dataset(
 
     schema = get_arrow_schema()
 
-    if not _is_bids_dataset_root(root):
-        warnings.warn(
-            f"Path {root} is empty or not a valid BIDS dataset directory.",
-            RuntimeWarning,
-        )
+    dataset, _ = _get_bids_dataset(root)
+    if dataset is None:
+        _logger.warning(f"Path {root} is not a valid BIDS dataset directory.")
         return pa.Table.from_pylist([], schema=schema)
 
-    dataset, _ = _get_bids_dataset(root)
-    subject_dirs = _find_bids_subject_dirs(root, include_subjects, exclude_subjects)
+    subject_dirs = _find_bids_subject_dirs(root, include_subjects)
     subject_dirs = sorted(subject_dirs, key=lambda p: p.name)
+    if len(subject_dirs) == 0:
+        _logger.warning(f"Path {root} contains no matching subject dirs.")
+        return pa.Table.from_pylist([], schema=schema)
+
+    func = partial(_index_bids_subject_dir, schema=schema, dataset=dataset)
 
     tables = []
-    func = partial(_index_bids_subject_dir, schema=schema, dataset=dataset)
+    file_count = 0
     for sub, table in (
         pbar := tqdm(
-            _pmap(func, subject_dirs, max_workers, executor_cls),
+            _pmap(func, subject_dirs, max_workers, chunksize, executor_cls),
             desc=dataset,
             total=len(subject_dirs),
             disable=not show_progress,
         )
     ):
-        pbar.set_postfix(dict(sub=sub, N=len(table)), refresh=False)
+        file_count += len(table)
+        pbar.set_postfix(dict(sub=sub, subs=len(tables), N=file_count), refresh=False)
         tables.append(table)
 
     # NOTE: concat_tables produces a table where each column is a ChunkedArray, with one
@@ -201,6 +222,58 @@ def index_bids_dataset(
     # per subject) or merge using `combine_chunks`?
     table = pa.concat_tables(tables)
     return table
+
+
+def batch_index_dataset(
+    roots: list[str | Path],
+    max_workers: int | None = 0,
+    executor_cls: type[Executor] = ProcessPoolExecutor,
+    show_progress: bool | Literal["subject", "dataset"] = "dataset",
+) -> pa.Table:
+    """Index a batch of BIDS datasets.
+
+    Args:
+        roots: List of BIDS dataset root directories.
+        max_workers: Number of indexing processes to run in parallel. Setting
+            `max_workers=0` (the default) uses the main process only. Setting
+            `max_workers=None` starts as many workers as there are available CPUs. See
+            `concurrent.futures.ProcessPoolExecutor` for details.
+        executor_cls: Executor class to use for parallel indexing.
+        show_progress: Show progress bar(s) over datasets and/or subjects.
+
+    Returns:
+        An Arrow table index of the BIDS datasets.
+    """
+    schema = get_arrow_schema()
+
+    func = partial(_batch_index_func, show_progress=show_progress in {True, "subject"})
+
+    tables = []
+    file_count = 0
+    for dataset, table in (
+        pbar := tqdm(
+            _pmap(func, roots, max_workers, executor_cls=executor_cls),
+            disable=show_progress not in {True, "dataset"},
+        )
+    ):
+        file_count += len(table)
+        pbar.set_postfix(
+            dict(ds=dataset, dsets=len(tables), N=file_count), refresh=False
+        )
+        tables.append(table)
+
+    if len(tables) > 0:
+        table = pa.concat_tables(tables)
+    else:
+        _logger.warning("No BIDS datasets found during batch indexing.")
+        table = pa.Table.from_pylist([], schema=schema)
+    return table
+
+
+def _batch_index_func(root: str | Path, show_progress: bool) -> tuple[str, pa.Table]:
+    dataset, _ = _get_bids_dataset(root)
+    table = index_dataset(root, max_workers=0, show_progress=show_progress)
+    return dataset, table
 
 
 def _get_bids_dataset(path: Path) -> tuple[str | None, Path | None]:
@@ -256,7 +329,6 @@ def _contains_bids_subject_dirs(root: Path) -> bool:
 def _find_bids_subject_dirs(
     root: Path,
     include_subjects: str | list[str] | None = None,
-    exclude_subjects: str | list[str] | None = None,
 ) -> list[Path]:
     """Find all BIDS subject dirs contained in a root directory.
 
@@ -264,9 +336,10 @@ def _find_bids_subject_dirs(
     derivatives datasets.
     """
     paths = [path for path in root.glob("sub-*") if _is_bids_subject_dir(path)]
-    if include_subjects or exclude_subjects:
-        filtered_names = _filter_include_exclude(
-            [path.name for path in paths], include_subjects, exclude_subjects
+
+    if include_subjects:
+        filtered_names = _filter_include(
+            set(path.name for path in paths), include_subjects
         )
         paths = [path for path in paths if path.name in filtered_names]
     return paths
@@ -278,7 +351,7 @@ def _is_bids_subject_dir(path: Path) -> bool:
     # This is a slow op, especially on cloud. Can assume that there are no files
     # matching the subject dir pattern, and even if there are, the rglob that happens
     # later will just return empty.
-    return bool(re.match(_BIDS_SUBJECT_DIR_PATTERN, path.name))
+    return bool(re.fullmatch(_BIDS_SUBJECT_DIR_PATTERN, path.name))
 
 
 def _index_bids_subject_dir(
@@ -294,7 +367,7 @@ def _index_bids_subject_dir(
     if schema is None:
         schema = get_arrow_schema()
 
-    _, subject = path.name.split("-")
+    _, subject = path.name.split("-", maxsplit=1)
 
     records = []
     for p in _find_bids_files(path):
@@ -377,38 +450,42 @@ def _pmap(
     func: Callable,
     iterable: Iterable[Any],
     max_workers: int | None = 0,
+    chunksize: int = 1,
     executor_cls: type[Executor] = ProcessPoolExecutor,
 ):
     if max_workers == 0:
         yield from map(func, iterable)
     else:
         with executor_cls(max_workers=max_workers) as executor:
-            yield from executor.map(func, iterable)
+            yield from executor.map(func, iterable, chunksize=chunksize)
 
 
-def _filter_include_exclude(
+def _filter_include(
     names: Iterable[str],
-    include: str | list[str] | None = None,
-    exclude: str | list[str] | None = None,
+    patterns: str | list[str],
 ) -> set[str]:
-    """Filter names against a list of include and exclude glob patterns."""
+    """Filter names including those that match a glob pattern or list of patterns."""
     names = set(names)
-    if include:
-        if isinstance(include, str):
-            include = [include]
-        matching_names = _multi_pattern_filter(names, include)
-        names.intersection_update(matching_names)
-
-    if exclude:
-        if isinstance(exclude, str):
-            exclude = [exclude]
-        matching_names = _multi_pattern_filter(names, exclude)
-        names.difference_update(matching_names)
+    matching_names = _multi_pattern_filter(names, patterns)
+    names.intersection_update(matching_names)
     return names
 
 
-def _multi_pattern_filter(names: list[str], patterns: list[str]) -> set[str]:
+def _filter_exclude(
+    names: Iterable[str],
+    patterns: str | list[str],
+) -> set[str]:
+    """Filter names excluding those that match a glob pattern or list of patterns."""
+    names = set(names)
+    matching_names = _multi_pattern_filter(names, patterns)
+    names.difference_update(matching_names)
+    return names
+
+
+def _multi_pattern_filter(names: list[str], patterns: str | list[str]) -> set[str]:
     """Filter names matching any of a list of patterns."""
+    if isinstance(patterns, str):
+        patterns = [patterns]
     matching_names = set()
     for pat in patterns:
         matching_names.update(fnmatch.filter(names, pat))

@@ -14,7 +14,7 @@ def test_get_arrow_schema():
 
 
 def test_find_bids_datasets():
-    datasets = sorted(indexing.find_bids_datasets(BIDS_EXAMPLES))
+    datasets = sorted(indexing.find_bids_datasets(BIDS_EXAMPLES, log_frequency=100))
     expected_datasets = sorted(
         [p.parent for p in BIDS_EXAMPLES.rglob("dataset_description.json")]
     )
@@ -41,9 +41,25 @@ def test_find_bids_datasets():
         ("ds000246", 14),
     ],
 )
-def test_index_bids_dataset(root: str, expected_count: int):
-    table = indexing.index_bids_dataset(BIDS_EXAMPLES / root, show_progress=False)
+def test_index_dataset(root: str, expected_count: int):
+    table = indexing.index_dataset(BIDS_EXAMPLES / root, show_progress=False)
     assert len(table) == expected_count
+
+
+@pytest.mark.parametrize("max_workers", [0, 2])
+def test_index_dataset_parallel(max_workers: int):
+    root, expected_count = "ds102", 130
+    table = indexing.index_dataset(BIDS_EXAMPLES / root, show_progress=False)
+    assert len(table) == expected_count
+
+
+@pytest.mark.parametrize("max_workers", [0, 2])
+def test_batch_index_dataset(max_workers: int):
+    datasets = list(indexing.find_bids_datasets(BIDS_EXAMPLES))
+    table = indexing.batch_index_dataset(
+        datasets, max_workers=max_workers, show_progress=False
+    )
+    assert len(table) == 10133
 
 
 @pytest.mark.parametrize(
@@ -60,6 +76,24 @@ def test_get_bids_dataset(path: str, expected_name: str):
 
 
 @pytest.mark.parametrize(
+    "path,include_subjects,expected_count",
+    [
+        ("ds102", None, 26),
+        ("ds102", "sub-07", 1),
+        ("ds102", "sub-0*", 9),
+        ("ds102", ["sub-01", "sub-02", "sub-05"], 3),
+    ],
+)
+def test_find_bids_subject_dirs(
+    path: str, include_subjects: str | list[str] | None, expected_count: int
+):
+    subject_dirs = indexing._find_bids_subject_dirs(
+        BIDS_EXAMPLES / path, include_subjects
+    )
+    assert len(subject_dirs) == expected_count
+
+
+@pytest.mark.parametrize(
     "path,expected_count",
     [
         ("ds102/sub-03", 5),
@@ -70,6 +104,16 @@ def test_get_bids_dataset(path: str, expected_name: str):
 def test_index_subject_dir(path: str, expected_count: int):
     _, table = indexing._index_bids_subject_dir(BIDS_EXAMPLES / path)
     assert len(table) == expected_count
+
+
+@pytest.mark.parametrize(
+    "path,expected",
+    [
+        ("ieeg_epilepsyNWB/derivatives/brainvisa/sub-01_ses-pre", False),
+    ],
+)
+def test_is_bids_subject_dir(path: str, expected: bool):
+    assert indexing._is_bids_subject_dir(BIDS_EXAMPLES / path) == expected
 
 
 @pytest.mark.parametrize(
@@ -111,5 +155,6 @@ def test_filter_include_exclude():
     include = "sub-*"
     exclude = ["sub-B*", "sub-A02"]
     expected = {"sub-A01"}
-    filtered_names = indexing._filter_include_exclude(names, include, exclude)
+    filtered_names = indexing._filter_include(names, include)
+    filtered_names = indexing._filter_exclude(filtered_names, exclude)
     assert filtered_names == expected

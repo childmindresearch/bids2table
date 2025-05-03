@@ -5,8 +5,8 @@ Uses the BIDS schema for validation.
 
 import enum
 import json
+import logging
 import re
-import warnings
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -73,6 +73,8 @@ _BIDS_FORMAT_PY_TYPE_MAP = {
 _BIDS_DATATYPE_PATTERN = re.compile(
     r"sub-[a-zA-Z0-9]+(?:[/\\]ses-[a-zA-Z0-9]+)?[/\\]([a-z]+)[/\\]"
 )
+
+_logger = logging.getLogger(__package__)
 
 
 def set_bids_schema(path: str | Path | None = None):
@@ -212,19 +214,17 @@ def validate_bids_entities(
             try:
                 value = typ(value)
             except ValueError:
-                warnings.warn(
+                _logger.warning(
                     f"Unable to coerce {repr(value)} to type {typ} for entity '{name}'.",
-                    RuntimeWarning,
                 )
                 extra_entities[name] = value
                 continue
 
             # Check allowed values.
             if "enum" in cfg and value not in cfg["enum"]:
-                warnings.warn(
+                _logger.warning(
                     f"Value {value} for entity '{name}' isn't one of the "
                     f"allowed values: {cfg['enum']}.",
-                    RuntimeWarning,
                 )
                 extra_entities[name] = value
                 continue
