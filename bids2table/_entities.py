@@ -133,7 +133,7 @@ def get_bids_schema() -> Namespace:
     return _BIDS_SCHEMA
 
 
-def _get_bids_entity_arrow_schema() -> pa.Schema:
+def get_bids_entity_arrow_schema() -> pa.Schema:
     """Get the current BIDS entity schema in Arrow format."""
     return _BIDS_ENTITY_ARROW_SCHEMA
 
@@ -236,7 +236,7 @@ def validate_bids_entities(
     return valid_entities, extra_entities
 
 
-def format_path(entities: dict[str, Any], int_format: str = "%d") -> Path:
+def format_bids_path(entities: dict[str, Any], int_format: str = "%d") -> Path:
     """Construct a formatted BIDS path from entities dict.
 
     Integer (index) value indices are formatted using the `int_format`.

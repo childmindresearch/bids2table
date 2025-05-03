@@ -4,7 +4,7 @@ import pytest
 from pytest import FixtureRequest
 
 from bids2table._entities import (
-    format_path,
+    format_bids_path,
     parse_bids_entities,
     validate_bids_entities,
 )
@@ -93,8 +93,8 @@ def test_validate_warns(path: str, msg: str):
         "sub-A01/ses-1/func/sub-A01_ses-1_run-1_bold.nii.gz",
     ],
 )
-def test_format_path(path: str):
+def test_format_bids_path(path: str):
     entities = parse_bids_entities(path)
     valid_entities, _ = validate_bids_entities(entities)
-    path2 = format_path(valid_entities)
+    path2 = format_bids_path(valid_entities)
     assert path == str(path2)

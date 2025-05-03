@@ -7,6 +7,7 @@ Returns a dataset index as an Arrow table.
 import fnmatch
 import importlib.metadata
 import re
+import warnings
 from concurrent.futures import Executor, ProcessPoolExecutor
 from functools import partial
 from typing import Any, Callable, Generator, Iterable
@@ -15,7 +16,7 @@ import pyarrow as pa
 from tqdm import tqdm
 
 from ._entities import (
-    _get_bids_entity_arrow_schema,
+    get_bids_entity_arrow_schema,
     parse_bids_entities,
     validate_bids_entities,
 )
@@ -84,7 +85,7 @@ _INDEX_ARROW_FIELDS = {
 
 def get_arrow_schema() -> pa.Schema:
     """Get Arrow schema of the BIDS dataset index."""
-    entity_schema = _get_bids_entity_arrow_schema()
+    entity_schema = get_bids_entity_arrow_schema()
     index_fields = {
         name: pa.field(name, cfg["dtype"], metadata=cfg["metadata"])
         for name, cfg in _INDEX_ARROW_FIELDS.items()
@@ -169,10 +170,14 @@ def index_bids_dataset(
     if isinstance(root, str):
         root = Path(root)
 
-    if not _is_bids_dataset_root(root):
-        raise ValueError(f"Path {root} is not a valid BIDS dataset directory.")
-
     schema = get_arrow_schema()
+
+    if not _is_bids_dataset_root(root):
+        warnings.warn(
+            f"Path {root} is empty or not a valid BIDS dataset directory.",
+            RuntimeWarning,
+        )
+        return pa.Table.from_pylist([], schema=schema)
 
     dataset, _ = _get_bids_dataset(root)
     subject_dirs = _find_bids_subject_dirs(root, include_subjects, exclude_subjects)
