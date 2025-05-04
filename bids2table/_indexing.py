@@ -10,7 +10,7 @@ import logging
 import re
 from concurrent.futures import Executor, ProcessPoolExecutor
 from functools import partial
-from typing import Any, Callable, Generator, Iterable, Literal
+from typing import Any, Callable, Generator, Iterable, Sequence
 
 import pyarrow as pa
 from tqdm import tqdm
@@ -112,7 +112,7 @@ def find_bids_datasets(
     root: str | Path,
     exclude: str | list[str] | None = None,
     follow_symlinks: bool = True,
-    log_frequency: int | None = None,
+    log_frequency: int = 100,
 ) -> Generator[Path, None, None]:
     """Find all BIDS datasets under a root directory.
 
@@ -220,7 +220,7 @@ def index_dataset(
     # NOTE: concat_tables produces a table where each column is a ChunkedArray, with one
     # chunk per original subject table. Is it better to keep the original chunks (one
     # per subject) or merge using `combine_chunks`?
-    table = pa.concat_tables(tables)
+    table = pa.concat_tables(tables).combine_chunks()
     return table
 
 
@@ -228,8 +228,8 @@ def batch_index_dataset(
     roots: list[str | Path],
     max_workers: int | None = 0,
     executor_cls: type[Executor] = ProcessPoolExecutor,
-    show_progress: bool | Literal["subject", "dataset"] = "dataset",
-) -> pa.Table:
+    show_progress: bool = True,
+) -> Generator[pa.Table, None, None]:
     """Index a batch of BIDS datasets.
 
     Args:
@@ -239,44 +239,33 @@ def batch_index_dataset(
             `max_workers=None` starts as many workers as there are available CPUs. See
             `concurrent.futures.ProcessPoolExecutor` for details.
         executor_cls: Executor class to use for parallel indexing.
-        show_progress: Show progress bar(s) over datasets and/or subjects.
+        show_progress: Show progress bar.
 
-    Returns:
-        An Arrow table index of the BIDS datasets.
+    Yields:
+        An Arrow table index for each BIDS dataset.
     """
-    schema = get_arrow_schema()
-
-    func = partial(_batch_index_func, show_progress=show_progress in {True, "subject"})
-
-    tables = []
+    ds_count = 0
     file_count = 0
     for dataset, table in (
         pbar := tqdm(
-            _pmap(func, roots, max_workers, executor_cls=executor_cls),
+            _pmap(_batch_index_func, roots, max_workers, executor_cls=executor_cls),
+            total=len(roots) if isinstance(roots, Sequence) else None,
             disable=show_progress not in {True, "dataset"},
         )
     ):
+        ds_count += 1
         file_count += len(table)
-        pbar.set_postfix(
-            dict(ds=dataset, dsets=len(tables), N=file_count), refresh=False
-        )
-        tables.append(table)
-
-    if len(tables) > 0:
-        table = pa.concat_tables(tables)
-    else:
-        _logger.warning("No BIDS datasets found during batch indexing.")
-        table = pa.Table.from_pylist([], schema=schema)
-    return table
+        pbar.set_postfix(dict(ds=dataset, dsets=ds_count, N=file_count), refresh=False)
+        yield table
 
 
-def _batch_index_func(root: str | Path, show_progress: bool) -> tuple[str, pa.Table]:
+def _batch_index_func(root: str | Path) -> tuple[str, pa.Table]:
     dataset, _ = _get_bids_dataset(root)
-    table = index_dataset(root, max_workers=0, show_progress=show_progress)
+    table = index_dataset(root, max_workers=0, show_progress=False)
     return dataset, table
 
 
-def _get_bids_dataset(path: Path) -> tuple[str | None, Path | None]:
+def _get_bids_dataset(path: str | Path) -> tuple[str | None, Path | None]:
     """Get the BIDS dataset that the path belongs to, if any.
 
     Return the dataset directory name and the full dataset path. For nested derivatives
@@ -285,6 +274,9 @@ def _get_bids_dataset(path: Path) -> tuple[str | None, Path | None]:
 
     Note that the name is extracted from the path, not the dataset description JSON.
     """
+    if isinstance(path, str):
+        path = Path(path)
+
     parent = path if path.is_dir() else path.parent
 
     parts: list[str] = []

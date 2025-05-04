@@ -15,4 +15,5 @@ from ._indexing import (
     batch_index_dataset,
     get_arrow_schema,
 )
+from ._pathlib import Path, cloudpathlib_is_available
 from ._version import *

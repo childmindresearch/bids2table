@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pyarrow as pa
 import pytest
 
 import bids2table._indexing as indexing
@@ -56,9 +57,10 @@ def test_index_dataset_parallel(max_workers: int):
 @pytest.mark.parametrize("max_workers", [0, 2])
 def test_batch_index_dataset(max_workers: int):
     datasets = list(indexing.find_bids_datasets(BIDS_EXAMPLES))
-    table = indexing.batch_index_dataset(
+    tables = indexing.batch_index_dataset(
         datasets, max_workers=max_workers, show_progress=False
     )
+    table = pa.concat_tables(tables)
     assert len(table) == 10133
 
 

@@ -29,21 +29,21 @@ classifiers = [
 ]
 
 dependencies = [
-    "bidsschematools==1.0.5",
-    "numpy<2",
-    "pyarrow==14.0.2",
-    "tqdm==4.66.2",
+    "bidsschematools>=1.0",
+    "pyarrow>=14.0.2",
+    "tqdm>=4.66.2",
 ]
 
 [project.optional-dependencies]
-cloud = [
-    "cloudpathlib[all]==0.17.0",
+s3 = [
+    "cloudpathlib[s3]==0.17.0",
 ]
 
 [dependency-groups]
 dev = [
     "ipython>=9.2.0",
     "jupyter>=1.1.1",
+    "pandas==2.2.3",
     "pre-commit>=4.1.0",
     "pytest>=8.3.5",
     "pytest-cov>=6.0.0",
@@ -53,6 +53,10 @@ dev = [
 [project.urls]
 "Homepage" = "https://github.com/childmindresearch/bids2table"
 "Issues" = "https://github.com/childmindresearch/bids2table/issues"
+
+[project.scripts]
+bids2table = "bids2table.__main__:main"
+b2t2 = "bids2table.__main__:main"
 
 [tool.setuptools.packages.find]
 include = ["bids2table*"]
