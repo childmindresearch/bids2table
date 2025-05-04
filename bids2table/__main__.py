@@ -10,8 +10,7 @@ import bids2table as b2t2
 from bids2table import Path
 
 logging.basicConfig(
-    format="[%(levelname)s %(name)s %(asctime)s]: %(message)s",
-    datefmt="%y-%m-%d %H:%M:%S",
+    format="[%(levelname)s %(name)s]: %(message)s",
     level=logging.ERROR,
 )
 
@@ -65,8 +64,8 @@ def main():
         metavar="ROOT",
         type=str,
         nargs="*",
-        help="BIDS dataset(s) to index. If a single glob pattern is passed, will "
-        "be expanded. If no datasets provided, will attempt to read from stdin.",
+        help="BIDS dataset(s) to index. Can be full paths or glob patterns. "
+        "If no datasets provided, will attempt to read from stdin.",
     )
     parser_index.set_defaults(func=_index_command)
 
@@ -110,32 +109,41 @@ def main():
 
 
 def _index_command(args: argparse.Namespace):
-    for root in args.root:
-        _check_path(root)
+    for path in args.root:
+        _check_path(path)
 
     max_workers = None if args.workers == -1 else args.workers
     if args.use_threads:
         executor_cls = concurrent.futures.ThreadPoolExecutor
     else:
-        executor_cls = None
+        executor_cls = concurrent.futures.ProcessPoolExecutor
 
-    batch = True
-    if len(args.root) == 1 and _is_glob(args.root[0]):
-        # root is a glob pattern (possibly on cloud).
-        root = Path(args.root[0])
-        root = list(root.parent.glob(root.name))
-    elif len(args.root) == 1:
-        # root is a single path.
-        root = args.root[0]
-        batch = False
-    elif len(args.root) == 0 and not sys.stdin.isatty():
-        # read datasets from stdin, one per line
-        root = (line.strip() for line in sys.stdin if line.strip())
+    root = []
+    for path in args.root:
+        if _is_glob(path):
+            path = Path(path)
+            paths = list(path.parent.glob(path.name))
+            root.extend(paths)
+        else:
+            root.append(path)
+
+    if len(root) == 1:
+        table = b2t2.index_dataset(
+            root[0],
+            include_subjects=args.subjects,
+            max_workers=max_workers,
+            executor_cls=executor_cls,
+            show_progress=args.verbose >= 2,
+        )
+        pq.write_table(table, args.output)
     else:
-        # default case, list of directories
-        root = args.root
+        if len(root) == 0 and not sys.stdin.isatty():
+            # read datasets from stdin, one per line
+            root = (line.strip() for line in sys.stdin if line.strip())
+        elif len(root) == 0:
+            _logger.error("No datasets to index given; exiting.")
+            sys.exit(1)
 
-    if batch:
         schema = b2t2.get_arrow_schema()
         with pq.ParquetWriter(args.output, schema=schema) as writer:
             for table in b2t2.batch_index_dataset(
@@ -145,15 +153,6 @@ def _index_command(args: argparse.Namespace):
                 show_progress=args.verbose >= 2,
             ):
                 writer.write_table(table)
-    else:
-        table = b2t2.index_dataset(
-            root,
-            include_subjects=args.subjects,
-            max_workers=max_workers,
-            executor_cls=executor_cls,
-            show_progress=args.verbose >= 2,
-        )
-        pq.write_table(table, args.output)
 
 
 def _find_command(args: argparse.Namespace):

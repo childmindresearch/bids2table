@@ -135,7 +135,7 @@ def find_bids_datasets(
     for dirpath, dirnames, _ in root.walk(follow_symlinks=follow_symlinks):
         dir_count += 1
 
-        if _is_bids_dataset_root(dirpath):
+        if _is_bids_dataset(dirpath):
             ds_count += 1
             yield dirpath
 
@@ -214,7 +214,7 @@ def index_dataset(
         )
     ):
         file_count += len(table)
-        pbar.set_postfix(dict(sub=sub, subs=len(tables), N=file_count), refresh=False)
+        pbar.set_postfix(dict(sub=sub, N=file_count), refresh=False)
         tables.append(table)
 
     # NOTE: concat_tables produces a table where each column is a ChunkedArray, with one
@@ -244,7 +244,6 @@ def batch_index_dataset(
     Yields:
         An Arrow table index for each BIDS dataset.
     """
-    ds_count = 0
     file_count = 0
     for dataset, table in (
         pbar := tqdm(
@@ -253,9 +252,8 @@ def batch_index_dataset(
             disable=show_progress not in {True, "dataset"},
         )
     ):
-        ds_count += 1
         file_count += len(table)
-        pbar.set_postfix(dict(ds=dataset, dsets=ds_count, N=file_count), refresh=False)
+        pbar.set_postfix(dict(ds=dataset, N=file_count), refresh=False)
         yield table
 
 
@@ -285,7 +283,7 @@ def _get_bids_dataset(path: str | Path) -> tuple[str | None, Path | None]:
     root = None
 
     while parent.name:
-        if _is_bids_dataset_root(parent):
+        if _is_bids_dataset(parent):
             scanning = True
             top_idx = len(parts)
             if root is None:
@@ -304,7 +302,7 @@ def _get_bids_dataset(path: str | Path) -> tuple[str | None, Path | None]:
     return dataset, root
 
 
-def _is_bids_dataset_root(path: Path) -> bool:
+def _is_bids_dataset(path: Path) -> bool:
     """Test if path is a BIDS dataset root directory."""
     # Check if contains a dataset_description.json or any subject directories. Note,
     # it's common for ppl to forget the dataset description, so let's not be too strict.
