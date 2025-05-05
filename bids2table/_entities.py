@@ -74,7 +74,7 @@ _BIDS_DATATYPE_PATTERN = re.compile(
 _logger = setup_logger(__package__)
 
 
-def set_bids_schema(path: str | Path | None = None):
+def set_bids_schema(path: str | Path | None = None) -> None:
     """Set the BIDS schema."""
     global _BIDS_SCHEMA, _BIDS_ENTITY_SCHEMA, _BIDS_NAME_ENTITY_MAP
     global _BIDS_ENTITY_ARROW_SCHEMA
@@ -134,12 +134,17 @@ def get_bids_entity_arrow_schema() -> pa.Schema:
     return _BIDS_ENTITY_ARROW_SCHEMA
 
 
-@lru_cache()
 def parse_bids_entities(path: str | Path) -> dict[str, str]:
     """Parse entities from BIDS file path.
 
     Parses all BIDS filename `"{key}-{value}"` entities as well as special entities:
     datatype, suffix, ext (extension). Does not validate entities or cast to types.
+
+    Args:
+        path: BIDS path to parse.
+
+    Returns:
+        entities: dict mapping BIDS entity keys to values.
     """
     if isinstance(path, str):
         path = Path(path)
@@ -175,6 +180,11 @@ def parse_bids_entities(path: str | Path) -> dict[str, str]:
     return entities
 
 
+# Version with caching to use internally. Decorating the public function loses the
+# docstring.
+_cache_parse_bids_entities = lru_cache(parse_bids_entities)
+
+
 def _parse_bids_datatype(path: Path) -> str | None:
     """Parse BIDS datatype from file path.
 
@@ -192,8 +202,14 @@ def validate_bids_entities(
     """Validate BIDS entities.
 
     Validates the type and allowed values of each entity against the BIDS schema.
-    Returns a tuple of `valid_entities` as well as any leftover `extra_entities` that
-    don't match a known entity.
+
+    Args:
+        entities: dict mapping BIDS keys to unvalidated entities
+
+    Returns:
+        valid_entities: A mapping of valid BIDS keys to type-casted values.
+        extra_entities: A mapping of any leftover entity mappings that didn't match a
+            known entity or failed validation.
     """
     valid_entities = {}
     extra_entities = {}
@@ -233,7 +249,12 @@ def validate_bids_entities(
 def format_bids_path(entities: dict[str, Any], int_format: str = "%d") -> Path:
     """Construct a formatted BIDS path from entities dict.
 
-    Integer (index) value indices are formatted using the `int_format`.
+    Args:
+        entities: dict mapping BIDS keys to values.
+        int_format: format string for integer (index) BIDS values.
+
+    Returns:
+        path: formatted `Path` instance.
     """
     special = {"datatype", "suffix", "ext"}
 

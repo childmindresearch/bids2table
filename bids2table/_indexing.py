@@ -16,8 +16,8 @@ import pyarrow as pa
 from tqdm import tqdm
 
 from ._entities import (
+    _cache_parse_bids_entities,
     get_bids_entity_arrow_schema,
-    parse_bids_entities,
     validate_bids_entities,
 )
 from ._logging import setup_logger
@@ -379,7 +379,7 @@ def _index_bids_subject_dir(
 
     records = []
     for p in _find_bids_files(path):
-        entities = parse_bids_entities(p)
+        entities = _cache_parse_bids_entities(p)
         valid_entities, extra_entities = validate_bids_entities(entities)
         record = {
             "dataset": dataset,
@@ -412,7 +412,7 @@ def _is_bids_file(path: Path) -> bool:
     if path.suffix == "" or not path.name.startswith("sub-"):
         return False
 
-    entities = parse_bids_entities(path)
+    entities = _cache_parse_bids_entities(path)
     # if not (entities.get("suffix") and entities.get("datatype")):
     if not (entities.get("suffix") and entities.get("ext")):
         return False
@@ -435,7 +435,7 @@ def _is_bids_json_sidecar(path: Path) -> bool:
         return False
 
     # Other checks require entities.
-    entities = parse_bids_entities(path)
+    entities = _cache_parse_bids_entities(path)
 
     # Second pass using full compound extension, in case of data files that use a
     # compound extension ending in .json.
