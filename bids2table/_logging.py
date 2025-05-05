@@ -29,7 +29,7 @@ def setup_logger(
     if level is not None:
         logger.setLevel(level)
 
-    if logger.hasHandlers() and not overwrite:
+    if logger.handlers and not overwrite:
         return logger
 
     # clean up any pre-existing filters and handlers

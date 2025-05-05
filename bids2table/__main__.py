@@ -47,12 +47,14 @@ def main():
         help="Use threads instead of processes when workers > 0.",
     )
     parser_index.add_argument(
+        "--no-progress", "-q", action="store_true", help="Disable the progress bar."
+    )
+    parser_index.add_argument(
         "--verbose",
         "-v",
         action="count",
         default=0,
-        help="Increase verbosity level. -v enables the progress bar. -vv turns on "
-        "warnings. -vvv turns on more logging.",
+        help="Increase logging. -v enables warnings. -vv enables even more logging.",
     )
     parser_index.add_argument(
         "root",
@@ -84,8 +86,7 @@ def main():
         "-v",
         action="count",
         default=0,
-        help="Increase verbosity level. -v enables warnings. -vv enables the "
-        "progress bar. -vvv enables more logging.",
+        help="Increase logging. -v enables warnings. -vv enables even more logging.",
     )
     parser_find.add_argument(
         "root", metavar="ROOT", type=str, help="Root directory to search."
@@ -94,7 +95,7 @@ def main():
 
     args = parser.parse_args()
 
-    log_level = ["ERROR", "ERROR", "WARNING", "INFO"][min(args.verbose, 3)]
+    log_level = ["ERROR", "WARNING", "INFO"][min(args.verbose, 2)]
     _logger.setLevel(log_level)
 
     if hasattr(args, "func"):
@@ -128,7 +129,7 @@ def _index_command(args: argparse.Namespace):
             include_subjects=args.subjects,
             max_workers=max_workers,
             executor_cls=executor_cls,
-            show_progress=args.verbose >= 1,
+            show_progress=not args.no_progress,
         )
         pq.write_table(table, args.output)
     else:
@@ -145,7 +146,7 @@ def _index_command(args: argparse.Namespace):
                 root,
                 max_workers=max_workers,
                 executor_cls=executor_cls,
-                show_progress=args.verbose >= 1,
+                show_progress=not args.no_progress,
             ):
                 writer.write_table(table)
 

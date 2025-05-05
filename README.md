@@ -46,21 +46,21 @@ bids-examples/eeg_cbm
 Indexing datasets is done with `b2t2 index`. Here we index a single example dataset, saving the output as a parquet file.
 
 ```
-(bids2table) clane$ b2t2 index -v -o ds102.parquet bids-examples/ds102
+(bids2table) clane$ b2t2 index -o ds102.parquet bids-examples/ds102
 ds102: 100%|███████████████████████████████████████| 26/26 [00:00<00:00, 154.12it/s, sub=26, N=130]
 ```
 
 You can also index a list of datasets. Note that each iteration in the progress bar represents one dataset.
 
 ```
-(bids2table) clane$ b2t2 index -v -o bids-examples.parquet bids-examples/*
+(bids2table) clane$ b2t2 index -o bids-examples.parquet bids-examples/*
 100%|████████████████████████████████████████████| 87/87 [00:00<00:00, 113.59it/s, ds=None, N=9727]
 ```
 
 You can pipe the output of `b2t2 find` to `b2t2 index` to create an index of all datasets under a root directory.
 
 ```
-(bids2table) clane$ b2t2 find bids-examples | b2t2 index -v -o bids-examples.parquet
+(bids2table) clane$ b2t2 find bids-examples | b2t2 index -o bids-examples.parquet
 97it [00:01, 96.05it/s, ds=ieeg_filtered_speech, N=10K]
 ```
 
@@ -83,7 +83,7 @@ pip install "bids2table[s3] @ git+https://github.com/childmindresearch/bids2tabl
 As an example, here we index all datasets on [OpenNeuro](https://openneuro.org/)
 
 ```
-(bids2table) clane$ b2t2 index -v -o openneuro.parquet \
+(bids2table) clane$ b2t2 index -o openneuro.parquet \
   -j 8 --use-threads s3://openneuro.org/ds*
 100%|█████████████████████████████████████| 1408/1408 [12:25<00:00,  1.89it/s, ds=ds006193, N=1.2M]
 ```

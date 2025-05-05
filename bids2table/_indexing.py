@@ -183,7 +183,7 @@ def index_dataset(
     max_workers: int | None = 0,
     chunksize: int = 32,
     executor_cls: type[Executor] = ProcessPoolExecutor,
-    show_progress: bool = True,
+    show_progress: bool = False,
 ) -> pa.Table:
     """Index a BIDS dataset.
 
@@ -246,7 +246,7 @@ def batch_index_dataset(
     roots: list[str | Path],
     max_workers: int | None = 0,
     executor_cls: type[Executor] = ProcessPoolExecutor,
-    show_progress: bool = True,
+    show_progress: bool = False,
 ) -> Generator[pa.Table, None, None]:
     """Index a batch of BIDS datasets.
 
