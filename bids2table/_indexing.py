@@ -378,26 +378,21 @@ def _index_bids_subject_dir(
     _, subject = path.name.split("-", maxsplit=1)
 
     records = []
-    for p in _find_bids_files(path):
-        entities = _cache_parse_bids_entities(p)
-        valid_entities, extra_entities = validate_bids_entities(entities)
-        record = {
-            "dataset": dataset,
-            **valid_entities,
-            "extra_entities": extra_entities,
-            "root": root_fmt,
-            "path": str(p.relative_to(root)),
-        }
-        records.append(record)
+    for p in path.rglob("sub-*"):
+        if _is_bids_file(p):
+            entities = _cache_parse_bids_entities(p)
+            valid_entities, extra_entities = validate_bids_entities(entities)
+            record = {
+                "dataset": dataset,
+                **valid_entities,
+                "extra_entities": extra_entities,
+                "root": root_fmt,
+                "path": str(p.relative_to(root)),
+            }
+            records.append(record)
 
     table = pa.Table.from_pylist(records, schema=schema)
     return subject, table
-
-
-def _find_bids_files(path: Path) -> Generator[Path, None, None]:
-    for path in path.rglob("sub-*"):
-        if _is_bids_file(path):
-            yield path
 
 
 def _is_bids_file(path: Path) -> bool:
