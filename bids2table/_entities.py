@@ -5,7 +5,6 @@ Uses the BIDS schema for validation.
 
 import enum
 import json
-import logging
 import re
 from functools import lru_cache
 from pathlib import Path
@@ -14,6 +13,8 @@ from typing import Any
 import bidsschematools.schema
 import pyarrow as pa
 from bidsschematools.types import Namespace
+
+from ._logging import setup_logger
 
 BIDSValue = str | int
 
@@ -74,7 +75,7 @@ _BIDS_DATATYPE_PATTERN = re.compile(
     r"sub-[a-zA-Z0-9]+(?:[/\\]ses-[a-zA-Z0-9]+)?[/\\]([a-z]+)[/\\]"
 )
 
-_logger = logging.getLogger(__package__)
+_logger = setup_logger(__package__)
 
 
 def set_bids_schema(path: str | Path | None = None):

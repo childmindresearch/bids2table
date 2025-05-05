@@ -1,6 +1,5 @@
 import argparse
 import concurrent.futures
-import logging
 import re
 import sys
 
@@ -8,13 +7,9 @@ import pyarrow.parquet as pq
 
 import bids2table as b2t2
 from bids2table import Path
+from bids2table._logging import setup_logger
 
-logging.basicConfig(
-    format="[%(levelname)s %(name)s]: %(message)s",
-    level=logging.ERROR,
-)
-
-_logger = logging.getLogger(__package__)
+_logger = setup_logger(__package__)
 
 
 def main():
@@ -56,8 +51,8 @@ def main():
         "-v",
         action="count",
         default=0,
-        help="Increase verbosity level. -v enables warnings. -vv enables the "
-        "progress bar. -vvv enables more logging.",
+        help="Increase verbosity level. -v enables the progress bar. -vv turns on "
+        "warnings. -vvv turns on more logging.",
     )
     parser_index.add_argument(
         "root",
@@ -99,7 +94,7 @@ def main():
 
     args = parser.parse_args()
 
-    log_level = ["ERROR", "WARNING", "WARNING", "INFO"][min(args.verbose, 3)]
+    log_level = ["ERROR", "ERROR", "WARNING", "INFO"][min(args.verbose, 3)]
     _logger.setLevel(log_level)
 
     if hasattr(args, "func"):
@@ -133,7 +128,7 @@ def _index_command(args: argparse.Namespace):
             include_subjects=args.subjects,
             max_workers=max_workers,
             executor_cls=executor_cls,
-            show_progress=args.verbose >= 2,
+            show_progress=args.verbose >= 1,
         )
         pq.write_table(table, args.output)
     else:
@@ -150,7 +145,7 @@ def _index_command(args: argparse.Namespace):
                 root,
                 max_workers=max_workers,
                 executor_cls=executor_cls,
-                show_progress=args.verbose >= 2,
+                show_progress=args.verbose >= 1,
             ):
                 writer.write_table(table)
 

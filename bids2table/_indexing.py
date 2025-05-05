@@ -6,7 +6,6 @@ Returns a dataset index as an Arrow table.
 
 import fnmatch
 import importlib.metadata
-import logging
 import re
 from concurrent.futures import Executor, ProcessPoolExecutor
 from functools import partial
@@ -20,6 +19,7 @@ from ._entities import (
     parse_bids_entities,
     validate_bids_entities,
 )
+from ._logging import setup_logger
 from ._pathlib import Path
 
 _BIDS_SUBJECT_DIR_PATTERN = re.compile(r"sub-[a-zA-Z0-9]+")
@@ -82,7 +82,7 @@ _INDEX_ARROW_FIELDS = {
     },
 }
 
-_logger = logging.getLogger(__package__)
+_logger = setup_logger(__package__)
 
 
 def get_arrow_schema() -> pa.Schema:
@@ -214,7 +214,7 @@ def index_dataset(
         )
     ):
         file_count += len(table)
-        pbar.set_postfix(dict(sub=sub, N=file_count), refresh=False)
+        pbar.set_postfix(dict(sub=sub, N=_hfmt(file_count)), refresh=False)
         tables.append(table)
 
     # NOTE: concat_tables produces a table where each column is a ChunkedArray, with one
@@ -253,7 +253,7 @@ def batch_index_dataset(
         )
     ):
         file_count += len(table)
-        pbar.set_postfix(dict(ds=dataset, N=file_count), refresh=False)
+        pbar.set_postfix(dict(ds=dataset, N=_hfmt(file_count)), refresh=False)
         yield table
 
 
@@ -446,7 +446,10 @@ def _pmap(
     if max_workers == 0:
         yield from map(func, iterable)
     else:
-        with executor_cls(max_workers=max_workers) as executor:
+        with executor_cls(
+            max_workers=max_workers,
+            initializer=partial(setup_logger, name=__package__, level=_logger.level),
+        ) as executor:
             yield from executor.map(func, iterable, chunksize=chunksize)
 
 
@@ -489,3 +492,15 @@ def _filter_dirnames(dirnames: list[str], matches: set[str]) -> None:
     for ii, dirname in enumerate(reversed(dirnames)):
         if dirname not in matches:
             del dirnames[n_names - ii - 1]
+
+
+def _hfmt(n: int) -> str:
+    if n < 10_000:
+        n_fmt = str(n)
+    elif n < 1_000_000:
+        n_fmt = f"{n / 1000:.0f}K"
+    elif n < 10_000_000:
+        n_fmt = f"{n / 1_000_000:.1f}M"
+    else:
+        n_fmt = f"{n / 1_000_000:.0f}M"
+    return n_fmt
