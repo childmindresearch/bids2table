@@ -4,6 +4,7 @@ Uses only `pathlib.Path` methods and string processing to find and filter the fi
 Returns a dataset index as an Arrow table.
 """
 
+import enum
 import fnmatch
 import importlib.metadata
 import re
@@ -106,6 +107,23 @@ def get_arrow_schema() -> pa.Schema:
     }
     schema = pa.schema(fields, metadata=metadata)
     return schema
+
+
+def get_column_names() -> enum.EnumType:
+    """Get an enum of the BIDS index columns."""
+    # TODO: It might be nice if the column names were statically available. One option
+    # would be to generate a static _schema.py module at install time (similar to how
+    # _version.py is generated) which defines the static default schema and column
+    # names.
+    schema = get_arrow_schema()
+    items = []
+    for f in schema:
+        name = f.metadata["name".encode()].decode()
+        items.append((name, name))
+
+    BIDSColumn = enum.StrEnum("BIDSColumn", items)
+    BIDSColumn.__doc__ = "Enum of BIDS index column names."
+    return BIDSColumn
 
 
 def find_bids_datasets(

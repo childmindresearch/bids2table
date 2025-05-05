@@ -14,6 +14,13 @@ def test_get_arrow_schema():
     assert len(schema) == 38
 
 
+def test_get_column_names():
+    schema = indexing.get_arrow_schema()
+    BIDSColumn = indexing.get_column_names()
+    assert len(BIDSColumn) == len(schema)
+    assert BIDSColumn.dataset == "dataset"
+
+
 def test_find_bids_datasets():
     datasets = sorted(indexing.find_bids_datasets(BIDS_EXAMPLES, log_frequency=100))
     expected_datasets = sorted(

@@ -3,7 +3,6 @@
 Uses the BIDS schema for validation.
 """
 
-import enum
 import json
 import re
 from functools import lru_cache
@@ -17,9 +16,6 @@ from bidsschematools.types import Namespace
 from ._logging import setup_logger
 
 BIDSValue = str | int
-
-BIDSEntity: enum.StrEnum
-"""Enum of valid BIDS entity names."""
 
 # Global BIDS schema namespace.
 _BIDS_SCHEMA: Namespace
@@ -80,7 +76,6 @@ _logger = setup_logger(__package__)
 
 def set_bids_schema(path: str | Path | None = None):
     """Set the BIDS schema."""
-    global BIDSEntity
     global _BIDS_SCHEMA, _BIDS_ENTITY_SCHEMA, _BIDS_NAME_ENTITY_MAP
     global _BIDS_ENTITY_ARROW_SCHEMA
 
@@ -92,8 +87,6 @@ def set_bids_schema(path: str | Path | None = None):
     # Also include special extra entities (datatype, suffix, extension).
     entity_schema.update(_BIDS_SPECIAL_ENTITY_SCHEMA)
     name_entity_map = {cfg["name"]: entity for entity, cfg in entity_schema.items()}
-
-    BIDSEntity = enum.StrEnum("BIDSEntity", [(name, name) for name in name_entity_map])
 
     _BIDS_SCHEMA = schema
     _BIDS_ENTITY_SCHEMA = entity_schema

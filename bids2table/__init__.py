@@ -2,7 +2,6 @@
 """Index BIDS datasets fast, locally or in the cloud."""
 
 from ._entities import (
-    BIDSEntity,
     parse_bids_entities,
     validate_bids_entities,
     set_bids_schema,
