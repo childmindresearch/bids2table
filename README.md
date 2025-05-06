@@ -1,11 +1,12 @@
 # bids2table
 [![CI](https://github.com/childmindresearch/bids2table/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/childmindresearch/bids2table/actions/workflows/ci.yaml?query=branch%3Amain)
+[![Docs](https://github.com/childmindresearch/bids2table/actions/workflows/docs.yaml/badge.svg?branch=main)](https://childmindresearch.github.io/bids2table/bids2table)
 [![codecov](https://codecov.io/gh/childmindresearch/bids2table/branch/main/graph/badge.svg?token=22HWWFWPW5)](https://codecov.io/gh/childmindresearch/bids2table)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 ![Python3](https://img.shields.io/badge/python->=3.12-blue.svg)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Index BIDS datasets fast, locally or in the cloud.
+Index [BIDS](https://bids-specification.readthedocs.io/en/stable/) datasets fast, locally or in the cloud.
 
 ## Installation
 
@@ -102,8 +103,10 @@ Using 8 threads, we can index all ~1400 OpenNeuro datasets (1.2M files) in less 
 You can also index datasets using the Python API.
 
 ```python
-import pyarrow as pa
 import bids2table as b2t2
+import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 # Index a single dataset.
 tab = b2t2.index_dataset("bids-examples/ds102")
@@ -116,4 +119,10 @@ tab = pa.concat_tables(tabs)
 
 # Index a dataset on S3.
 tab = b2t2.index_dataset("s3://openneuro.org/ds000224")
+
+# Save as parquet.
+pq.write_table(tab, "ds000224.parquet")
+
+# Convert to a pandas dataframe.
+df = tab.to_pandas(types_mapper=pd.ArrowDtype)
 ```

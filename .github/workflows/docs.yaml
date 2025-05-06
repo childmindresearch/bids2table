@@ -1,0 +1,47 @@
+name: docs 
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types:
+    - completed
+    branches:
+    - main
+    - enh/docs
+
+env:
+  UV_FROZEN: true
+
+jobs:
+  # Build the documentation and upload the static HTML files as an artifact.
+  build:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          pyproject-file: pyproject.toml
+      - name: Install the project
+        run: uv sync --all-extras
+      - name: Build docs
+        run: pdoc -o docs/ -d google bids2table
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: doc/_build/html
+
+  # Deploy the artifact to GitHub pages.
+  # This is a separate job so that only actions/deploy-pages has the necessary permissions.
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
