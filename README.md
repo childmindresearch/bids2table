@@ -9,19 +9,31 @@ Index BIDS datasets fast, locally or in the cloud.
 
 ## Installation
 
-The latest development version can be installed with
+To install the latest release from pypi, you can run
 
 ```sh
-pip install "bids2table @ git+https://github.com/childmindresearch/bids2table.git@develop/b2t2"
+pip install bids2table
 ```
 
 To install with S3 support, include the `s3` extra
 
 ```sh
-pip install "bids2table[s3] @ git+https://github.com/childmindresearch/bids2table.git@develop/b2t2"
+pip install bids2table[s3]
+```
+
+The latest development version can be installed with
+
+```sh
+pip install "bids2table[s3] @ git+https://github.com/childmindresearch/bids2table.git"
 ```
 
 ## Usage
+
+To run these examples, you will need to clone the [bids-examples](https://github.com/bids-standard/bids-examples) repo.
+
+```sh
+git clone -b 1.9.0 https://github.com/bids-standard/bids-examples.git
+```
 
 ### Finding BIDS datasets
 
@@ -68,16 +80,10 @@ The resulting index will include both top-level datasets (as in the previous com
 
 ### Indexing datasets hosted on S3
 
-bids2table supports indexing datasets hosted on S3 via [cloudpathlib](https://github.com/drivendataorg/cloudpathlib). To use this functionality, install cloudpathlib with S3 support
+bids2table supports indexing datasets hosted on S3 via [cloudpathlib](https://github.com/drivendataorg/cloudpathlib). To use this functionality, make sure to install bids2table with the `s3` extra. Or you can also just install cloudpathlib directly
 
 ```sh
 pip install cloudpathlib[s3]
-```
-
-You can also install bids2table with the s3 extra
-
-```sh
-pip install "bids2table[s3] @ git+https://github.com/childmindresearch/bids2table.git@develop/b2t2"
 ```
 
 As an example, here we index all datasets on [OpenNeuro](https://openneuro.org/)
@@ -93,7 +99,7 @@ Using 8 threads, we can index all ~1400 OpenNeuro datasets (1.2M files) in less 
 
 ### Indexing datasets from python
 
-You can also index datasets in Python using the Python API.
+You can also index datasets using the Python API.
 
 ```python
 import pyarrow as pa
