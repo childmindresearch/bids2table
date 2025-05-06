@@ -1,77 +1,77 @@
 [build-system]
-requires = ["setuptools>=45", "setuptools_scm[toml]>=6.2"]
+requires = ["setuptools>=64", "setuptools_scm[toml]>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "bids2table"
-description = "Efficiently index large-scale BIDS datasets and derivatives"
+dynamic = ["version"]
 authors = [
-    {name = "Connor Lane", email = "connor.lane858@gmail.com"},
+    { name = "Connor Lane", email = "connor.lane858@gmail.com" },
 ]
+description = "Index BIDS datasets fast, locally or in the cloud."
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.12"
 license = {text = "MIT License"}
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Topic :: Scientific/Engineering",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.7",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX",
+    "Operating System :: Unix",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
 ]
+
 dependencies = [
-    "elbow",
-    "nibabel",
-    "pandas",
-    "bidsschematools",
-    "typing_extensions",
+    "bidsschematools>=1.0",
+    "pyarrow>=14.0.2",
+    "tqdm>=4.66.2",
 ]
-dynamic = ["version"]
 
 [project.optional-dependencies]
-test = [
-    "pytest",
-    "pytest-cov",
+s3 = [
+    "cloudpathlib[s3]==0.17.0",
 ]
+
+[dependency-groups]
 dev = [
-    "pdoc==14.0.0",
-    "black==23.3.0",
-    "flake8==5.0.4",
-    "isort==5.11.5",
-    "mypy==1.2.0",
-    "pre-commit",
-    "pylint>=2.5.0",
-    "setuptools-scm",
+    "ipython>=9.2.0",
+    "jupyter>=1.1.1",
+    "pandas==2.2.3",
+    "pre-commit>=4.1.0",
+    "pytest>=8.3.5",
+    "pytest-cov>=6.0.0",
+    "ruff>=0.9.10",
 ]
 
 [project.urls]
 "Homepage" = "https://github.com/childmindresearch/bids2table"
+"Issues" = "https://github.com/childmindresearch/bids2table/issues"
 
 [project.scripts]
 bids2table = "bids2table.__main__:main"
-b2t = "bids2table.__main__:main"
+b2t2 = "bids2table.__main__:main"
 
 [tool.setuptools.packages.find]
 include = ["bids2table*"]
 
 [tool.setuptools_scm]
-write_to = "bids2table/_version.py"
+version_file = "bids2table/_version.py"
 
-[tool.black]
+[tool.ruff]
 line-length = 88
-target_version = ['py37']
+target-version = "py312"
+lint.extend-select = ["I"]
 
-[tool.isort]
-profile = "black"
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401", "F403"]
 
 [tool.pytest.ini_options]
 log_cli = true
-log_cli_level = "DEBUG"
-
-[tool.mypy]
-no_strict_optional = true
-ignore_missing_imports = true
+log_cli_level = "INFO"

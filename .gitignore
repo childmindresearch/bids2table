@@ -25,20 +25,10 @@ htmlcov
 
 # Local data and scratch
 .scratch
-example/bids-examples.b2t
-docs
 
-# Local environment
+# Local virtual environment
 .venv
+.python-version
 
 # Jupyter
 .ipynb_checkpoints
-
-# Example generated tables
-example/tables
-
-# Benchmark data
-benchmark/**/envs
-benchmark/**/results
-benchmark/**/indexes
-slurm-*

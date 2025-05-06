@@ -1,71 +1,119 @@
 # bids2table
-[![Build](https://github.com/childmindresearch/bids2table/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/childmindresearch/bids2table/actions/workflows/ci.yaml?query=branch%3Amain)
-[![Docs](https://github.com/childmindresearch/bids2table/actions/workflows/docs.yaml/badge.svg?branch=main)](https://childmindresearch.github.io/bids2table/bids2table)
+[![CI](https://github.com/childmindresearch/bids2table/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/childmindresearch/bids2table/actions/workflows/ci.yaml?query=branch%3Amain)
 [![codecov](https://codecov.io/gh/childmindresearch/bids2table/branch/main/graph/badge.svg?token=22HWWFWPW5)](https://codecov.io/gh/childmindresearch/bids2table)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-[![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+![Python3](https://img.shields.io/badge/python->=3.12-blue.svg)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-bids2table is a library for efficiently indexing and querying large-scale BIDS neuroimaging datasets and derivatives. It aims to improve upon the efficiency of [PyBIDS](https://github.com/bids-standard/pybids) by leveraging modern data science tools.
-
-bids2table represents a BIDS dataset index as a single table with columns for BIDS entities and file metadata. The index is constructed using [Arrow](https://arrow.apache.org/) and stored in [Parquet](https://parquet.apache.org/) format, a binary tabular file format optimized for efficient storage and retrieval.
+Index BIDS datasets fast, locally or in the cloud.
 
 ## Installation
 
-A pre-release version of bids2table can be installed with
+To install the latest release from pypi, you can run
 
 ```sh
 pip install bids2table
 ```
 
+To install with S3 support, include the `s3` extra
+
+```sh
+pip install bids2table[s3]
+```
+
 The latest development version can be installed with
 
 ```sh
-pip install git+https://github.com/childmindresearch/bids2table.git
+pip install "bids2table[s3] @ git+https://github.com/childmindresearch/bids2table.git"
 ```
 
-## Documentation
+## Usage
 
-Our documentation is [here](https://childmindresearch.github.io/bids2table/).
+To run these examples, you will need to clone the [bids-examples](https://github.com/bids-standard/bids-examples) repo.
 
-## Example
+```sh
+git clone -b 1.9.0 https://github.com/bids-standard/bids-examples.git
+```
+
+### Finding BIDS datasets
+
+You can search a directory for valid BIDS datasets using `b2t2 find`
+
+```
+(bids2table) clane$ b2t2 find bids-examples | head -n 10
+bids-examples/asl002
+bids-examples/ds002
+bids-examples/ds005
+bids-examples/asl005
+bids-examples/ds051
+bids-examples/eeg_rishikesh
+bids-examples/asl004
+bids-examples/asl003
+bids-examples/ds003
+bids-examples/eeg_cbm
+```
+
+### Indexing datasets from the command line
+
+Indexing datasets is done with `b2t2 index`. Here we index a single example dataset, saving the output as a parquet file.
+
+```
+(bids2table) clane$ b2t2 index -o ds102.parquet bids-examples/ds102
+ds102: 100%|███████████████████████████████████████| 26/26 [00:00<00:00, 154.12it/s, sub=26, N=130]
+```
+
+You can also index a list of datasets. Note that each iteration in the progress bar represents one dataset.
+
+```
+(bids2table) clane$ b2t2 index -o bids-examples.parquet bids-examples/*
+100%|████████████████████████████████████████████| 87/87 [00:00<00:00, 113.59it/s, ds=None, N=9727]
+```
+
+You can pipe the output of `b2t2 find` to `b2t2 index` to create an index of all datasets under a root directory.
+
+```
+(bids2table) clane$ b2t2 find bids-examples | b2t2 index -o bids-examples.parquet
+97it [00:01, 96.05it/s, ds=ieeg_filtered_speech, N=10K]
+```
+
+The resulting index will include both top-level datasets (as in the previous command) as well nested derivatives datasets.
+
+### Indexing datasets hosted on S3
+
+bids2table supports indexing datasets hosted on S3 via [cloudpathlib](https://github.com/drivendataorg/cloudpathlib). To use this functionality, make sure to install bids2table with the `s3` extra. Or you can also just install cloudpathlib directly
+
+```sh
+pip install cloudpathlib[s3]
+```
+
+As an example, here we index all datasets on [OpenNeuro](https://openneuro.org/)
+
+```
+(bids2table) clane$ b2t2 index -o openneuro.parquet \
+  -j 8 --use-threads s3://openneuro.org/ds*
+100%|█████████████████████████████████████| 1408/1408 [12:25<00:00,  1.89it/s, ds=ds006193, N=1.2M]
+```
+
+Using 8 threads, we can index all ~1400 OpenNeuro datasets (1.2M files) in less than 15 minutes.
+
+
+### Indexing datasets from python
+
+You can also index datasets using the Python API.
 
 ```python
-import pandas as pd
+import pyarrow as pa
+import bids2table as b2t2
 
-from bids2table import bids2table
+# Index a single dataset.
+tab = b2t2.index_dataset("bids-examples/ds102")
 
-# Load in memory as pandas dataframe
-df = bids2table("/path/to/dataset")
+# Find and index a batch of datasets.
+tabs = b2t2.batch_index_dataset(
+    b2t2.find_bids_datasets("bids-examples"),
+)
+tab = pa.concat_tables(tabs)
 
-# Load in parallel and stream to disk as a Parquet dataset
-df = bids2table("/path/to/dataset", persistent=True, workers=8)
+# Index a dataset on S3.
+tab = b2t2.index_dataset("s3://openneuro.org/ds000224")
 ```
-
-See [here](example/example.ipynb) for a more complete example.
-
-## Performance
-
-bids2table significantly outperforms both [PyBIDS](https://github.com/bids-standard/pybids) and [ancpBIDS](https://github.com/ANCPLabOldenburg/ancp-bids) in terms of indexing run time, index size on disk, and query run time.
-
-### Indexing performance
-
-Indexing run time and index size on disk for the [NKI Rockland Sample](https://fcon_1000.projects.nitrc.org/indi/pro/nki.html) dataset. See the [indexing benchmark](benchmark/indexing) for more details.
-
-| Index | Num workers | Run time (s) | Index size (MB) |
-| -- | -- | -- | -- |
-| PyBIDS | 1 | 1618 | 448 |
-| ancpBIDS | 1 | 465 | -- |
-| bids2table | 1 | 402 | 4.02 |
-| bids2table | 8 | 53.2 | **3.84** |
-| bids2table | 64 | **10.7** | 4.82 |
-
-
-### Query performance
-
-Query run times for the [Chinese Color Nest Project](http://deepneuro.bnu.edu.cn/?p=163) dataset. See the [query benchmark](benchmark/query) for more details.
-
-| Index | Get subjects (ms) | Get BOLD (ms) | Query metadata (ms) | Get morning scans (ms) |
-| -- | -- | -- | -- | -- |
-| PyBIDS | 1350 | 12.3 | 6.53 | 34.3 |
-| ancpBIDS | 30.6 | 19.2 | -- | -- |
-| bids2table | **0.046** | **0.346** | **0.312** | **0.352** |
