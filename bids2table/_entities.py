@@ -144,7 +144,7 @@ def parse_bids_entities(path: str | Path) -> dict[str, str]:
         path: BIDS path to parse.
 
     Returns:
-        entities: dict mapping BIDS entity keys to values.
+        A dict mapping BIDS entity keys to values.
     """
     if isinstance(path, str):
         path = Path(path)
@@ -207,9 +207,10 @@ def validate_bids_entities(
         entities: dict mapping BIDS keys to unvalidated entities
 
     Returns:
-        valid_entities: A mapping of valid BIDS keys to type-casted values.
-        extra_entities: A mapping of any leftover entity mappings that didn't match a
-            known entity or failed validation.
+        A tuple of `(valid_entities, extra_entities)`, where `valid_entities` is a
+            mapping of valid BIDS keys to type-casted values, and `extra_entities` a
+            mapping of any leftover entity mappings that didn't match a known entity or
+            failed validation.
     """
     valid_entities = {}
     extra_entities = {}
@@ -254,7 +255,7 @@ def format_bids_path(entities: dict[str, Any], int_format: str = "%d") -> Path:
         int_format: format string for integer (index) BIDS values.
 
     Returns:
-        path: formatted `Path` instance.
+        A formatted `Path` instance.
     """
     special = {"datatype", "suffix", "ext"}
 

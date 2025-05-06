@@ -44,6 +44,7 @@ dev = [
     "ipython>=9.2.0",
     "jupyter>=1.1.1",
     "pandas==2.2.3",
+    "pdoc>=15.0.3",
     "pre-commit>=4.1.0",
     "pytest>=8.3.5",
     "pytest-cov>=6.0.0",

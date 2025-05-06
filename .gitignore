@@ -11,6 +11,7 @@ __pycache__/
 *.egg-info/
 dist
 build
+docs
 */_version.py
 
 # Unit test / coverage reports
