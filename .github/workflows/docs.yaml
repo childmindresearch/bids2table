@@ -25,7 +25,7 @@ jobs:
       - name: Install the project
         run: uv sync --all-extras
       - name: Build docs
-        run: pdoc -o docs/ -d google bids2table
+        run: uv run pdoc -o docs/ -d google bids2table
       - uses: actions/upload-pages-artifact@v3
         with:
           path: docs/
