@@ -21,7 +21,7 @@ jobs:
         with:
           pyproject-file: pyproject.toml
       - name: Install the project
-        run: uv sync
+        run: uv sync --all-extras
       - name: Check quality
         run: |
           uv run ruff check bids2table tests
