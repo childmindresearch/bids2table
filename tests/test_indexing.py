@@ -4,6 +4,7 @@ import pyarrow as pa
 import pytest
 
 import bids2table._indexing as indexing
+from bids2table._pathlib import cloudpathlib_is_available
 
 BIDS_EXAMPLES = Path(__file__).parents[1] / "bids-examples"
 
@@ -51,6 +52,16 @@ def test_find_bids_datasets():
 )
 def test_index_dataset(root: str, expected_count: int):
     table = indexing.index_dataset(BIDS_EXAMPLES / root, show_progress=False)
+    assert len(table) == expected_count
+
+
+@pytest.mark.skipif(
+    not cloudpathlib_is_available(), reason="cloudpathlib not installed"
+)
+def test_index_dataset_s3():
+    root = "s3://openneuro.org/ds000102"
+    expected_count = 130
+    table = indexing.index_dataset(root)
     assert len(table) == expected_count
 
 
