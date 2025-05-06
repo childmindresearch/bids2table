@@ -293,8 +293,7 @@ def _get_bids_dataset(path: str | Path) -> tuple[str | None, Path | None]:
     if isinstance(path, str):
         path = Path(path)
 
-    parent = path if path.is_dir() else path.parent
-
+    parent = path
     parts: list[str] = []
     scanning = False
     top_idx = None
