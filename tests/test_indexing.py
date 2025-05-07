@@ -201,3 +201,18 @@ def test_filter_include_exclude():
     filtered_names = indexing._filter_include(names, include)
     filtered_names = indexing._filter_exclude(filtered_names, exclude)
     assert filtered_names == expected
+
+
+@pytest.mark.parametrize(
+    "num,expected",
+    [
+        (12, "12"),
+        (1234, "1234"),
+        (65432, "65K"),
+        (165432, "165K"),
+        (2165432, "2.2M"),
+        (52165432, "52M"),
+    ],
+)
+def test_h_fmt(num: int, expected: str):
+    assert indexing._hfmt(num) == expected
