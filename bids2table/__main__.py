@@ -1,6 +1,6 @@
 import argparse
 import concurrent.futures
-import re
+import glob
 import sys
 
 import pyarrow.parquet as pq
@@ -116,7 +116,7 @@ def _index_command(args: argparse.Namespace):
 
     root = []
     for path in args.root:
-        if _is_glob(path):
+        if glob.has_magic(path):
             path = Path(path)
             paths = list(path.parent.glob(path.name))
             root.extend(paths)
@@ -169,10 +169,6 @@ def _check_path(path: str):
             "Install with e.g. `pip install cloudpathlib[s3]`."
         )
         sys.exit(1)
-
-
-def _is_glob(path: str) -> bool:
-    return bool(re.search(r"[*?\[\]]", path))
 
 
 if __name__ == "__main__":
