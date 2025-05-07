@@ -407,7 +407,8 @@ def _is_bids_file(path: Path) -> bool:
         return False
 
     entities = _cache_parse_bids_entities(path)
-    # if not (entities.get("suffix") and entities.get("datatype")):
+    # If we want to exclude metadata files like *_scans.tsv, we can also check for
+    # datatype.
     if not (entities.get("suffix") and entities.get("ext")):
         return False
 
