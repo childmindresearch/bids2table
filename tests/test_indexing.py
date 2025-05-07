@@ -1,7 +1,9 @@
+import logging
 from pathlib import Path
 
 import pyarrow as pa
 import pytest
+from pytest import LogCaptureFixture
 
 import bids2table._indexing as indexing
 from bids2table._pathlib import cloudpathlib_is_available
@@ -70,6 +72,22 @@ def test_index_dataset_parallel(max_workers: int):
     root, expected_count = "ds102", 130
     table = indexing.index_dataset(BIDS_EXAMPLES / root, show_progress=False)
     assert len(table) == expected_count
+
+
+@pytest.mark.parametrize(
+    "path,msg",
+    [
+        # Not a bids dataset.
+        ("tools", "not a valid BIDS"),
+        # Has dataset_description.json but no valid subject dirs.
+        ("ieeg_epilepsy/derivatives/brainvisa", "no matching subject"),
+    ],
+)
+def test_index_dataset_warns(path: str, msg: str, caplog: LogCaptureFixture):
+    with caplog.at_level(logging.WARNING):
+        tab = indexing.index_dataset(BIDS_EXAMPLES / path)
+    assert len(tab) == 0
+    assert msg in caplog.text
 
 
 @pytest.mark.parametrize("max_workers", [0, 2])
