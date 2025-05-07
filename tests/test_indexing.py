@@ -155,6 +155,11 @@ def test_is_bids_subject_dir(path: str, expected: bool):
             True,
         ),
         (
+            # JSON data file with compound extension.
+            "sub-0025428_ses-1_hemi-L_space-native_midthickness.surf.json",
+            True,
+        ),
+        (
             # Special case of directory that is a bids "file".
             "ds000247/sub-0007/ses-0001/meg/sub-0007_ses-0001_task-rest_run-01_meg.ds/",
             True,
