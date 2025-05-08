@@ -36,7 +36,7 @@ dependencies = [
 
 [project.optional-dependencies]
 s3 = [
-    "cloudpathlib[s3]==0.17.0",
+    "cloudpathlib[s3]>=0.17.0",
 ]
 
 [dependency-groups]
