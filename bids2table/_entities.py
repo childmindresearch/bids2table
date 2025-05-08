@@ -157,11 +157,8 @@ def parse_bids_entities(path: str | Path) -> dict[str, str]:
 
     # Get suffix and extension.
     suffix_ext = parts.pop()
-    idx = suffix_ext.find(".")
-    if idx < 0:
-        suffix, ext = suffix_ext, None
-    else:
-        suffix, ext = suffix_ext[:idx], suffix_ext[idx:]
+    suffix, dot, ext = suffix_ext.partition(".")
+    ext = dot + ext if ext else None
 
     # Suffix is actually an entity, put back in list.
     if "-" in suffix:

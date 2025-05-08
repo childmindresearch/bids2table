@@ -1,13 +1,13 @@
 import argparse
 import concurrent.futures
-import re
+import glob
 import sys
 
 import pyarrow.parquet as pq
 
 import bids2table as b2t2
-from bids2table import Path
 from bids2table._logging import setup_logger
+from bids2table._pathlib import as_path
 
 _logger = setup_logger(__package__)
 
@@ -116,8 +116,8 @@ def _index_command(args: argparse.Namespace):
 
     root = []
     for path in args.root:
-        if _is_glob(path):
-            path = Path(path)
+        if glob.has_magic(path):
+            path = as_path(path)
             paths = list(path.parent.glob(path.name))
             root.extend(paths)
         else:
@@ -169,10 +169,6 @@ def _check_path(path: str):
             "Install with e.g. `pip install cloudpathlib[s3]`."
         )
         sys.exit(1)
-
-
-def _is_glob(path: str) -> bool:
-    return bool(re.search(r"[*?\[\]]", path))
 
 
 if __name__ == "__main__":

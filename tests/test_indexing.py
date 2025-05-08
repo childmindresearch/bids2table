@@ -1,7 +1,9 @@
+import logging
 from pathlib import Path
 
 import pyarrow as pa
 import pytest
+from pytest import LogCaptureFixture
 
 import bids2table._indexing as indexing
 from bids2table._pathlib import cloudpathlib_is_available
@@ -72,6 +74,22 @@ def test_index_dataset_parallel(max_workers: int):
     assert len(table) == expected_count
 
 
+@pytest.mark.parametrize(
+    "path,msg",
+    [
+        # Not a bids dataset.
+        ("tools", "not a valid BIDS"),
+        # Has dataset_description.json but no valid subject dirs.
+        ("ieeg_epilepsy/derivatives/brainvisa", "no matching subject"),
+    ],
+)
+def test_index_dataset_warns(path: str, msg: str, caplog: LogCaptureFixture):
+    with caplog.at_level(logging.WARNING):
+        tab = indexing.index_dataset(BIDS_EXAMPLES / path)
+    assert len(tab) == 0
+    assert msg in caplog.text
+
+
 @pytest.mark.parametrize("max_workers", [0, 2])
 def test_batch_index_dataset(max_workers: int):
     datasets = list(indexing.find_bids_datasets(BIDS_EXAMPLES))
@@ -92,6 +110,7 @@ def test_batch_index_dataset(max_workers: int):
 def test_get_bids_dataset(path: str, expected_name: str):
     name, dataset_path = indexing._get_bids_dataset(BIDS_EXAMPLES / path)
     assert name == expected_name
+    assert dataset_path is not None
     assert indexing._contains_bids_subject_dirs(dataset_path)
 
 
@@ -155,6 +174,11 @@ def test_is_bids_subject_dir(path: str, expected: bool):
             True,
         ),
         (
+            # JSON data file with compound extension.
+            "sub-0025428_ses-1_hemi-L_space-native_midthickness.surf.json",
+            True,
+        ),
+        (
             # Special case of directory that is a bids "file".
             "ds000247/sub-0007/ses-0001/meg/sub-0007_ses-0001_task-rest_run-01_meg.ds/",
             True,
@@ -178,3 +202,18 @@ def test_filter_include_exclude():
     filtered_names = indexing._filter_include(names, include)
     filtered_names = indexing._filter_exclude(filtered_names, exclude)
     assert filtered_names == expected
+
+
+@pytest.mark.parametrize(
+    "num,expected",
+    [
+        (12, "12"),
+        (1234, "1234"),
+        (65432, "65K"),
+        (165432, "165K"),
+        (2165432, "2.2M"),
+        (52165432, "52M"),
+    ],
+)
+def test_h_fmt(num: int, expected: str):
+    assert indexing._hfmt(num) == expected
