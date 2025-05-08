@@ -110,6 +110,7 @@ def test_batch_index_dataset(max_workers: int):
 def test_get_bids_dataset(path: str, expected_name: str):
     name, dataset_path = indexing._get_bids_dataset(BIDS_EXAMPLES / path)
     assert name == expected_name
+    assert dataset_path is not None
     assert indexing._contains_bids_subject_dirs(dataset_path)
 
 

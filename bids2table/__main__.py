@@ -6,8 +6,8 @@ import sys
 import pyarrow.parquet as pq
 
 import bids2table as b2t2
-from bids2table import Path
 from bids2table._logging import setup_logger
+from bids2table._pathlib import as_path
 
 _logger = setup_logger(__package__)
 
@@ -117,7 +117,7 @@ def _index_command(args: argparse.Namespace):
     root = []
     for path in args.root:
         if glob.has_magic(path):
-            path = Path(path)
+            path = as_path(path)
             paths = list(path.parent.glob(path.name))
             root.extend(paths)
         else:

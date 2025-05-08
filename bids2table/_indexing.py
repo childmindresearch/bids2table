@@ -21,7 +21,7 @@ from ._entities import (
     validate_bids_entities,
 )
 from ._logging import setup_logger
-from ._pathlib import Path
+from ._pathlib import PathT, as_path
 
 _BIDS_SUBJECT_DIR_PATTERN = re.compile(r"sub-[a-zA-Z0-9]+")
 
@@ -109,7 +109,7 @@ def get_arrow_schema() -> pa.Schema:
     return schema
 
 
-def get_column_names() -> enum.EnumType:
+def get_column_names() -> enum.StrEnum:
     """Get an enum of the BIDS index columns."""
     # TODO: It might be nice if the column names were statically available. One option
     # would be to generate a static _schema.py module at install time (similar to how
@@ -127,11 +127,11 @@ def get_column_names() -> enum.EnumType:
 
 
 def find_bids_datasets(
-    root: str | Path,
+    root: str | PathT,
     exclude: str | list[str] | None = None,
     follow_symlinks: bool = True,
     log_frequency: int = 100,
-) -> Generator[Path, None, None]:
+) -> Generator[PathT, None, None]:
     """Find all BIDS datasets under a root directory.
 
     Args:
@@ -143,8 +143,7 @@ def find_bids_datasets(
     Yields:
         Root paths of all BIDS datasets under `root`.
     """
-    if isinstance(root, str):
-        root = Path(root)
+    root = as_path(root)
 
     dir_count = 0
     ds_count = 0
@@ -178,7 +177,7 @@ def find_bids_datasets(
 
 
 def index_dataset(
-    root: str | Path,
+    root: str | PathT,
     include_subjects: str | list[str] | None = None,
     max_workers: int | None = 0,
     chunksize: int = 32,
@@ -203,8 +202,7 @@ def index_dataset(
     Returns:
         An Arrow table index of the BIDS dataset.
     """
-    if isinstance(root, str):
-        root = Path(root)
+    root = as_path(root)
 
     schema = get_arrow_schema()
 
@@ -243,7 +241,7 @@ def index_dataset(
 
 
 def batch_index_dataset(
-    roots: list[str | Path],
+    roots: list[str | PathT],
     max_workers: int | None = 0,
     executor_cls: type[Executor] = ProcessPoolExecutor,
     show_progress: bool = False,
@@ -275,13 +273,13 @@ def batch_index_dataset(
         yield table
 
 
-def _batch_index_func(root: str | Path) -> tuple[str, pa.Table]:
+def _batch_index_func(root: str | PathT) -> tuple[str | None, pa.Table]:
     dataset, _ = _get_bids_dataset(root)
     table = index_dataset(root, max_workers=0, show_progress=False)
     return dataset, table
 
 
-def _get_bids_dataset(path: str | Path) -> tuple[str | None, Path | None]:
+def _get_bids_dataset(path: str | PathT) -> tuple[str | None, PathT | None]:
     """Get the BIDS dataset that the path belongs to, if any.
 
     Return the dataset directory name and the full dataset path. For nested derivatives
@@ -290,13 +288,10 @@ def _get_bids_dataset(path: str | Path) -> tuple[str | None, Path | None]:
 
     Note that the name is extracted from the path, not the dataset description JSON.
     """
-    if isinstance(path, str):
-        path = Path(path)
-
-    parent = path
+    parent = as_path(path)
     parts: list[str] = []
     scanning = False
-    top_idx = None
+    top_idx = 0
     root = None
 
     while parent.name:
@@ -319,7 +314,7 @@ def _get_bids_dataset(path: str | Path) -> tuple[str | None, Path | None]:
     return dataset, root
 
 
-def _is_bids_dataset(path: Path) -> bool:
+def _is_bids_dataset(path: PathT) -> bool:
     """Test if path is a BIDS dataset root directory."""
     # Check if contains a dataset_description.json or any subject directories. Note,
     # it's common for ppl to forget the dataset description, so let's not be too strict.
@@ -327,16 +322,16 @@ def _is_bids_dataset(path: Path) -> bool:
     return description_exists or _contains_bids_subject_dirs(path)
 
 
-def _contains_bids_subject_dirs(root: Path) -> bool:
+def _contains_bids_subject_dirs(root: PathT) -> bool:
     """Check if a path contains one or more BIDS subject dirs."""
     # Nb, this will return on the first matching path thanks to the generator.
     return any(_is_bids_subject_dir(path) for path in root.glob("sub-*"))
 
 
 def _find_bids_subject_dirs(
-    root: Path,
+    root: PathT,
     include_subjects: str | list[str] | None = None,
-) -> list[Path]:
+) -> list[PathT]:
     """Find all BIDS subject dirs contained in a root directory.
 
     Note, only looks one level down. Does not find nested subject directories, e.g. in
@@ -352,7 +347,7 @@ def _find_bids_subject_dirs(
     return paths
 
 
-def _is_bids_subject_dir(path: Path) -> bool:
+def _is_bids_subject_dir(path: PathT) -> bool:
     """Check if a path is a BIDS subject directory."""
     # NOTE: not checking if the path is in fact a directory.
     # This is a slow op, especially on cloud. Can assume that there are no files
@@ -362,7 +357,7 @@ def _is_bids_subject_dir(path: Path) -> bool:
 
 
 def _index_bids_subject_dir(
-    path: Path,
+    path: PathT,
     schema: pa.Schema | None = None,
     dataset: str | None = None,
 ) -> tuple[str, pa.Table]:
@@ -394,7 +389,7 @@ def _index_bids_subject_dir(
     return subject, table
 
 
-def _is_bids_file(path: Path) -> bool:
+def _is_bids_file(path: PathT) -> bool:
     """Check if file is a BIDS file.
 
     Not very exact, but hopefully good enough.
@@ -423,7 +418,7 @@ def _is_bids_file(path: Path) -> bool:
     return True
 
 
-def _is_bids_json_sidecar(path: Path) -> bool:
+def _is_bids_json_sidecar(path: PathT) -> bool:
     """Quick check if a file is a JSON sidecar."""
     # Quick check if path suffix is not json.
     if path.suffix != ".json":
