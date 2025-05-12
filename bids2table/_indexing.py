@@ -8,6 +8,7 @@ import enum
 import fnmatch
 import importlib.metadata
 import re
+import sys
 from concurrent.futures import Executor, ProcessPoolExecutor
 from functools import partial
 from typing import Any, Callable, Generator, Iterable, Sequence
@@ -142,7 +143,13 @@ def find_bids_datasets(
 
     Yields:
         Root paths of all BIDS datasets under `root`.
+
+    .. note::
+        Requires Python >= 3.12.
     """
+    if sys.version_info < (3, 12):
+        raise RuntimeError("find_bids_datasets requires Python 3.12 or higher.")
+
     root = as_path(root)
 
     dir_count = 0

@@ -10,7 +10,7 @@ authors = [
 ]
 description = "Index BIDS datasets fast, locally or in the cloud."
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 license = {text = "MIT License"}
 classifiers = [
     "Development Status :: 3 - Alpha",
