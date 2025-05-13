@@ -43,7 +43,6 @@ def test_main_index(cmd: str, output: str | None, tmp_path: Path):
         assert (tmp_path / output).exists()
 
 
-@pytest.mark.skipif(sys.version_info < (3, 12), reason="Python < 3.12.")
 @pytest.mark.parametrize("cmd", ["find {examples}"])
 def test_main_find(cmd: str):
     cmd_fmt = cmd.format(examples=BIDS_EXAMPLES)
