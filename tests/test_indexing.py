@@ -1,5 +1,4 @@
 import logging
-import sys
 from pathlib import Path
 
 import pyarrow as pa
@@ -25,7 +24,6 @@ def test_get_column_names():
     assert BIDSColumn.dataset == "dataset"
 
 
-@pytest.mark.skipif(sys.version_info < (3, 12), reason="Python < 3.12.")
 def test_find_bids_datasets():
     datasets = sorted(indexing.find_bids_datasets(BIDS_EXAMPLES, log_frequency=100))
     expected_datasets = sorted(

@@ -152,10 +152,6 @@ def _index_command(args: argparse.Namespace):
 
 
 def _find_command(args: argparse.Namespace):
-    if sys.version_info < (3, 12):
-        _logger.error("bids2table find requires Python 3.12 or higher.")
-        sys.exit(1)
-
     _check_path(args.root)
 
     for dataset in b2t2.find_bids_datasets(
