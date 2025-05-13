@@ -1,4 +1,7 @@
+import os
+import sys
 from pathlib import Path
+from typing import Iterator
 
 try:
     from cloudpathlib import AnyPath, CloudPath, S3Client
@@ -16,6 +19,23 @@ except ImportError:
 __all__ = ["PathT", "as_path", "cloudpathlib_is_available"]
 
 PathT = Path | CloudPath
+
+
+def walk(
+    root: str | PathT, follow_symlinks: bool = False
+) -> Iterator[tuple[str, list[str], list[str]]]:
+    if isinstance(root, str):
+        root = as_path(root)
+
+    # Py312+ or CloudPath
+    if sys.version_info >= (3, 12) or (
+        _CLOUDPATHLIB_AVAILABLE and isinstance(root, CloudPath)
+    ):
+        yield from root.walk(follow_symlinks=follow_symlinks)
+    # Fall back to os.walk for local paths
+    else:
+        for dirpath, dirnames, filenames in os.walk(root, followlinks=follow_symlinks):
+            yield Path(dirpath), dirnames, filenames
 
 
 def as_path(path: str | PathT) -> PathT:
