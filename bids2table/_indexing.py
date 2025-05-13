@@ -7,7 +7,6 @@ Returns a dataset index as an Arrow table.
 import enum
 import fnmatch
 import importlib.metadata
-import os
 import re
 from concurrent.futures import Executor, ProcessPoolExecutor
 from functools import partial
@@ -22,7 +21,7 @@ from ._entities import (
     validate_bids_entities,
 )
 from ._logging import setup_logger
-from ._pathlib import PathT, as_path
+from ._pathlib import PathT, as_path, walk
 
 _BIDS_SUBJECT_DIR_PATTERN = re.compile(r"sub-[a-zA-Z0-9]+")
 
@@ -147,9 +146,9 @@ def find_bids_datasets(
     dir_count = 0
     ds_count = 0
 
-    for dirpath, dirnames, _ in os.walk(root, followlinks=follow_symlinks):
+    root = as_path(root)
+    for dirpath, dirnames, _ in walk(root, follow_symlinks=follow_symlinks):
         dir_count += 1
-        dirpath = as_path(dirpath)
 
         if _is_bids_dataset(dirpath):
             ds_count += 1
