@@ -7,6 +7,7 @@ Returns a dataset index as an Arrow table.
 import enum
 import fnmatch
 import importlib.metadata
+import os
 import re
 from concurrent.futures import Executor, ProcessPoolExecutor
 from functools import partial
@@ -143,14 +144,12 @@ def find_bids_datasets(
     Yields:
         Root paths of all BIDS datasets under `root`.
     """
-    root = as_path(root)
-
     dir_count = 0
     ds_count = 0
 
-    # NOTE: Path.walk was introduced in 3.12. Otherwise, could use an older python.
-    for dirpath, dirnames, _ in root.walk(follow_symlinks=follow_symlinks):
+    for dirpath, dirnames, _ in os.walk(root, followlinks=follow_symlinks):
         dir_count += 1
+        dirpath = as_path(dirpath)
 
         if _is_bids_dataset(dirpath):
             ds_count += 1
