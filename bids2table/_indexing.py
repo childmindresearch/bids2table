@@ -9,7 +9,7 @@ import fnmatch
 import importlib.metadata
 import re
 from concurrent.futures import Executor, ProcessPoolExecutor
-from functools import partial
+from functools import lru_cache, partial
 from typing import Any, Callable, Generator, Iterable, Sequence
 
 import pyarrow as pa
@@ -279,6 +279,7 @@ def _batch_index_func(root: str | PathT) -> tuple[str | None, pa.Table]:
     return dataset, table
 
 
+@lru_cache()
 def _get_bids_dataset(path: str | PathT) -> tuple[str | None, PathT | None]:
     """Get the BIDS dataset that the path belongs to, if any.
 
@@ -314,6 +315,7 @@ def _get_bids_dataset(path: str | PathT) -> tuple[str | None, PathT | None]:
     return dataset, root
 
 
+@lru_cache()
 def _is_bids_dataset(path: PathT) -> bool:
     """Test if path is a BIDS dataset root directory."""
     # Check if contains a dataset_description.json or any subject directories. Note,
