@@ -1,4 +1,5 @@
 import logging
+from itertools import islice
 from pathlib import Path
 
 import pyarrow as pa
@@ -25,22 +26,41 @@ def test_get_column_names():
 
 
 def test_find_bids_datasets():
-    datasets = sorted(indexing.find_bids_datasets(BIDS_EXAMPLES, log_frequency=100))
+    datasets = sorted(
+        indexing.find_bids_datasets(
+            BIDS_EXAMPLES,
+            exclude=["surfaces", "subjects", "code", "sourcedata"],
+        )
+    )
     expected_datasets = sorted(
         [p.parent for p in BIDS_EXAMPLES.rglob("dataset_description.json")]
     )
     # find_bids_datasets finds a few extra derivative datasets that are missing a
     # dataset_description.json.
     assert set(expected_datasets).issubset(datasets)
-    assert len(datasets) == len(expected_datasets) + 6
+    assert len(datasets) == len(expected_datasets) + 3
 
     datasets_no_derivatives = sorted(
-        indexing.find_bids_datasets(BIDS_EXAMPLES, exclude="derivatives")
+        indexing.find_bids_datasets(
+            BIDS_EXAMPLES,
+            exclude=["derivatives", "code", "sourcedata"],
+        )
     )
     expected_datasets_no_derivatives = sorted(
         [p.parent for p in BIDS_EXAMPLES.glob("*/dataset_description.json")]
     )
     assert datasets_no_derivatives == expected_datasets_no_derivatives
+
+
+def test_find_bids_datasets_s3():
+    root = "s3://openneuro.org"
+    datasets = list(islice(indexing.find_bids_datasets(root, maxdepth=2), 10))
+    names = sorted([ds.name for ds in datasets])
+    expected_names = [
+        "ds000001", "ds000002", "ds000003", "ds000005", "ds000006",
+        "ds000007", "ds000008", "ds000009", "ds000011", "ds000017",
+    ]  # fmt: skip
+    assert names == expected_names
 
 
 @pytest.mark.parametrize(
