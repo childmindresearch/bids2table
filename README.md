@@ -54,8 +54,6 @@ bids-examples/ds003
 bids-examples/eeg_cbm
 ```
 
-> Note: `b2t2 find` requires python>=3.12.
-
 ### Indexing datasets from the command line
 
 Indexing datasets is done with `b2t2 index`. Here we index a single example dataset, saving the output as a parquet file.
