@@ -129,8 +129,7 @@ def get_column_names() -> enum.StrEnum:
 def find_bids_datasets(
     root: str | PathT,
     exclude: str | list[str] | None = None,
-    follow_symlinks: bool = True,
-    log_frequency: int = 100,
+    maxdepth: int | None = None,
 ) -> Generator[PathT, None, None]:
     """Find all BIDS datasets under a root directory.
 
@@ -138,42 +137,58 @@ def find_bids_datasets(
         root: Root path to begin search.
         exclude: Glob pattern or list of patterns matching sub-directory names to
             exclude from the search.
-        follow_symlinks: Search into symlinks that point to directories.
+        maxdepth: Maximum depth to search.
 
     Yields:
         Root paths of all BIDS datasets under `root`.
     """
     root = as_path(root)
 
-    dir_count = 0
+    if isinstance(exclude, str):
+        exclude = [exclude]
+    elif exclude is None:
+        exclude = []
+    exclude = [re.compile(fnmatch.translate(pat)) for pat in exclude]
+
+    entry_count = 1
     ds_count = 0
 
-    # NOTE: Path.walk was introduced in 3.12. Otherwise, could use an older python.
-    for dirpath, dirnames, _ in root.walk(follow_symlinks=follow_symlinks):
-        dir_count += 1
+    if _is_bids_dataset(root):
+        ds_count += 1
+        yield root
 
-        if _is_bids_dataset(dirpath):
-            ds_count += 1
-            yield dirpath
+    # Tuple of path, depth
+    stack = [(root, 0)]
 
-            # Only descend into specific sub-directories that are allowed to contain
-            # sub-datasets.
-            _filter_dirnames(dirnames, _BIDS_NESTED_PARENT_DIRNAMES)
+    while stack:
+        top, depth = stack.pop()
 
-        # Filter sub-directories to descend into.
-        if exclude:
-            matches = _filter_exclude(dirnames, exclude)
-            _filter_dirnames(dirnames, matches)
+        inside_bids = _is_bids_dataset(top)
+        depth += 1
 
-        if log_frequency and dir_count % log_frequency == 0:
-            _logger.info(
-                "Searched %d directories; found %d BIDS datasets.", dir_count, ds_count
+        for entry in top.iterdir():
+            entry_count += 1
+
+            if any(re.fullmatch(pat, entry.name) for pat in exclude):
+                continue
+
+            if _is_bids_dataset(entry):
+                ds_count += 1
+                yield entry
+
+            # Checks if we should descend into this directory.
+            # Check not reached final depth.
+            descend = maxdepth is None or depth < maxdepth
+            # Heuristic checks whether the filename looks like a (visible) directory.
+            descend = descend and not (entry.suffix or entry.name.startswith("."))
+            # Only descend into specific subdirectories of BIDS directories.
+            descend = descend and (
+                not inside_bids or entry.name in _BIDS_NESTED_PARENT_DIRNAMES
             )
-
-    if log_frequency:
-        _logger.info(
-            "Searched %d directories; found %d BIDS datasets.", dir_count, ds_count
-        )
+            # Finally, check if actually a directory (which is slow so we want to
+            # short-circuit as much as possible).
+            if descend and entry.is_dir():
+                stack.append((entry, depth))
 
 
 def index_dataset(
@@ -316,6 +331,17 @@ def _get_bids_dataset(path: str | PathT) -> tuple[str | None, PathT | None]:
 
 def _is_bids_dataset(path: PathT) -> bool:
     """Test if path is a BIDS dataset root directory."""
+    # Quick heuristic checks.
+    # BIDS datasets should not contain a file extension.
+    if path.suffix:
+        return False
+    # Path should not be hidden.
+    if path.name.startswith("."):
+        return False
+    # Subject dirs are not datasets.
+    if _is_bids_subject_dir(path):
+        return False
+
     # Check if contains a dataset_description.json or any subject directories. Note,
     # it's common for ppl to forget the dataset description, so let's not be too strict.
     description_exists = (path / "dataset_description.json").exists()
@@ -491,15 +517,6 @@ def _multi_pattern_filter(names: list[str], patterns: str | list[str]) -> set[st
     for pat in patterns:
         matching_names.update(fnmatch.filter(names, pat))
     return matching_names
-
-
-def _filter_dirnames(dirnames: list[str], matches: set[str]) -> None:
-    """Remove dirnames matching `matches` in place."""
-    # Iterate in reversed order since we are modifying in place.
-    n_names = len(dirnames)
-    for ii, dirname in enumerate(reversed(dirnames)):
-        if dirname not in matches:
-            del dirnames[n_names - ii - 1]
 
 
 def _hfmt(n: int) -> str:

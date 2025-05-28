@@ -68,18 +68,15 @@ def main():
 
     parser_find = subparsers.add_parser("find", help="Find BIDS datasets.")
     parser_find.add_argument(
+        "--maxdepth", type=int, help="Max search depth", default=None
+    )
+    parser_find.add_argument(
         "--exclude-dirs",
         metavar="DIR",
         type=str,
         nargs="+",
         default=None,
         help="List of directory names or glob patterns to exclude from search.",
-    )
-    parser_find.add_argument(
-        "--follow-symlinks",
-        "-L",
-        action="store_true",
-        help="Follow symbolic links.",
     )
     parser_find.add_argument(
         "--verbose",
@@ -157,7 +154,7 @@ def _find_command(args: argparse.Namespace):
     for dataset in b2t2.find_bids_datasets(
         args.root,
         exclude=args.exclude_dirs,
-        follow_symlinks=args.follow_symlinks,
+        maxdepth=args.maxdepth,
     ):
         print(dataset)
 
