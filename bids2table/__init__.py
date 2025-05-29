@@ -141,6 +141,7 @@ __all__ = [
     "get_bids_schema",
     "get_bids_entity_arrow_schema",
     "format_bids_path",
+    "load_bids_metadata",
     "cloudpathlib_is_available",
 ]
 
