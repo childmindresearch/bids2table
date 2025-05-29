@@ -159,5 +159,6 @@ from ._entities import (
     get_bids_entity_arrow_schema,
     format_bids_path,
 )
+from ._metadata import load_bids_metadata
 from ._pathlib import cloudpathlib_is_available
 from ._version import *
