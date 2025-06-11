@@ -8,11 +8,14 @@ import enum
 import fnmatch
 import importlib.metadata
 import re
+import sys
 from concurrent.futures import Executor, ProcessPoolExecutor
 from functools import lru_cache, partial
+from glob import glob
 from typing import Any, Callable, Generator, Iterable, Sequence
 
 import pyarrow as pa
+from cloudpathlib import CloudPath
 from tqdm import tqdm
 
 from ._entities import (
@@ -21,7 +24,7 @@ from ._entities import (
     validate_bids_entities,
 )
 from ._logging import setup_logger
-from ._pathlib import PathT, as_path, rglob
+from ._pathlib import PathT, as_path
 
 _BIDS_SUBJECT_DIR_PATTERN = re.compile(r"sub-[a-zA-Z0-9]+")
 
@@ -353,7 +356,7 @@ def _is_bids_dataset(path: PathT) -> bool:
 def _contains_bids_subject_dirs(root: PathT) -> bool:
     """Check if a path contains one or more BIDS subject dirs."""
     # Nb, this will return on the first matching path thanks to the generator.
-    return any(_is_bids_subject_dir(path) for path in root.glob(pattern="sub-*"))
+    return any(_is_bids_subject_dir(path) for path in root.glob("sub-*"))
 
 
 def _find_bids_subject_dirs(
@@ -365,7 +368,7 @@ def _find_bids_subject_dirs(
     Note, only looks one level down. Does not find nested subject directories, e.g. in
     derivatives datasets.
     """
-    paths = [path for path in root.glob(pattern="sub-*") if _is_bids_subject_dir(path)]
+    paths = [path for path in root.glob("sub-*") if _is_bids_subject_dir(path)]
 
     if include_subjects:
         filtered_names = _filter_include(
@@ -400,7 +403,16 @@ def _index_bids_subject_dir(
     _, subject = path.name.split("-", maxsplit=1)
 
     records = []
-    for p in rglob(path=path, pattern="sub-*"):
+    # Use built-in rglob methods for CloudPath and py3.13+
+    if isinstance(path, CloudPath):
+        paths = map(as_path, path.rglob("sub-*"))
+    elif sys.version_info >= (3, 13):
+        paths = map(as_path, path.rglob("sub-*", recurse_symlinks=True))
+    else:
+        # Fall back to glob.glob for <py3.13
+        paths = map(as_path, glob(f"{path}/**/sub-*", recursive=True))
+
+    for p in paths:
         if _is_bids_file(p):
             entities = _cache_parse_bids_entities(p)
             valid_entities, extra_entities = validate_bids_entities(entities)
