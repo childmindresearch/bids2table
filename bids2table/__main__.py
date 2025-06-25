@@ -92,10 +92,10 @@ def main():
 
     args = parser.parse_args()
 
-    log_level = ["ERROR", "WARNING", "INFO"][min(args.verbose, 2)]
-    _logger.setLevel(log_level)
-
     if hasattr(args, "func"):
+        log_level = ["ERROR", "WARNING", "INFO"][min(args.verbose, 2)]
+        _logger.setLevel(log_level)
+
         args.func(args)
     else:
         parser.print_help()
