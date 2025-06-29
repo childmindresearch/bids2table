@@ -120,6 +120,15 @@ def test_batch_index_dataset(max_workers: int):
     assert len(table) == 9727
 
 
+@pytest.mark.parametrize("ds_name", ["dataset", "dataset2", "dataset3"])
+def test_indexing_on_symlinks(symlink_dataset: Path, ds_name: str):
+    tables = indexing.batch_index_dataset(
+        indexing.find_bids_datasets(symlink_dataset / ds_name), show_progress=False
+    )
+    table = pa.concat_tables(tables)
+    assert len(table) == 5
+
+
 @pytest.mark.parametrize(
     "path,expected_name",
     [

@@ -8,11 +8,14 @@ import enum
 import fnmatch
 import importlib.metadata
 import re
+import sys
 from concurrent.futures import Executor, ProcessPoolExecutor
 from functools import lru_cache, partial
+from glob import glob
 from typing import Any, Callable, Generator, Iterable, Sequence
 
 import pyarrow as pa
+from cloudpathlib import CloudPath
 from tqdm import tqdm
 
 from ._entities import (
@@ -400,7 +403,16 @@ def _index_bids_subject_dir(
     _, subject = path.name.split("-", maxsplit=1)
 
     records = []
-    for p in path.rglob("sub-*"):
+    # Use built-in rglob methods for CloudPath and py3.13+
+    if isinstance(path, CloudPath):
+        paths = map(as_path, path.rglob("sub-*"))
+    elif sys.version_info >= (3, 13):
+        paths = map(as_path, path.rglob("sub-*", recurse_symlinks=True))
+    else:
+        # Fall back to glob.glob for <py3.13
+        paths = map(as_path, glob(f"{path}/**/sub-*", recursive=True))
+
+    for p in paths:
         if _is_bids_file(p):
             entities = _cache_parse_bids_entities(p)
             valid_entities, extra_entities = validate_bids_entities(entities)
