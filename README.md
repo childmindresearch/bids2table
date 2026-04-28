@@ -16,16 +16,19 @@ To install the latest release from pypi, you can run
 pip install bids2table
 ```
 
-To install with S3 support, include the `s3` extra
+To install with cloud support, include the `cloud` extra
 
 ```sh
-pip install bids2table[s3]
+pip install bids2table[cloud]
 ```
+
+> [!WARNING]
+> Previous version only supported s3. s3 installation is still supported, but will be deprecated in the next version. Please update any installation scripts.
 
 The latest development version can be installed with
 
 ```sh
-pip install "bids2table[s3] @ git+https://github.com/childmindresearch/bids2table.git"
+pip install "bids2table[cloud] @ git+https://github.com/childmindresearch/bids2table.git"
 ```
 
 ## Usage

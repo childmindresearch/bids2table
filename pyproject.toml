@@ -28,7 +28,10 @@ classifiers = [
 dependencies = ["bidsschematools>=1.0", "pyarrow>=24.0.0", "tqdm>=4.67.3"]
 
 [project.optional-dependencies]
-s3 = ["cloudpathlib[s3]>=0.21.0"]
+cloud = ["cloudpathlib[all]>=0.21.0"]
+s3 = [
+    "cloudpathlib[s3]>=0.21.0",
+] # Include s3 to not break backwards compatibility
 
 [dependency-groups]
 dev = [
