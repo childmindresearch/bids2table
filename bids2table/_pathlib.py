@@ -1,12 +1,13 @@
 from pathlib import Path
 
 try:
-    from cloudpathlib import AnyPath, CloudPath, S3Client
+    from cloudpathlib import AnyPath, CloudPath, GSClient, S3Client
 
     _CLOUDPATHLIB_AVAILABLE = True
 
-    # Set unsigned client as default for s3:// paths
+    # Set default clients for cloud paths
     S3Client(no_sign_request=True).set_as_default_client()
+    GSClient().set_as_default_client()
 
 except ImportError:
     AnyPath = CloudPath = Path

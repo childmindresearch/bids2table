@@ -160,10 +160,10 @@ def _find_command(args: argparse.Namespace):
 
 
 def _check_path(path: str):
-    if path.startswith("s3://") and not b2t2.cloudpathlib_is_available():
+    if path.startswith(("s3://", "gs://")) and not b2t2.cloudpathlib_is_available():
         _logger.error(
-            "Cloudpathlib is required to use S3 paths. "
-            "Install with e.g. `pip install cloudpathlib[s3]`."
+            "Cloudpathlib is required to use cloud paths. "
+            "Install with e.g. `pip install cloudpathlib[cloud]`."
         )
         sys.exit(1)
 
