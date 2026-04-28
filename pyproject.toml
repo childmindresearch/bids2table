@@ -25,21 +25,19 @@ classifiers = [
     "Operating System :: Microsoft :: Windows",
 ]
 
-dependencies = ["bidsschematools>=1.0", "pyarrow>=20.0.0", "tqdm>=4.67.1"]
+dependencies = ["bidsschematools>=1.0", "pyarrow>=24.0.0", "tqdm>=4.67.3"]
 
 [project.optional-dependencies]
 s3 = ["cloudpathlib[s3]>=0.21.0"]
 
 [dependency-groups]
 dev = [
-    "ipython>=9.2.0",
-    "jupyter>=1.1.1",
-    "pandas==2.2.3",
-    "pdoc>=15.0.3",
-    "pre-commit>=4.1.0",
-    "pytest>=8.3.5",
-    "pytest-cov>=6.0.0",
-    "ruff>=0.11.9",
+    "pandas==3.0.2",
+    "pdoc>=16.0.0",
+    "pre-commit>=4.6.0",
+    "pytest>=9.0.3",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.15.12",
 ]
 
 [project.urls]
