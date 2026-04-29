@@ -1,6 +1,5 @@
 """Tests for Query class."""
 
-import pytest
 from bids2table.pybids import Query
 
 

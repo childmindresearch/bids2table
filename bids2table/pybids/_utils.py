@@ -8,8 +8,8 @@ class Query:
 
     # Sentinel objects for special filtering behavior
     OPTIONAL = object()  # Allow missing or any value
-    NONE = object()      # Match explicit null/missing
-    ANY = object()       # Match any value (don't filter)
+    NONE = object()  # Match explicit null/missing
+    ANY = object()  # Match any value (don't filter)
 
     def __repr__(self):
         return "Query"

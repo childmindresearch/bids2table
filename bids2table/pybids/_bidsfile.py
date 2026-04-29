@@ -5,8 +5,7 @@ Provides a PyBIDS-compatible file object that can parse and cache
 BIDS entities from file paths.
 """
 
-from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 from .._entities import parse_bids_entities
 

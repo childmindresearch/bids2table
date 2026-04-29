@@ -5,9 +5,9 @@ Provides a PyBIDS-compatible interface for querying BIDS datasets
 while leveraging bids2table's superior performance.
 """
 
-from pathlib import Path
-from typing import Union, Optional, List, Dict, Any
 import warnings
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
 
 import pandas as pd
 import pyarrow as pa
@@ -54,7 +54,7 @@ class BIDSLayout:
         cache_path: Optional[Path] = None,
         database_path: Optional[Path] = None,
         reset_database: bool = False,
-        **kwargs
+        **kwargs,
     ):
         # Initialize BIDSLayout with dataset indexing.
         self.root = Path(root).absolute()
@@ -66,12 +66,12 @@ class BIDSLayout:
                 "database_path is deprecated, use cache_path instead. "
                 "Note: cache uses parquet format, not SQLite.",
                 DeprecationWarning,
-                stacklevel=2
+                stacklevel=2,
             )
 
         # Set cache path
         if cache_path is None:
-            self.cache_path = self.root / '.bids2table_cache.parquet'
+            self.cache_path = self.root / ".bids2table_cache.parquet"
         else:
             self.cache_path = Path(cache_path)
 
@@ -106,7 +106,7 @@ class BIDSLayout:
                     f"Failed to load cache from {self.cache_path}: {e}. "
                     "Re-indexing dataset.",
                     UserWarning,
-                    stacklevel=3
+                    stacklevel=3,
                 )
 
         # Create new index
@@ -121,7 +121,7 @@ class BIDSLayout:
                 warnings.warn(
                     f"Failed to save cache to {self.cache_path}: {e}",
                     UserWarning,
-                    stacklevel=3
+                    stacklevel=3,
                 )
 
         return tab
@@ -145,7 +145,7 @@ class BIDSLayout:
                 warnings.warn(
                     f"Derivative path does not exist: {deriv_path}",
                     UserWarning,
-                    stacklevel=3
+                    stacklevel=3,
                 )
                 continue
 
@@ -156,11 +156,7 @@ class BIDSLayout:
         if deriv_tabs:
             self._tab = pa.concat_tables([self._tab] + deriv_tabs)
 
-    def get(
-        self,
-        return_type: str = 'file',
-        **entities
-    ) -> List[Union[str, BIDSFile]]:
+    def get(self, return_type: str = "file", **entities) -> List[Union[str, BIDSFile]]:
         """
         Query files by BIDS entities.
 
@@ -195,7 +191,7 @@ class BIDSLayout:
                 warnings.warn(
                     f"Unknown entity '{key}' (not in dataset columns)",
                     UserWarning,
-                    stacklevel=2
+                    stacklevel=2,
                 )
                 continue
 
@@ -217,14 +213,14 @@ class BIDSLayout:
                 result_df = result_df[result_df[key] == value]
 
         # Return based on return_type
-        if return_type == 'filename':
-            return result_df['path'].tolist()
-        elif return_type == 'file':
-            return [BIDSFile(p) for p in result_df['path'].tolist()]
-        elif return_type == 'id':
+        if return_type == "filename":
+            return result_df["path"].tolist()
+        elif return_type == "file":
+            return [BIDSFile(p) for p in result_df["path"].tolist()]
+        elif return_type == "id":
             return result_df.index.tolist()
-        elif return_type == 'dir':
-            dirs = result_df['path'].apply(lambda p: str(Path(p).parent))
+        elif return_type == "dir":
+            dirs = result_df["path"].apply(lambda p: str(Path(p).parent))
             return sorted(dirs.unique().tolist())
         else:
             raise ValueError(
@@ -244,11 +240,11 @@ class BIDSLayout:
         """
         # Common mappings
         mapping = {
-            'subject': 'sub',
-            'session': 'ses',
-            'extension': 'ext',
-            'datatype': 'datatype',
-            'suffix': 'suffix',
+            "subject": "sub",
+            "session": "ses",
+            "extension": "ext",
+            "datatype": "datatype",
+            "suffix": "suffix",
         }
         return mapping.get(key, key)
 
@@ -275,9 +271,9 @@ class BIDSLayout:
                 key = self._map_entity_key(key)
                 if key in filtered_df.columns:
                     filtered_df = filtered_df[filtered_df[key] == value]
-            subjects = filtered_df['sub'].dropna().unique()
+            subjects = filtered_df["sub"].dropna().unique()
         else:
-            subjects = self.df['sub'].dropna().unique()
+            subjects = self.df["sub"].dropna().unique()
 
         return sorted(subjects.tolist())
 
@@ -302,7 +298,7 @@ class BIDSLayout:
 
         # Filter by subject if provided
         if subject is not None:
-            result_df = result_df[result_df['sub'] == subject]
+            result_df = result_df[result_df["sub"] == subject]
 
         # Apply additional filters
         for key, value in filters.items():
@@ -310,7 +306,7 @@ class BIDSLayout:
             if key in result_df.columns:
                 result_df = result_df[result_df[key] == value]
 
-        sessions = result_df['ses'].dropna().unique()
+        sessions = result_df["ses"].dropna().unique()
         return sorted(sessions.tolist())
 
     def get_metadata(self, path: str) -> Dict[str, Any]:
@@ -384,9 +380,30 @@ class BIDSLayout:
 
         # Extract unique values for each entity column
         # Standard BIDS entities that might be present
-        entity_cols = ['sub', 'ses', 'task', 'acq', 'ce', 'rec', 'dir', 'run',
-                       'mod', 'echo', 'flip', 'inv', 'mt', 'part', 'recording',
-                       'suffix', 'space', 'res', 'den', 'label', 'desc', 'datatype']
+        entity_cols = [
+            "sub",
+            "ses",
+            "task",
+            "acq",
+            "ce",
+            "rec",
+            "dir",
+            "run",
+            "mod",
+            "echo",
+            "flip",
+            "inv",
+            "mt",
+            "part",
+            "recording",
+            "suffix",
+            "space",
+            "res",
+            "den",
+            "label",
+            "desc",
+            "datatype",
+        ]
 
         entities = {}
         for col in entity_cols:
@@ -398,10 +415,7 @@ class BIDSLayout:
         return entities
 
     def add_custom_entity(
-        self,
-        name: str,
-        values: Union[List, Dict, Any],
-        overwrite: bool = False
+        self, name: str, values: Union[List, Dict, Any], overwrite: bool = False
     ):
         """
         Add a custom entity column to the layout.
@@ -446,20 +460,20 @@ class BIDSLayout:
         elif isinstance(values, dict):
             # Dict: map from key (assume subject or file path)
             # Try to detect if keys are subjects or paths
-            if values and list(values.keys())[0] in self.df['sub'].values:
+            if values and list(values.keys())[0] in self.df["sub"].values:
                 # Keys are subjects
-                self.df[name] = self.df['sub'].map(values)
+                self.df[name] = self.df["sub"].map(values)
             else:
                 # Keys are file paths or other
-                self.df[name] = self.df['path'].map(values)
+                self.df[name] = self.df["path"].map(values)
         else:
             # Scalar or array-like: assign directly
             self.df[name] = values
 
     def __repr__(self) -> str:
         """String representation of layout."""
-        n_subjects = self.df['sub'].nunique()
-        n_sessions = self.df['ses'].nunique()
+        n_subjects = self.df["sub"].nunique()
+        n_sessions = self.df["ses"].nunique()
         n_files = len(self.df)
 
         return (
