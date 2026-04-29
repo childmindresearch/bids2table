@@ -14,7 +14,6 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from .._indexing import index_dataset
-from .._entities import get_bids_entity_arrow_schema
 from .._metadata import load_bids_metadata
 from ._bidsfile import BIDSFile
 from ._utils import Query
@@ -90,12 +89,12 @@ class BIDSLayout:
         self._entity_map = {}
         for entity in entity_schema:
             # Pull the name (uesd by B2T) and entity (used by pyBIDS) labels
-            name = entity.metadata[b'name']
-            dname = entity.metadata.get(b'entity', name)
+            name = entity.metadata[b"name"]
+            dname = entity.metadata.get(b"entity", name)
             # Decode them from bytestrings into real strings, and store
             # so that either the entity or shortname will return appropriately
-            self._entity_map[dname.decode('utf-8')] = name.decode('utf-8')
-            self._entity_map[name.decode('utf-8')] = name.decode('utf-8')
+            self._entity_map[dname.decode("utf-8")] = name.decode("utf-8")
+            self._entity_map[name.decode("utf-8")] = name.decode("utf-8")
 
         # Convert to pandas DataFrame for querying
         self.df = self._tab.to_pandas(types_mapper=pd.ArrowDtype)
@@ -373,15 +372,16 @@ class BIDSLayout:
             filtered_df = self.df
 
         # Extract unique values for each entity column
-        # Standard BIDS entities that might be present
-        entity_schema = get_bids_entity_arrow_schema()
-
         entities = {}
-        for entity, cfg in entity_schema.items():
-            if col in filtered_df.columns:
-                unique_vals = filtered_df[col].dropna().unique().tolist()
+        for ekey, evalue in self._entity_map.items():
+            # TODO: think about if we want to handle extra entities here?
+            # Disabled for now since unique and lists don't play nice
+            if evalue == "extra_entities":
+                continue
+            if evalue in filtered_df.columns:
+                unique_vals = filtered_df[evalue].dropna().unique().tolist()
                 if unique_vals:  # Only include if not empty
-                    entities[col] = sorted(unique_vals)
+                    entities[evalue] = sorted(unique_vals)
 
         return entities
 
