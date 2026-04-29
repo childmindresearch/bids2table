@@ -14,6 +14,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from .._indexing import index_dataset
+from .._entities import get_bids_entity_arrow_schema
 from .._metadata import load_bids_metadata
 from ._bidsfile import BIDSFile
 from ._utils import Query
@@ -83,6 +84,18 @@ class BIDSLayout:
         # Handle derivatives
         if derivatives is not None:
             self._add_derivatives(derivatives)
+
+        # Load the entity schema and create a LUT
+        entity_schema = self._tab.schema
+        self._entity_map = {}
+        for entity in entity_schema:
+            # Pull the name (uesd by B2T) and entity (used by pyBIDS) labels
+            name = entity.metadata[b'name']
+            dname = entity.metadata.get(b'entity', name)
+            # Decode them from bytestrings into real strings, and store
+            # so that either the entity or shortname will return appropriately
+            self._entity_map[dname.decode('utf-8')] = name.decode('utf-8')
+            self._entity_map[name.decode('utf-8')] = name.decode('utf-8')
 
         # Convert to pandas DataFrame for querying
         self.df = self._tab.to_pandas(types_mapper=pd.ArrowDtype)
@@ -183,7 +196,8 @@ class BIDSLayout:
             # Map common PyBIDS names to b2t column names
             # PyBIDS uses 'subject', 'session', 'extension'
             # b2t uses 'sub', 'ses', 'ext'
-            key = self._map_entity_key(key)
+            # Fallback to the current key if it's not in the dict
+            key = self._entity_map.get(key, key)
 
             # Check if column exists
             if key not in result_df.columns:
@@ -228,26 +242,6 @@ class BIDSLayout:
                 "Valid options: 'file', 'filename', 'id', 'dir'"
             )
 
-    def _map_entity_key(self, key: str) -> str:
-        """
-        Map PyBIDS entity names to b2t column names.
-
-        Args:
-            key: PyBIDS entity name
-
-        Returns:
-            b2t column name
-        """
-        # Common mappings
-        mapping = {
-            "subject": "sub",
-            "session": "ses",
-            "extension": "ext",
-            "datatype": "datatype",
-            "suffix": "suffix",
-        }
-        return mapping.get(key, key)
-
     def get_subjects(self, **filters) -> List[str]:
         """
         Get list of unique subject IDs.
@@ -268,7 +262,7 @@ class BIDSLayout:
             # Apply filters first
             filtered_df = self.df.copy()
             for key, value in filters.items():
-                key = self._map_entity_key(key)
+                key = self._entity_map.get(key, key)
                 if key in filtered_df.columns:
                     filtered_df = filtered_df[filtered_df[key] == value]
             subjects = filtered_df["sub"].dropna().unique()
@@ -380,33 +374,10 @@ class BIDSLayout:
 
         # Extract unique values for each entity column
         # Standard BIDS entities that might be present
-        entity_cols = [
-            "sub",
-            "ses",
-            "task",
-            "acq",
-            "ce",
-            "rec",
-            "dir",
-            "run",
-            "mod",
-            "echo",
-            "flip",
-            "inv",
-            "mt",
-            "part",
-            "recording",
-            "suffix",
-            "space",
-            "res",
-            "den",
-            "label",
-            "desc",
-            "datatype",
-        ]
+        entity_schema = get_bids_entity_arrow_schema()
 
         entities = {}
-        for col in entity_cols:
+        for entity, cfg in entity_schema.items():
             if col in filtered_df.columns:
                 unique_vals = filtered_df[col].dropna().unique().tolist()
                 if unique_vals:  # Only include if not empty
@@ -469,6 +440,8 @@ class BIDSLayout:
         else:
             # Scalar or array-like: assign directly
             self.df[name] = values
+
+        self._entity_map[name] = name
 
     def __repr__(self) -> str:
         """String representation of layout."""
