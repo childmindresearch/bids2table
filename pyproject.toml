@@ -32,6 +32,7 @@ cloud = ["cloudpathlib[s3,gs]>=0.21.0"]
 s3 = [
     "cloudpathlib[s3]>=0.21.0",
 ] # Include s3 to not break backwards compatibility
+pybids = ["pandas>=2.0.0"]
 
 [dependency-groups]
 dev = [
