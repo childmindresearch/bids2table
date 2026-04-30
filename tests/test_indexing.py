@@ -293,3 +293,12 @@ def test_index_dataset_workers_honor_explicit_schema():
         BIDS_EXAMPLES / "ds102", schema=tagged, max_workers=2
     )
     assert table.schema.metadata[b"test_marker"] == b"tagged"
+
+
+def test_batch_index_dataset_with_explicit_schema():
+    s = BIDSSchema.from_path(None)
+    roots = [p.parent for p in BIDS_EXAMPLES.glob("*/dataset_description.json")][:2]
+    tables = list(indexing.batch_index_dataset(roots, schema=s))
+    assert len(tables) == len(roots)
+    for t in tables:
+        assert "sub" in t.schema.names

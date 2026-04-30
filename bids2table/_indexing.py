@@ -278,6 +278,7 @@ def batch_index_dataset(
     max_workers: int | None = 0,
     executor_cls: type[Executor] = ProcessPoolExecutor,
     show_progress: bool = False,
+    schema: BIDSSchema | pa.Schema | Namespace | str | Path | None = None,
 ) -> Generator[pa.Table, None, None]:
     """Index a batch of BIDS datasets.
 
@@ -285,18 +286,24 @@ def batch_index_dataset(
         roots: List of BIDS dataset root directories.
         max_workers: Number of indexing processes to run in parallel. Setting
             `max_workers=0` (the default) uses the main process only. Setting
-            `max_workers=None` starts as many workers as there are available CPUs. See
-            `concurrent.futures.ProcessPoolExecutor` for details.
+            `max_workers=None` starts as many workers as there are available CPUs.
+            See `concurrent.futures.ProcessPoolExecutor` for details.
         executor_cls: Executor class to use for parallel indexing.
         show_progress: Show progress bar.
+        schema: A `BIDSSchema`, `pa.Schema`, `Namespace`, path/URL, or None to use
+            the module-level default.
 
     Yields:
         An Arrow table index for each BIDS dataset.
     """
+    bids_schema = _resolve(schema)
+    entity_arrow_schema = bids_schema.arrow_schema
+    func = partial(_batch_index_func, schema=entity_arrow_schema)
+
     file_count = 0
     for dataset, table in (
         pbar := tqdm(
-            _pmap(_batch_index_func, roots, max_workers, executor_cls=executor_cls),
+            _pmap(func, roots, max_workers, executor_cls=executor_cls),
             total=len(roots) if isinstance(roots, Sequence) else None,
             disable=show_progress not in {True, "dataset"},
         )
@@ -306,9 +313,12 @@ def batch_index_dataset(
         yield table
 
 
-def _batch_index_func(root: str | PathT) -> tuple[str | None, pa.Table]:
+def _batch_index_func(
+    root: str | PathT,
+    schema: pa.Schema | None = None,
+) -> tuple[str | None, pa.Table]:
     dataset, _ = _get_bids_dataset(root)
-    table = index_dataset(root, max_workers=0, show_progress=False)
+    table = index_dataset(root, max_workers=0, show_progress=False, schema=schema)
     return dataset, table
 
 
