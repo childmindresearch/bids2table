@@ -7,7 +7,9 @@ import pytest
 from pytest import LogCaptureFixture
 
 import bids2table._indexing as indexing
+from bids2table._indexing import get_arrow_schema, get_column_names
 from bids2table._pathlib import cloudpathlib_is_available
+from bids2table._schema import BIDSSchema
 
 BIDS_EXAMPLES = Path(__file__).parents[1] / "bids-examples"
 
@@ -249,3 +251,16 @@ def test_filter_include_exclude():
 )
 def test_h_fmt(num: int, expected: str):
     assert indexing._hfmt(num) == expected
+
+
+def test_get_arrow_schema_with_explicit_schema():
+    s = BIDSSchema.from_path(None)
+    arrow = get_arrow_schema(schema=s)
+    assert "sub" in {f.name for f in arrow}
+    assert "dataset" in {f.name for f in arrow}
+
+
+def test_get_column_names_with_explicit_schema():
+    s = BIDSSchema.from_path(None)
+    cols = get_column_names(schema=s)
+    assert "sub" in [c.value for c in cols]

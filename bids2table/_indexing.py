@@ -19,11 +19,11 @@ from tqdm import tqdm
 
 from ._entities import (
     _cache_parse_bids_entities,
-    get_bids_entity_arrow_schema,
     validate_bids_entities,
 )
 from ._logging import setup_logger
 from ._pathlib import CloudPath, PathT, as_path, cloudpathlib_is_available
+from ._schema import BIDSSchema, _resolve
 
 _BIDS_SUBJECT_DIR_PATTERN = re.compile(r"sub-[a-zA-Z0-9]+")
 
@@ -88,9 +88,20 @@ _INDEX_ARROW_FIELDS = {
 _logger = setup_logger(__package__)
 
 
-def get_arrow_schema() -> pa.Schema:
-    """Get Arrow schema of the BIDS dataset index."""
-    entity_schema = get_bids_entity_arrow_schema()
+def get_arrow_schema(
+    schema: BIDSSchema | pa.Schema | None = None,
+) -> pa.Schema:
+    """Get Arrow schema of the BIDS dataset index.
+
+    Args:
+        schema: A `BIDSSchema`, a `pa.Schema`, or None to use the module-level
+            default BIDS schema.
+    """
+    if isinstance(schema, pa.Schema):
+        bids_schema = BIDSSchema.from_arrow(schema)
+    else:
+        bids_schema = _resolve(schema)
+    entity_schema = bids_schema.arrow_schema
     index_fields = {
         name: pa.field(name, cfg["dtype"], metadata=cfg["metadata"])
         for name, cfg in _INDEX_ARROW_FIELDS.items()
@@ -102,27 +113,22 @@ def get_arrow_schema() -> pa.Schema:
         index_fields["root"],
         index_fields["path"],
     ]
-
     metadata = {
         **entity_schema.metadata,
         "bids2table_version": importlib.metadata.version(__package__),
     }
-    schema = pa.schema(fields, metadata=metadata)
-    return schema
+    return pa.schema(fields, metadata=metadata)
 
 
-def get_column_names() -> enum.StrEnum:
+def get_column_names(
+    schema: BIDSSchema | pa.Schema | None = None,
+) -> enum.StrEnum:
     """Get an enum of the BIDS index columns."""
-    # TODO: It might be nice if the column names were statically available. One option
-    # would be to generate a static _schema.py module at install time (similar to how
-    # _version.py is generated) which defines the static default schema and column
-    # names.
-    schema = get_arrow_schema()
+    arrow_schema = get_arrow_schema(schema=schema)
     items = []
-    for f in schema:
+    for f in arrow_schema:
         name = f.metadata["name".encode()].decode()
         items.append((name, name))
-
     BIDSColumn = enum.StrEnum("BIDSColumn", items)
     BIDSColumn.__doc__ = "Enum of BIDS index column names."
     return BIDSColumn
