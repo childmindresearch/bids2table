@@ -8,9 +8,6 @@ __all__ = [
     "get_column_names",
     "parse_bids_entities",
     "validate_bids_entities",
-    "set_bids_schema",
-    "get_bids_schema",
-    "get_bids_entity_arrow_schema",
     "format_bids_path",
     "load_bids_metadata",
     "cloudpathlib_is_available",
@@ -30,9 +27,4 @@ from ._indexing import (
 )
 from ._metadata import load_bids_metadata
 from ._pathlib import cloudpathlib_is_available
-from ._schema import (
-    get_bids_entity_arrow_schema,
-    get_bids_schema,
-    set_bids_schema,
-)
 from ._version import *

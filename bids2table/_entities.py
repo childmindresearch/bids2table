@@ -13,7 +13,7 @@ from typing import Any
 import pyarrow as pa
 
 from ._logging import setup_logger
-from ._schema import BIDSSchema, _resolve
+from ._schema import BIDSSchema
 
 BIDSValue = str | int
 
@@ -53,14 +53,17 @@ def parse_bids_entities(path: str | Path) -> dict[str, str]:
 
     datatype = _parse_bids_datatype(path)
 
+    # Get suffix and extension.
     suffix_ext = parts.pop()
     suffix, dot, ext = suffix_ext.partition(".")
     ext = dot + ext if ext else None
 
+    # Suffix is actually an entity, put back in list.
     if "-" in suffix:
         parts.append(suffix)
         suffix = None
 
+    # Split entities, skipping any that don't contain a '-'.
     for part in parts:
         if "-" in part:
             key, val = part.split("-", maxsplit=1)
@@ -72,7 +75,8 @@ def parse_bids_entities(path: str | Path) -> dict[str, str]:
     return entities
 
 
-# Cached version for internal use; decorating the public function loses its docstring.
+# Version with caching to use internally. Decorating the public function loses the
+# docstring.
 _cache_parse_bids_entities = lru_cache(parse_bids_entities)
 
 
@@ -83,7 +87,8 @@ def _parse_bids_datatype(path: Path) -> str | None:
     (optionally) session directories. Returns `None` if no match found.
     """
     match = re.search(_BIDS_DATATYPE_PATTERN, str(path))
-    return match.group(1) if match is not None else None
+    datatype = match.group(1) if match is not None else None
+    return datatype
 
 
 def validate_bids_entities(
@@ -102,17 +107,10 @@ def validate_bids_entities(
     Returns:
         A tuple of `(valid_entities, extra_entities)`, where `valid_entities` is a
             mapping of valid BIDS keys to type-casted values, and `extra_entities` a
-            mapping of any leftover entity mappings that didn't match a known entity
-            or failed validation.
+            mapping of any leftover entity mappings that didn't match a known entity or
+            failed validation.
     """
-    # Fast path: when called from a worker process with a pa.Schema, skip the
-    # BIDSSchema wrapping and reconstruct lookup dicts directly from arrow
-    # field metadata. The slow path resolves to a BIDSSchema (using the
-    # module default if schema is None) and reads the cached lookups off it.
-    if isinstance(schema, pa.Schema):
-        entity_schema, name_entity_map = BIDSSchema.lookups_from_arrow(schema)
-    else:
-        entity_schema, name_entity_map = _resolve(schema).lookups()
+    entity_schema, name_entity_map = BIDSSchema.prepare(schema).lookups()
 
     valid_entities: dict[str, BIDSValue] = {}
     extra_entities: dict[str, Any] = {}
@@ -122,14 +120,18 @@ def validate_bids_entities(
             entity = name_entity_map[name]
             cfg = entity_schema[entity]
             typ = _BIDS_FORMAT_PY_TYPE_MAP[cfg["format"]]
+
+            # Cast to target type.
             try:
                 value = typ(value)
             except ValueError:
                 _logger.warning(
-                    f"Unable to coerce {value!r} to type {typ} for entity '{name}'.",
+                    f"Unable to coerce {repr(value)} to type {typ} for entity '{name}'.",
                 )
                 extra_entities[name] = value
                 continue
+
+            # Check allowed values.
             if "enum" in cfg and value not in cfg["enum"]:
                 _logger.warning(
                     f"Value {value} for entity '{name}' isn't one of the "
@@ -137,6 +139,7 @@ def validate_bids_entities(
                 )
                 extra_entities[name] = value
                 continue
+
             valid_entities[name] = value
         else:
             extra_entities[name] = value
@@ -156,6 +159,7 @@ def format_bids_path(entities: dict[str, Any], int_format: str = "%d") -> Path:
     """
     special = {"datatype", "suffix", "ext"}
 
+    # Formatted key-value entities.
     entities_fmt = []
     for name, value in entities.items():
         if name not in special:
@@ -164,11 +168,13 @@ def format_bids_path(entities: dict[str, Any], int_format: str = "%d") -> Path:
             entities_fmt.append(f"{name}-{value}")
     name = "_".join(entities_fmt)
 
+    # Append suffix and extension.
     if suffix := entities.get("suffix"):
         name += f"_{suffix}"
     if ext := entities.get("ext"):
         name += ext
 
+    # Prepend parent directories.
     path = Path(name)
     if datatype := entities.get("datatype"):
         path = datatype / path

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from functools import cached_property
 from pathlib import Path
 from typing import Any
 
@@ -105,23 +104,6 @@ def _entity_lookups_from_arrow(
     return entity_schema, name_entity_map
 
 
-class _NoSource:
-    """Sentinel for BIDSSchema instances with no reloadable source."""
-
-    _instance: "_NoSource | None" = None
-
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-
-    def __repr__(self) -> str:
-        return "<NO_SOURCE>"
-
-
-_NO_SOURCE = _NoSource()
-
-
 @dataclass(frozen=True)
 class BIDSSchema:
     """Encapsulates a BIDS schema and its derived Arrow representation.
@@ -133,38 +115,11 @@ class BIDSSchema:
     arrow_schema: pa.Schema
     _entity_schema: dict[str, dict[str, Any]] = field(repr=False)
     _name_entity_map: dict[str, str] = field(repr=False)
-    _source: str | Path | None | _NoSource = field(default=_NO_SOURCE)
-
-    @classmethod
-    def from_path(cls, path: str | Path | None) -> "BIDSSchema":
-        ns = bidsschematools.schema.load_schema(path)
-        return cls._build(ns, source=path)
-
-    @classmethod
-    def from_namespace(cls, ns: Namespace) -> "BIDSSchema":
-        """Build from an already-loaded bidsschematools Namespace.
-
-        Sets `_source=_NO_SOURCE`, so `.bids_schema` will return None.
-        """
-        return cls._build(ns, source=_NO_SOURCE)
-
-    @classmethod
-    def from_arrow(cls, arrow_schema: pa.Schema) -> "BIDSSchema":
-        """Reconstruct from a pa.Schema previously emitted by bids2table.
-
-        `bids_schema` will return None for instances built this way.
-        """
-        entity_schema, name_entity_map = _entity_lookups_from_arrow(arrow_schema)
-        return cls(
-            arrow_schema=arrow_schema,
-            _entity_schema=entity_schema,
-            _name_entity_map=name_entity_map,
-            _source=_NO_SOURCE,
-        )
+    bids_schema: Namespace | None = field(default=None, repr=False)
 
     @classmethod
     def prepare(
-        cls, obj: "BIDSSchema | pa.Schema | Namespace | str | Path | None"
+        cls, schema: "BIDSSchema | pa.Schema | Namespace | str | Path | None"
     ) -> "BIDSSchema":
         """Polymorphic constructor.
 
@@ -173,23 +128,22 @@ class BIDSSchema:
         - `Namespace` -> via `from_namespace`
         - `str` / `Path` / `None` -> via `from_path`
         """
-        if isinstance(obj, cls):
-            return obj
-        if isinstance(obj, pa.Schema):
-            return cls.from_arrow(obj)
-        if isinstance(obj, Namespace):
-            return cls.from_namespace(obj)
-        if obj is None or isinstance(obj, (str, Path)):
-            return cls.from_path(obj)
-        raise TypeError(
-            "Expected BIDSSchema | pa.Schema | Namespace | str | Path | None, "
-            f"got {type(obj).__name__}"
+        if isinstance(schema, cls):
+            return schema
+        elif isinstance(schema, pa.Schema):
+            entity_schema, name_entity_map = _entity_lookups_from_arrow(schema)
+            return cls(
+                arrow_schema=schema,
+                _entity_schema=entity_schema,
+                _name_entity_map=name_entity_map,
+            )
+
+        ns: Namespace = (
+            schema
+            if isinstance(schema, Namespace)
+            else bidsschematools.schema.load_schema(schema)
         )
 
-    @classmethod
-    def _build(
-        cls, ns: Namespace, source: str | Path | None | _NoSource
-    ) -> "BIDSSchema":
         entity_schema = {
             entity: ns.objects.entities[entity].to_dict()
             for entity in ns.rules.entities
@@ -205,74 +159,9 @@ class BIDSSchema:
             arrow_schema=arrow_schema,
             _entity_schema=entity_schema,
             _name_entity_map=name_entity_map,
-            _source=source,
+            bids_schema=ns,
         )
 
-    @cached_property
-    def bids_schema(self) -> Namespace | None:
-        if isinstance(self._source, _NoSource):
-            return None
-        return bidsschematools.schema.load_schema(self._source)
-
     def lookups(self) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
-        """Return `(entity_schema, name_entity_map)` for validation.
-
-        Use `BIDSSchema.lookups_from_arrow` if you only have a `pa.Schema`.
-        """
+        """Return `(entity_schema, name_entity_map)` for validation."""
         return self._entity_schema, self._name_entity_map
-
-    @staticmethod
-    def lookups_from_arrow(
-        arrow_schema: pa.Schema,
-    ) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
-        """Reconstruct lookups from a `pa.Schema` without building a `BIDSSchema`.
-
-        Faster than `BIDSSchema.from_arrow(...).lookups()` when the caller does
-        not need the wrapping value object (e.g. inside a worker process).
-        """
-        return _entity_lookups_from_arrow(arrow_schema)
-
-    def __getstate__(self) -> dict[str, Any]:
-        state = self.__dict__.copy()
-        state.pop("bids_schema", None)  # drop materialized cached_property
-        return state
-
-    def __setstate__(self, state: dict[str, Any]) -> None:
-        # frozen=True blocks __setattr__; bulk __dict__.update bypasses it.
-        self.__dict__.update(state)
-
-
-_DEFAULT_SCHEMA: BIDSSchema = BIDSSchema.from_path(None)
-
-
-def set_bids_schema(path: str | Path | None = None) -> None:
-    """Replace the module-level default BIDS schema.
-
-    Subsequent calls to functions accepting a `schema` argument will pick up
-    the new default when no explicit schema is passed.
-    """
-    global _DEFAULT_SCHEMA
-    _DEFAULT_SCHEMA = BIDSSchema.from_path(path)
-
-
-def get_bids_schema() -> Namespace | None:
-    """Return the bidsschematools Namespace for the current default schema."""
-    return _DEFAULT_SCHEMA.bids_schema
-
-
-def get_bids_entity_arrow_schema() -> pa.Schema:
-    """Return the Arrow schema for the current default BIDS schema."""
-    return _DEFAULT_SCHEMA.arrow_schema
-
-
-def _resolve(
-    schema: "BIDSSchema | pa.Schema | Namespace | str | Path | None",
-) -> BIDSSchema:
-    """Resolve a schema argument, defaulting to `_DEFAULT_SCHEMA` for None.
-
-    Functions exposing a `schema=None` parameter call this so the default is
-    looked up at call time (picking up rebinds from `set_bids_schema`).
-    """
-    if schema is None:
-        return _DEFAULT_SCHEMA
-    return BIDSSchema.prepare(schema)

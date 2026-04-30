@@ -25,7 +25,7 @@ from ._entities import (
 )
 from ._logging import setup_logger
 from ._pathlib import CloudPath, PathT, as_path, cloudpathlib_is_available
-from ._schema import BIDSSchema, _resolve
+from ._schema import BIDSSchema
 
 _BIDS_SUBJECT_DIR_PATTERN = re.compile(r"sub-[a-zA-Z0-9]+")
 
@@ -99,7 +99,7 @@ def get_arrow_schema(
         schema: A `BIDSSchema`, a `pa.Schema`, or None to use the module-level
             default BIDS schema.
     """
-    bids_schema = _resolve(schema)
+    bids_schema = BIDSSchema.prepare(schema)
     entity_schema = bids_schema.arrow_schema
     index_fields = {
         name: pa.field(name, cfg["dtype"], metadata=cfg["metadata"])
@@ -112,11 +112,13 @@ def get_arrow_schema(
         index_fields["root"],
         index_fields["path"],
     ]
+
     metadata = {
         **entity_schema.metadata,
         "bids2table_version": importlib.metadata.version(__package__),
     }
-    return pa.schema(fields, metadata=metadata)
+    schema = pa.schema(fields, metadata=metadata)
+    return schema
 
 
 def get_column_names(
@@ -133,6 +135,7 @@ def get_column_names(
     for f in arrow_schema:
         name = f.metadata["name".encode()].decode()
         items.append((name, name))
+
     BIDSColumn = enum.StrEnum("BIDSColumn", items)
     BIDSColumn.__doc__ = "Enum of BIDS index column names."
     return BIDSColumn
@@ -235,7 +238,7 @@ def index_dataset(
     """
     root = as_path(root)
 
-    bids_schema = _resolve(schema)
+    bids_schema = BIDSSchema.prepare(schema)
     entity_arrow_schema = bids_schema.arrow_schema
     full_schema = get_arrow_schema(schema=bids_schema)
 
@@ -296,7 +299,7 @@ def batch_index_dataset(
     Yields:
         An Arrow table index for each BIDS dataset.
     """
-    bids_schema = _resolve(schema)
+    bids_schema = BIDSSchema.prepare(schema)
     entity_arrow_schema = bids_schema.arrow_schema
     func = partial(_batch_index_func, schema=entity_arrow_schema)
 

@@ -1,5 +1,4 @@
 # bids2table
-
 [![CI](https://github.com/childmindresearch/bids2table/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/childmindresearch/bids2table/actions/workflows/ci.yaml?query=branch%3Amain)
 [![Docs](https://github.com/childmindresearch/bids2table/actions/workflows/docs.yaml/badge.svg?branch=main)](https://childmindresearch.github.io/bids2table/bids2table)
 [![codecov](https://codecov.io/gh/childmindresearch/bids2table/branch/main/graph/badge.svg?token=22HWWFWPW5)](https://codecov.io/gh/childmindresearch/bids2table)
@@ -100,6 +99,7 @@ As an example, here we index all datasets on [OpenNeuro](https://openneuro.org/)
 ```
 
 Using 8 threads, we can index all ~1400 OpenNeuro datasets (1.2M files) in less than 15 minutes.
+
 
 ### Indexing datasets from python
 
