@@ -220,4 +220,5 @@ class BIDSSchema:
         return state
 
     def __setstate__(self, state: dict[str, Any]) -> None:
+        # frozen=True blocks __setattr__; bulk __dict__.update bypasses it.
         self.__dict__.update(state)

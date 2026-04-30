@@ -112,3 +112,6 @@ def test_pickle_round_trip_after_lazy_load():
     _ = s.bids_schema  # materialize cached_property
     restored = pickle.loads(pickle.dumps(s))
     assert restored.arrow_schema.equals(s.arrow_schema)
+    # Cache is stripped on pickle; the restored instance re-materializes lazily.
+    assert "bids_schema" not in pickle.loads(pickle.dumps(s)).__dict__
+    assert restored.bids_schema is not None
