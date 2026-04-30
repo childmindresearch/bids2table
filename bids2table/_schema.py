@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
+from functools import cached_property
 from pathlib import Path
 from typing import Any
 
@@ -61,6 +62,23 @@ def _build_arrow_schema(
     return pa.schema(fields, metadata=schema_metadata)
 
 
+class _NoSource:
+    """Sentinel for BIDSSchema instances with no reloadable source."""
+
+    _instance: "_NoSource | None" = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+    def __repr__(self) -> str:
+        return "<NO_SOURCE>"
+
+
+_NO_SOURCE = _NoSource()
+
+
 @dataclass(frozen=True)
 class BIDSSchema:
     """Encapsulates a BIDS schema and its derived Arrow representation.
@@ -72,16 +90,24 @@ class BIDSSchema:
     arrow_schema: pa.Schema
     _entity_schema: dict[str, dict[str, Any]] = field(repr=False)
     _name_entity_map: dict[str, str] = field(repr=False)
-    _source: str | Path | None = None
+    _source: str | Path | None | _NoSource = field(default=_NO_SOURCE)
 
     @classmethod
     def from_path(cls, path: str | Path | None) -> "BIDSSchema":
         ns = bidsschematools.schema.load_schema(path)
-        return cls._from_namespace_and_source(ns, source=path)
+        return cls._build(ns, source=path)
 
     @classmethod
-    def _from_namespace_and_source(
-        cls, ns: Namespace, source: str | Path | None
+    def from_namespace(cls, ns: Namespace) -> "BIDSSchema":
+        """Build from an already-loaded bidsschematools Namespace.
+
+        Sets `_source=_NO_SOURCE`, so `.bids_schema` will return None.
+        """
+        return cls._build(ns, source=_NO_SOURCE)
+
+    @classmethod
+    def _build(
+        cls, ns: Namespace, source: str | Path | None | _NoSource
     ) -> "BIDSSchema":
         entity_schema = {
             entity: ns.objects.entities[entity].to_dict()
@@ -100,3 +126,9 @@ class BIDSSchema:
             _name_entity_map=name_entity_map,
             _source=source,
         )
+
+    @cached_property
+    def bids_schema(self) -> Namespace | None:
+        if isinstance(self._source, _NoSource):
+            return None
+        return bidsschematools.schema.load_schema(self._source)
