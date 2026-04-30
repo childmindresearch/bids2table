@@ -40,3 +40,17 @@ def test_bids_schema_property_none_when_no_source():
     schema = BIDSSchema.from_namespace(ns)
     # from_namespace stores no source path -> bids_schema is None on lazy reload.
     assert schema.bids_schema is None
+
+
+def test_from_arrow_round_trip_preserves_lookups():
+    original = BIDSSchema.from_path(None)
+    rebuilt = BIDSSchema.from_arrow(original.arrow_schema)
+    assert rebuilt.arrow_schema.equals(original.arrow_schema)
+    assert rebuilt._entity_schema.keys() == original._entity_schema.keys()
+    assert rebuilt._name_entity_map == original._name_entity_map
+
+
+def test_from_arrow_bids_schema_returns_none():
+    original = BIDSSchema.from_path(None)
+    rebuilt = BIDSSchema.from_arrow(original.arrow_schema)
+    assert rebuilt.bids_schema is None

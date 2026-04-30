@@ -62,6 +62,44 @@ def _build_arrow_schema(
     return pa.schema(fields, metadata=schema_metadata)
 
 
+def _entity_lookups_from_arrow(
+    arrow_schema: pa.Schema,
+) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
+    """Reconstruct entity_schema and name_entity_map from arrow field metadata.
+
+    Mirrors the encoding done by `_build_arrow_schema`: each per-field metadata
+    dict has an `entity` key (the long entity name) plus the original entity
+    config dict, with non-string values JSON-encoded.
+    """
+    entity_schema: dict[str, dict[str, Any]] = {}
+    name_entity_map: dict[str, str] = {}
+    for f in arrow_schema:
+        if f.metadata is None:
+            raise ValueError(
+                f"Arrow field {f.name!r} has no metadata; cannot reconstruct "
+                "BIDS entity config."
+            )
+        meta = {k.decode(): v.decode() for k, v in f.metadata.items()}
+        if "entity" not in meta:
+            raise ValueError(
+                f"Arrow field {f.name!r} metadata missing required 'entity' key."
+            )
+        entity_long = meta.pop("entity")
+        cfg: dict[str, Any] = {}
+        for k, v in meta.items():
+            try:
+                cfg[k] = json.loads(v)
+            except (json.JSONDecodeError, ValueError):
+                cfg[k] = v
+        entity_schema[entity_long] = cfg
+        if "name" not in cfg:
+            raise ValueError(
+                f"Arrow field {f.name!r} metadata missing required 'name' key."
+            )
+        name_entity_map[cfg["name"]] = entity_long
+    return entity_schema, name_entity_map
+
+
 class _NoSource:
     """Sentinel for BIDSSchema instances with no reloadable source."""
 
@@ -104,6 +142,20 @@ class BIDSSchema:
         Sets `_source=_NO_SOURCE`, so `.bids_schema` will return None.
         """
         return cls._build(ns, source=_NO_SOURCE)
+
+    @classmethod
+    def from_arrow(cls, arrow_schema: pa.Schema) -> "BIDSSchema":
+        """Reconstruct from a pa.Schema previously emitted by bids2table.
+
+        `bids_schema` will return None for instances built this way.
+        """
+        entity_schema, name_entity_map = _entity_lookups_from_arrow(arrow_schema)
+        return cls(
+            arrow_schema=arrow_schema,
+            _entity_schema=entity_schema,
+            _name_entity_map=name_entity_map,
+            _source=_NO_SOURCE,
+        )
 
     @classmethod
     def _build(
