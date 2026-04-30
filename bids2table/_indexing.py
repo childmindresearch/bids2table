@@ -12,9 +12,11 @@ import sys
 from concurrent.futures import Executor, ProcessPoolExecutor
 from functools import lru_cache, partial
 from glob import glob
+from pathlib import Path
 from typing import Any, Callable, Generator, Iterable, Sequence
 
 import pyarrow as pa
+from bidsschematools.types import Namespace
 from tqdm import tqdm
 
 from ._entities import (
@@ -208,6 +210,7 @@ def index_dataset(
     chunksize: int = 32,
     executor_cls: type[Executor] = ProcessPoolExecutor,
     show_progress: bool = False,
+    schema: BIDSSchema | pa.Schema | Namespace | str | Path | None = None,
 ) -> pa.Table:
     """Index a BIDS dataset.
 
@@ -223,26 +226,31 @@ def index_dataset(
             `ProcessPoolExecutor` when `max_workers > 0`.
         executor_cls: Executor class to use for parallel indexing.
         show_progress: Show progress bar.
+        schema: A `BIDSSchema`, `pa.Schema`, `Namespace`, path/URL, or None to use
+            the module-level default. Per-call schema overrides propagate to worker
+            processes.
 
     Returns:
         An Arrow table index of the BIDS dataset.
     """
     root = as_path(root)
 
-    schema = get_arrow_schema()
+    bids_schema = _resolve(schema)
+    entity_arrow_schema = bids_schema.arrow_schema
+    full_schema = get_arrow_schema(schema=bids_schema)
 
     dataset, _ = _get_bids_dataset(root)
     if dataset is None:
         _logger.warning(f"Path {root} is not a valid BIDS dataset directory.")
-        return pa.Table.from_pylist([], schema=schema)
+        return pa.Table.from_pylist([], schema=full_schema)
 
     subject_dirs = _find_bids_subject_dirs(root, include_subjects)
     subject_dirs = sorted(subject_dirs, key=lambda p: p.name)
     if len(subject_dirs) == 0:
         _logger.warning(f"Path {root} contains no matching subject dirs.")
-        return pa.Table.from_pylist([], schema=schema)
+        return pa.Table.from_pylist([], schema=full_schema)
 
-    func = partial(_index_bids_subject_dir, schema=schema, dataset=dataset)
+    func = partial(_index_bids_subject_dir, schema=entity_arrow_schema, dataset=dataset)
 
     tables = []
     file_count = 0
@@ -399,13 +407,20 @@ def _index_bids_subject_dir(
     schema: pa.Schema | None = None,
     dataset: str | None = None,
 ) -> tuple[str, pa.Table]:
-    """Index a BIDS subject directory and return an Arrow table."""
+    """Index a BIDS subject directory and return an Arrow table.
+
+    Args:
+        path: BIDS subject directory.
+        schema: BIDS entity Arrow schema (i.e. ``BIDSSchema.arrow_schema``).
+            Pass-through to validation; the full index schema is derived from
+            it. None uses the module-level default.
+        dataset: Dataset identifier; computed if not given.
+    """
     root = path.parent
     root_fmt = str(root.absolute())
     if dataset is None:
         dataset, _ = _get_bids_dataset(root)
-    if schema is None:
-        schema = get_arrow_schema()
+    full_schema = get_arrow_schema(schema=schema)
 
     _, subject = path.name.split("-", maxsplit=1)
 
@@ -422,7 +437,9 @@ def _index_bids_subject_dir(
     for p in paths:
         if _is_bids_file(p):
             entities = _cache_parse_bids_entities(p)
-            valid_entities, extra_entities = validate_bids_entities(entities)
+            valid_entities, extra_entities = validate_bids_entities(
+                entities, schema=schema
+            )
             record = {
                 "dataset": dataset,
                 **valid_entities,
@@ -432,7 +449,7 @@ def _index_bids_subject_dir(
             }
             records.append(record)
 
-    table = pa.Table.from_pylist(records, schema=schema)
+    table = pa.Table.from_pylist(records, schema=full_schema)
     return subject, table
 
 

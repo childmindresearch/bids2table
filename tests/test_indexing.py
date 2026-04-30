@@ -271,3 +271,10 @@ def test_get_arrow_schema_accepts_pa_schema():
     arrow = get_arrow_schema(schema=s.arrow_schema)
     assert "sub" in {f.name for f in arrow}
     assert "dataset" in {f.name for f in arrow}
+
+
+def test_index_dataset_with_explicit_schema():
+    s = BIDSSchema.from_path(None)
+    table = indexing.index_dataset(BIDS_EXAMPLES / "ds102", schema=s)
+    assert table.num_rows > 0
+    assert "sub" in table.schema.names
