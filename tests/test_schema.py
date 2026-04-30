@@ -1,5 +1,6 @@
 """Tests for the BIDSSchema value object."""
 
+import pickle
 from pathlib import Path
 from typing import Any
 
@@ -97,3 +98,17 @@ def test_prepare_dispatches_str_and_path_to_from_path(monkeypatch):
 def test_prepare_rejects_unknown_type():
     with pytest.raises(TypeError, match=r"Expected BIDSSchema"):
         BIDSSchema.prepare(42)
+
+
+def test_pickle_round_trip_default():
+    s = BIDSSchema.from_path(None)
+    restored = pickle.loads(pickle.dumps(s))
+    assert restored.arrow_schema.equals(s.arrow_schema)
+    assert restored._name_entity_map == s._name_entity_map
+
+
+def test_pickle_round_trip_after_lazy_load():
+    s = BIDSSchema.from_path(None)
+    _ = s.bids_schema  # materialize cached_property
+    restored = pickle.loads(pickle.dumps(s))
+    assert restored.arrow_schema.equals(s.arrow_schema)

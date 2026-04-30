@@ -213,3 +213,11 @@ class BIDSSchema:
         if isinstance(self._source, _NoSource):
             return None
         return bidsschematools.schema.load_schema(self._source)
+
+    def __getstate__(self) -> dict[str, Any]:
+        state = self.__dict__.copy()
+        state.pop("bids_schema", None)  # drop materialized cached_property
+        return state
+
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        self.__dict__.update(state)
