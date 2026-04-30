@@ -163,6 +163,30 @@ class BIDSSchema:
         )
 
     @classmethod
+    def prepare(
+        cls, obj: "BIDSSchema | pa.Schema | Namespace | str | Path | None"
+    ) -> "BIDSSchema":
+        """Polymorphic constructor.
+
+        - `BIDSSchema` -> returned unchanged
+        - `pa.Schema` -> via `from_arrow`
+        - `Namespace` -> via `from_namespace`
+        - `str` / `Path` / `None` -> via `from_path`
+        """
+        if isinstance(obj, cls):
+            return obj
+        if isinstance(obj, pa.Schema):
+            return cls.from_arrow(obj)
+        if isinstance(obj, Namespace):
+            return cls.from_namespace(obj)
+        if obj is None or isinstance(obj, (str, Path)):
+            return cls.from_path(obj)
+        raise TypeError(
+            "Expected BIDSSchema | pa.Schema | Namespace | str | Path | None, "
+            f"got {type(obj).__name__}"
+        )
+
+    @classmethod
     def _build(
         cls, ns: Namespace, source: str | Path | None | _NoSource
     ) -> "BIDSSchema":

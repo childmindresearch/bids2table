@@ -1,6 +1,7 @@
 """Tests for the BIDSSchema value object."""
 
 import pyarrow as pa
+import pytest
 
 from bids2table._schema import BIDSSchema
 
@@ -54,3 +55,32 @@ def test_from_arrow_bids_schema_returns_none():
     original = BIDSSchema.from_path(None)
     rebuilt = BIDSSchema.from_arrow(original.arrow_schema)
     assert rebuilt.bids_schema is None
+
+
+def test_prepare_passthrough_for_existing_instance():
+    s = BIDSSchema.from_path(None)
+    assert BIDSSchema.prepare(s) is s
+
+
+def test_prepare_from_arrow_schema():
+    s = BIDSSchema.from_path(None)
+    rebuilt = BIDSSchema.prepare(s.arrow_schema)
+    assert rebuilt.arrow_schema.equals(s.arrow_schema)
+
+
+def test_prepare_from_namespace():
+    import bidsschematools.schema
+
+    ns = bidsschematools.schema.load_schema(None)
+    rebuilt = BIDSSchema.prepare(ns)
+    assert rebuilt.arrow_schema.equals(BIDSSchema.from_path(None).arrow_schema)
+
+
+def test_prepare_from_path_str(tmp_path):
+    s = BIDSSchema.prepare(None)
+    assert s.arrow_schema is not None
+
+
+def test_prepare_rejects_unknown_type():
+    with pytest.raises(TypeError, match="BIDSSchema | pa.Schema | Namespace"):
+        BIDSSchema.prepare(42)
