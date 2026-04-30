@@ -54,6 +54,11 @@ def _build_arrow_schema(
         name = cfg["name"]
         dtype = _BIDS_FORMAT_ARROW_DTYPE_MAP[cfg["format"]]
         metadata = {"entity": entity}
+        # Heterogeneous encoding: strings stored raw, non-strings JSON-encoded.
+        # _entity_lookups_from_arrow uses json.loads with a fallback; raw string
+        # values that happen to be JSON-parseable (e.g. "null", "42") will not
+        # round-trip cleanly. The current BIDS entity configs do not contain
+        # such values, so this is a known limitation, not an active bug.
         metadata.update(
             {k: v if isinstance(v, str) else json.dumps(v) for k, v in cfg.items()}
         )
@@ -89,7 +94,7 @@ def _entity_lookups_from_arrow(
         for k, v in meta.items():
             try:
                 cfg[k] = json.loads(v)
-            except (json.JSONDecodeError, ValueError):
+            except ValueError:
                 cfg[k] = v
         entity_schema[entity_long] = cfg
         if "name" not in cfg:
