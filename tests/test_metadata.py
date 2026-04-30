@@ -24,6 +24,7 @@ def test_load_bids_metadata(inherit: bool):
     assert metadata == expected_metadata
 
 
+@pytest.mark.cloud
 @pytest.mark.skipif(
     not cloudpathlib_is_available(), reason="cloudpathlib not installed"
 )

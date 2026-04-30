@@ -52,6 +52,7 @@ def test_find_bids_datasets():
     assert datasets_no_derivatives == expected_datasets_no_derivatives
 
 
+@pytest.mark.cloud
 @pytest.mark.skipif(
     not cloudpathlib_is_available(), reason="cloudpathlib not installed"
 )
@@ -80,6 +81,7 @@ def test_index_dataset(root: str, expected_count: int):
     assert len(table) == expected_count
 
 
+@pytest.mark.cloud
 @pytest.mark.skipif(
     not cloudpathlib_is_available(), reason="cloudpathlib not installed"
 )
