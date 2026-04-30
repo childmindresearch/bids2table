@@ -1,5 +1,8 @@
 """Tests for the BIDSSchema value object."""
 
+from pathlib import Path
+from typing import Any
+
 import pyarrow as pa
 import pytest
 
@@ -76,11 +79,21 @@ def test_prepare_from_namespace():
     assert rebuilt.arrow_schema.equals(BIDSSchema.from_path(None).arrow_schema)
 
 
-def test_prepare_from_path_str(tmp_path):
-    s = BIDSSchema.prepare(None)
-    assert s.arrow_schema is not None
+def test_prepare_dispatches_str_and_path_to_from_path(monkeypatch):
+    """Verify str and Path inputs route to from_path with the original argument."""
+    captured: list[Any] = []
+    real_instance = BIDSSchema.from_path(None)
+
+    def fake_from_path(cls, path):
+        captured.append(path)
+        return real_instance
+
+    monkeypatch.setattr(BIDSSchema, "from_path", classmethod(fake_from_path))
+    BIDSSchema.prepare("some/string")
+    BIDSSchema.prepare(Path("some/path"))
+    assert captured == ["some/string", Path("some/path")]
 
 
 def test_prepare_rejects_unknown_type():
-    with pytest.raises(TypeError, match="BIDSSchema | pa.Schema | Namespace"):
+    with pytest.raises(TypeError, match=r"Expected BIDSSchema"):
         BIDSSchema.prepare(42)
