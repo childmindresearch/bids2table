@@ -13,7 +13,7 @@ from typing import Any
 import pyarrow as pa
 
 from ._logging import setup_logger
-from ._schema import BIDSSchema, _entity_lookups_from_arrow, _resolve
+from ._schema import BIDSSchema, _resolve
 
 BIDSValue = str | int
 
@@ -105,12 +105,14 @@ def validate_bids_entities(
             mapping of any leftover entity mappings that didn't match a known entity
             or failed validation.
     """
+    # Fast path: when called from a worker process with a pa.Schema, skip the
+    # BIDSSchema wrapping and reconstruct lookup dicts directly from arrow
+    # field metadata. The slow path resolves to a BIDSSchema (using the
+    # module default if schema is None) and reads the cached lookups off it.
     if isinstance(schema, pa.Schema):
-        entity_schema, name_entity_map = _entity_lookups_from_arrow(schema)
+        entity_schema, name_entity_map = BIDSSchema.lookups_from_arrow(schema)
     else:
-        resolved = _resolve(schema)
-        entity_schema = resolved._entity_schema
-        name_entity_map = resolved._name_entity_map
+        entity_schema, name_entity_map = _resolve(schema).lookups()
 
     valid_entities: dict[str, BIDSValue] = {}
     extra_entities: dict[str, Any] = {}

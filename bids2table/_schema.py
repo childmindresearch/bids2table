@@ -214,6 +214,24 @@ class BIDSSchema:
             return None
         return bidsschematools.schema.load_schema(self._source)
 
+    def lookups(self) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
+        """Return `(entity_schema, name_entity_map)` for validation.
+
+        Use `BIDSSchema.lookups_from_arrow` if you only have a `pa.Schema`.
+        """
+        return self._entity_schema, self._name_entity_map
+
+    @staticmethod
+    def lookups_from_arrow(
+        arrow_schema: pa.Schema,
+    ) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
+        """Reconstruct lookups from a `pa.Schema` without building a `BIDSSchema`.
+
+        Faster than `BIDSSchema.from_arrow(...).lookups()` when the caller does
+        not need the wrapping value object (e.g. inside a worker process).
+        """
+        return _entity_lookups_from_arrow(arrow_schema)
+
     def __getstate__(self) -> dict[str, Any]:
         state = self.__dict__.copy()
         state.pop("bids_schema", None)  # drop materialized cached_property

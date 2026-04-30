@@ -123,3 +123,11 @@ def test_validate_bids_entities_default_schema_unchanged():
     valid, extra = validate_bids_entities({"sub": "01", "task": "rest"})
     assert valid == {"sub": "01", "task": "rest"}
     assert extra == {}
+
+
+def test_validate_bids_entities_arrow_and_bids_schema_paths_agree():
+    schema = BIDSSchema.from_path(None)
+    entities = {"sub": "01", "task": "rest", "run": "1"}
+    bids_result = validate_bids_entities(entities, schema=schema)
+    arrow_result = validate_bids_entities(entities, schema=schema.arrow_schema)
+    assert bids_result == arrow_result
