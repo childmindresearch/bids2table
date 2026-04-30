@@ -1,4 +1,5 @@
 # bids2table
+
 [![CI](https://github.com/childmindresearch/bids2table/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/childmindresearch/bids2table/actions/workflows/ci.yaml?query=branch%3Amain)
 [![Docs](https://github.com/childmindresearch/bids2table/actions/workflows/docs.yaml/badge.svg?branch=main)](https://childmindresearch.github.io/bids2table/bids2table)
 [![codecov](https://codecov.io/gh/childmindresearch/bids2table/branch/main/graph/badge.svg?token=22HWWFWPW5)](https://codecov.io/gh/childmindresearch/bids2table)
@@ -100,7 +101,6 @@ As an example, here we index all datasets on [OpenNeuro](https://openneuro.org/)
 
 Using 8 threads, we can index all ~1400 OpenNeuro datasets (1.2M files) in less than 15 minutes.
 
-
 ### Indexing datasets from python
 
 You can also index datasets using the Python API.
@@ -129,3 +129,20 @@ pq.write_table(tab, "ds000224.parquet")
 # Convert to a pandas dataframe.
 df = tab.to_pandas(types_mapper=pd.ArrowDtype)
 ```
+
+### Using a custom or multiple BIDS schemas
+
+`bids2table` loads the bidsschematools default schema at import. For most
+users this is the right thing. To index a dataset against a specific schema
+version or path, pass a reference to the schema as the `schema` argument:
+
+```python
+from bids2table import index_dataset
+
+table = index_dataset("/path/to/dataset", schema="/path/to/bids-schema")
+```
+
+`schema=` accepts a `pa.Schema`, a bidsschematools `Namespace`,
+a path/URL, or `None` (the module-level default).
+Passing different schemas to different `index_dataset` calls in the same
+process is supported and works under multiprocessing.
