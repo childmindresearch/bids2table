@@ -264,3 +264,10 @@ def test_get_column_names_with_explicit_schema():
     s = BIDSSchema.from_path(None)
     cols = get_column_names(schema=s)
     assert "sub" in [c.value for c in cols]
+
+
+def test_get_arrow_schema_accepts_pa_schema():
+    s = BIDSSchema.from_path(None)
+    arrow = get_arrow_schema(schema=s.arrow_schema)
+    assert "sub" in {f.name for f in arrow}
+    assert "dataset" in {f.name for f in arrow}

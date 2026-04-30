@@ -97,10 +97,7 @@ def get_arrow_schema(
         schema: A `BIDSSchema`, a `pa.Schema`, or None to use the module-level
             default BIDS schema.
     """
-    if isinstance(schema, pa.Schema):
-        bids_schema = BIDSSchema.from_arrow(schema)
-    else:
-        bids_schema = _resolve(schema)
+    bids_schema = _resolve(schema)
     entity_schema = bids_schema.arrow_schema
     index_fields = {
         name: pa.field(name, cfg["dtype"], metadata=cfg["metadata"])
@@ -123,7 +120,12 @@ def get_arrow_schema(
 def get_column_names(
     schema: BIDSSchema | pa.Schema | None = None,
 ) -> enum.StrEnum:
-    """Get an enum of the BIDS index columns."""
+    """Get an enum of the BIDS index columns.
+
+    Args:
+        schema: A `BIDSSchema`, a `pa.Schema`, or None to use the module-level
+            default BIDS schema.
+    """
     arrow_schema = get_arrow_schema(schema=schema)
     items = []
     for f in arrow_schema:
