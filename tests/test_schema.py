@@ -115,3 +115,25 @@ def test_pickle_round_trip_after_lazy_load():
     # Cache is stripped on pickle; the restored instance re-materializes lazily.
     assert "bids_schema" not in pickle.loads(pickle.dumps(s)).__dict__
     assert restored.bids_schema is not None
+
+
+def test_set_bids_schema_rebinds_default(monkeypatch):
+    from bids2table import _schema as schema_mod
+
+    original = schema_mod._DEFAULT_SCHEMA
+    try:
+        schema_mod.set_bids_schema(None)
+        assert schema_mod._DEFAULT_SCHEMA is not original
+        assert schema_mod.get_bids_entity_arrow_schema().equals(
+            schema_mod._DEFAULT_SCHEMA.arrow_schema
+        )
+    finally:
+        schema_mod._DEFAULT_SCHEMA = original
+
+
+def test_get_bids_schema_returns_namespace_for_default():
+    from bids2table import _schema as schema_mod
+
+    ns = schema_mod.get_bids_schema()
+    assert ns is not None
+    assert "bids_version" in ns

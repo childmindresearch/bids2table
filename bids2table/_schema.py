@@ -222,3 +222,39 @@ class BIDSSchema:
     def __setstate__(self, state: dict[str, Any]) -> None:
         # frozen=True blocks __setattr__; bulk __dict__.update bypasses it.
         self.__dict__.update(state)
+
+
+_DEFAULT_SCHEMA: BIDSSchema = BIDSSchema.from_path(None)
+
+
+def set_bids_schema(path: str | Path | None = None) -> None:
+    """Replace the module-level default BIDS schema.
+
+    Subsequent calls to functions accepting a `schema` argument will pick up
+    the new default when no explicit schema is passed.
+    """
+    global _DEFAULT_SCHEMA
+    _DEFAULT_SCHEMA = BIDSSchema.from_path(path)
+
+
+def get_bids_schema() -> Namespace | None:
+    """Return the bidsschematools Namespace for the current default schema."""
+    return _DEFAULT_SCHEMA.bids_schema
+
+
+def get_bids_entity_arrow_schema() -> pa.Schema:
+    """Return the Arrow schema for the current default BIDS schema."""
+    return _DEFAULT_SCHEMA.arrow_schema
+
+
+def _resolve(
+    schema: "BIDSSchema | pa.Schema | Namespace | str | Path | None",
+) -> BIDSSchema:
+    """Resolve a schema argument, defaulting to `_DEFAULT_SCHEMA` for None.
+
+    Functions exposing a `schema=None` parameter call this so the default is
+    looked up at call time (picking up rebinds from `set_bids_schema`).
+    """
+    if schema is None:
+        return _DEFAULT_SCHEMA
+    return BIDSSchema.prepare(schema)
