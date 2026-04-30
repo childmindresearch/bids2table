@@ -278,3 +278,18 @@ def test_index_dataset_with_explicit_schema():
     table = indexing.index_dataset(BIDS_EXAMPLES / "ds102", schema=s)
     assert table.num_rows > 0
     assert "sub" in table.schema.names
+
+
+def test_index_dataset_workers_honor_explicit_schema():
+    """Regression: workers must use the schema passed to index_dataset, not
+    re-import the module default.
+    """
+    base = BIDSSchema.from_path(None)
+    base_md = {k.decode(): v.decode() for k, v in base.arrow_schema.metadata.items()}
+    tagged_arrow = base.arrow_schema.with_metadata({**base_md, "test_marker": "tagged"})
+    tagged = BIDSSchema.from_arrow(tagged_arrow)
+
+    table = indexing.index_dataset(
+        BIDS_EXAMPLES / "ds102", schema=tagged, max_workers=2
+    )
+    assert table.schema.metadata[b"test_marker"] == b"tagged"
