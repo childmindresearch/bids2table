@@ -302,3 +302,23 @@ def test_batch_index_dataset_with_explicit_schema():
     assert len(tables) == len(roots)
     for t in tables:
         assert "sub" in t.schema.names
+
+
+def test_two_schemas_one_process_produce_distinct_metadata():
+    """Two BIDSSchema instances yield index tables with distinguishable schemas.
+
+    Distinguish via a custom marker injected into one BIDSSchema's arrow_schema
+    metadata. The non-marked schema must not pick up the marker.
+    """
+    base = BIDSSchema.from_path(None)
+    base_md = {k.decode(): v.decode() for k, v in base.arrow_schema.metadata.items()}
+    tagged_arrow = base.arrow_schema.with_metadata({**base_md, "test_marker": "tagged"})
+    tagged = BIDSSchema.from_arrow(tagged_arrow)
+
+    dataset_root = BIDS_EXAMPLES / "ds102"
+
+    t_base = indexing.index_dataset(dataset_root, schema=base, max_workers=0)
+    t_tag = indexing.index_dataset(dataset_root, schema=tagged, max_workers=0)
+
+    assert b"test_marker" not in (t_base.schema.metadata or {})
+    assert t_tag.schema.metadata[b"test_marker"] == b"tagged"
