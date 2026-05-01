@@ -25,7 +25,7 @@ from ._entities import (
 )
 from ._logging import setup_logger
 from ._pathlib import CloudPath, PathT, as_path, cloudpathlib_is_available
-from ._schema import BIDSSchema
+from ._schema import SchemaAdapter
 
 _BIDS_SUBJECT_DIR_PATTERN = re.compile(r"sub-[a-zA-Z0-9]+")
 
@@ -91,15 +91,15 @@ _logger = setup_logger(__package__)
 
 
 def get_arrow_schema(
-    schema: BIDSSchema | pa.Schema | None = None,
+    schema: SchemaAdapter | pa.Schema | None = None,
 ) -> pa.Schema:
     """Get Arrow schema of the BIDS dataset index.
 
     Args:
-        schema: A `BIDSSchema`, a `pa.Schema`, or None to use the module-level
+        schema: A `SchemaAdapter`, a `pa.Schema`, or None to use the module-level
             default BIDS schema.
     """
-    bids_schema = BIDSSchema.prepare(schema)
+    bids_schema = SchemaAdapter.load(schema)
     entity_schema = bids_schema.arrow_schema
     index_fields = {
         name: pa.field(name, cfg["dtype"], metadata=cfg["metadata"])
@@ -122,12 +122,12 @@ def get_arrow_schema(
 
 
 def get_column_names(
-    schema: BIDSSchema | pa.Schema | None = None,
+    schema: SchemaAdapter | pa.Schema | None = None,
 ) -> enum.StrEnum:
     """Get an enum of the BIDS index columns.
 
     Args:
-        schema: A `BIDSSchema`, a `pa.Schema`, or None to use the module-level
+        schema: A `SchemaAdapter`, a `pa.Schema`, or None to use the module-level
             default BIDS schema.
     """
     arrow_schema = get_arrow_schema(schema=schema)
@@ -213,7 +213,7 @@ def index_dataset(
     chunksize: int = 32,
     executor_cls: type[Executor] = ProcessPoolExecutor,
     show_progress: bool = False,
-    schema: BIDSSchema | pa.Schema | Namespace | str | Path | None = None,
+    schema: SchemaAdapter | pa.Schema | Namespace | str | Path | None = None,
 ) -> pa.Table:
     """Index a BIDS dataset.
 
@@ -229,7 +229,7 @@ def index_dataset(
             `ProcessPoolExecutor` when `max_workers > 0`.
         executor_cls: Executor class to use for parallel indexing.
         show_progress: Show progress bar.
-        schema: A `BIDSSchema`, `pa.Schema`, `Namespace`, path/URL, or None to use
+        schema: A `SchemaAdapter`, `pa.Schema`, `Namespace`, path/URL, or None to use
             the module-level default. Per-call schema overrides propagate to worker
             processes.
 
@@ -238,7 +238,7 @@ def index_dataset(
     """
     root = as_path(root)
 
-    bids_schema = BIDSSchema.prepare(schema)
+    bids_schema = SchemaAdapter.load(schema)
     entity_arrow_schema = bids_schema.arrow_schema
     full_schema = get_arrow_schema(schema=bids_schema)
 
@@ -281,7 +281,7 @@ def batch_index_dataset(
     max_workers: int | None = 0,
     executor_cls: type[Executor] = ProcessPoolExecutor,
     show_progress: bool = False,
-    schema: BIDSSchema | pa.Schema | Namespace | str | Path | None = None,
+    schema: SchemaAdapter | pa.Schema | Namespace | str | Path | None = None,
 ) -> Generator[pa.Table, None, None]:
     """Index a batch of BIDS datasets.
 
@@ -293,13 +293,13 @@ def batch_index_dataset(
             See `concurrent.futures.ProcessPoolExecutor` for details.
         executor_cls: Executor class to use for parallel indexing.
         show_progress: Show progress bar.
-        schema: A `BIDSSchema`, `pa.Schema`, `Namespace`, path/URL, or None to use
+        schema: A `SchemaAdapter`, `pa.Schema`, `Namespace`, path/URL, or None to use
             the module-level default.
 
     Yields:
         An Arrow table index for each BIDS dataset.
     """
-    bids_schema = BIDSSchema.prepare(schema)
+    bids_schema = SchemaAdapter.load(schema)
     entity_arrow_schema = bids_schema.arrow_schema
     func = partial(_batch_index_func, schema=entity_arrow_schema)
 
@@ -424,7 +424,7 @@ def _index_bids_subject_dir(
 
     Args:
         path: BIDS subject directory.
-        schema: BIDS entity Arrow schema (i.e. ``BIDSSchema.arrow_schema``).
+        schema: BIDS entity Arrow schema (i.e. ``SchemaAdapter.arrow_schema``).
             Pass-through to validation; the full index schema is derived from
             it. None uses the module-level default.
         dataset: Dataset identifier; computed if not given.

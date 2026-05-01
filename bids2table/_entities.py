@@ -13,7 +13,7 @@ from typing import Any
 import pyarrow as pa
 
 from ._logging import setup_logger
-from ._schema import BIDSSchema
+from ._schema import SchemaAdapter
 
 BIDSValue = str | int
 
@@ -93,7 +93,7 @@ def _parse_bids_datatype(path: Path) -> str | None:
 
 def validate_bids_entities(
     entities: dict[str, Any],
-    schema: BIDSSchema | pa.Schema | None = None,
+    schema: SchemaAdapter | pa.Schema | None = None,
 ) -> tuple[dict[str, BIDSValue], dict[str, Any]]:
     """Validate BIDS entities against a schema.
 
@@ -101,7 +101,7 @@ def validate_bids_entities(
 
     Args:
         entities: dict mapping BIDS keys to unvalidated entities.
-        schema: A `BIDSSchema`, a `pa.Schema` (e.g. inside a worker process), or
+        schema: A `SchemaAdapter`, a `pa.Schema` (e.g. inside a worker process), or
             None to use the module-level default.
 
     Returns:
@@ -110,15 +110,14 @@ def validate_bids_entities(
             mapping of any leftover entity mappings that didn't match a known entity or
             failed validation.
     """
-    entity_schema, name_entity_map = BIDSSchema.prepare(schema).lookups()
+    schema_adapter = SchemaAdapter.load(schema)
 
     valid_entities: dict[str, BIDSValue] = {}
-    extra_entities: dict[str, Any] = {}
+    extra_entities: dict[str, str] = {}
 
     for name, value in entities.items():
-        if name in name_entity_map:
-            entity = name_entity_map[name]
-            cfg = entity_schema[entity]
+        if entity := schema_adapter.name_entity_map.get(name):
+            cfg = schema_adapter.entity_schema[entity]
             typ = _BIDS_FORMAT_PY_TYPE_MAP[cfg["format"]]
 
             # Cast to target type.

@@ -9,7 +9,7 @@ from pytest import LogCaptureFixture
 import bids2table._indexing as indexing
 from bids2table._indexing import get_arrow_schema, get_column_names
 from bids2table._pathlib import cloudpathlib_is_available
-from bids2table._schema import BIDSSchema
+from bids2table._schema import SchemaAdapter
 
 BIDS_EXAMPLES = Path(__file__).parents[1] / "bids-examples"
 
@@ -254,27 +254,27 @@ def test_h_fmt(num: int, expected: str):
 
 
 def test_get_arrow_schema_with_explicit_schema():
-    s = BIDSSchema.prepare(None)
+    s = SchemaAdapter.load()
     arrow = get_arrow_schema(schema=s)
     assert "sub" in {f.name for f in arrow}
     assert "dataset" in {f.name for f in arrow}
 
 
 def test_get_column_names_with_explicit_schema():
-    s = BIDSSchema.prepare(None)
+    s = SchemaAdapter.load()
     cols = get_column_names(schema=s)
     assert "sub" in [c.value for c in cols]
 
 
 def test_get_arrow_schema_accepts_pa_schema():
-    s = BIDSSchema.prepare(None)
+    s = SchemaAdapter.load()
     arrow = get_arrow_schema(schema=s.arrow_schema)
     assert "sub" in {f.name for f in arrow}
     assert "dataset" in {f.name for f in arrow}
 
 
 def test_index_dataset_with_explicit_schema():
-    s = BIDSSchema.prepare(None)
+    s = SchemaAdapter.load()
     table = indexing.index_dataset(BIDS_EXAMPLES / "ds102", schema=s)
     assert table.num_rows > 0
     assert "sub" in table.schema.names
@@ -284,10 +284,10 @@ def test_index_dataset_workers_honor_explicit_schema():
     """Regression: workers must use the schema passed to index_dataset, not
     re-import the module default.
     """
-    base = BIDSSchema.prepare(None)
+    base = SchemaAdapter.load()
     base_md = {k.decode(): v.decode() for k, v in base.arrow_schema.metadata.items()}
     tagged_arrow = base.arrow_schema.with_metadata({**base_md, "test_marker": "tagged"})
-    tagged = BIDSSchema.prepare(tagged_arrow)
+    tagged = SchemaAdapter.load(tagged_arrow)
 
     table = indexing.index_dataset(
         BIDS_EXAMPLES / "ds102", schema=tagged, max_workers=2
@@ -296,7 +296,7 @@ def test_index_dataset_workers_honor_explicit_schema():
 
 
 def test_batch_index_dataset_with_explicit_schema():
-    s = BIDSSchema.prepare(None)
+    s = SchemaAdapter.load()
     roots = [p.parent for p in BIDS_EXAMPLES.glob("*/dataset_description.json")][:2]
     tables = list(indexing.batch_index_dataset(roots, schema=s))
     assert len(tables) == len(roots)
@@ -305,15 +305,15 @@ def test_batch_index_dataset_with_explicit_schema():
 
 
 def test_two_schemas_one_process_produce_distinct_metadata():
-    """Two BIDSSchema instances yield index tables with distinguishable schemas.
+    """Two SchemaAdapter instances yield index tables with distinguishable schemas.
 
-    Distinguish via a custom marker injected into one BIDSSchema's arrow_schema
+    Distinguish via a custom marker injected into one SchemaAdapter's arrow_schema
     metadata. The non-marked schema must not pick up the marker.
     """
-    base = BIDSSchema.prepare(None)
+    base = SchemaAdapter.load()
     base_md = {k.decode(): v.decode() for k, v in base.arrow_schema.metadata.items()}
     tagged_arrow = base.arrow_schema.with_metadata({**base_md, "test_marker": "tagged"})
-    tagged = BIDSSchema.prepare(tagged_arrow)
+    tagged = SchemaAdapter.load(tagged_arrow)
 
     dataset_root = BIDS_EXAMPLES / "ds102"
 

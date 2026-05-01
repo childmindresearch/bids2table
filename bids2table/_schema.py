@@ -105,28 +105,29 @@ def _entity_lookups_from_arrow(
 
 
 @dataclass(frozen=True)
-class BIDSSchema:
+class SchemaAdapter:
     """Encapsulates a BIDS schema and its derived Arrow representation.
 
-    Use `BIDSSchema.from_path`, `from_namespace`, `from_arrow`, or `prepare`
-    rather than constructing directly.
+    Use `SchemaAdapter.load` rather than constructing directly.
     """
 
     arrow_schema: pa.Schema
-    _entity_schema: dict[str, dict[str, Any]] = field(repr=False)
-    _name_entity_map: dict[str, str] = field(repr=False)
-    bids_schema: Namespace | None = field(default=None, repr=False)
+    entity_schema: dict[str, dict[str, Any]] = field(repr=False)
+    name_entity_map: dict[str, str] = field(repr=False)
 
     @classmethod
-    def prepare(
-        cls, schema: "BIDSSchema | pa.Schema | Namespace | str | Path | None"
-    ) -> "BIDSSchema":
+    def load(
+        cls,
+        schema: SchemaAdapter | pa.Schema | Namespace | str | Path | None = None,
+    ) -> SchemaAdapter:
         """Polymorphic constructor.
 
-        - `BIDSSchema` -> returned unchanged
-        - `pa.Schema` -> via `from_arrow`
-        - `Namespace` -> via `from_namespace`
-        - `str` / `Path` / `None` -> via `from_path`
+        Existing SchemaAdapters and pyarrow Schemas are passed through with minimal processing.
+
+        Paths and `None` are passed directly to `bidsschematools.schema.load_schema` for loading,
+        and the resulting `Namespace` is queried to extract the components used by bids2table.
+
+        A pre-loaded `Namespace` is also accepted, for callers that may want to modify a schema.
         """
         if isinstance(schema, cls):
             return schema
@@ -134,8 +135,8 @@ class BIDSSchema:
             entity_schema, name_entity_map = _entity_lookups_from_arrow(schema)
             return cls(
                 arrow_schema=schema,
-                _entity_schema=entity_schema,
-                _name_entity_map=name_entity_map,
+                entity_schema=entity_schema,
+                name_entity_map=name_entity_map,
             )
 
         ns: Namespace = (
@@ -157,11 +158,6 @@ class BIDSSchema:
         )
         return cls(
             arrow_schema=arrow_schema,
-            _entity_schema=entity_schema,
-            _name_entity_map=name_entity_map,
-            bids_schema=ns,
+            entity_schema=entity_schema,
+            name_entity_map=name_entity_map,
         )
-
-    def lookups(self) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
-        """Return `(entity_schema, name_entity_map)` for validation."""
-        return self._entity_schema, self._name_entity_map

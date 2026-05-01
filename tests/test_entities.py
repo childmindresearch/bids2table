@@ -9,7 +9,7 @@ from bids2table._entities import (
     parse_bids_entities,
     validate_bids_entities,
 )
-from bids2table._schema import BIDSSchema
+from bids2table._schema import SchemaAdapter
 
 
 class ExampleCase(NamedTuple):
@@ -104,14 +104,14 @@ def test_format_bids_path(path: str):
 
 
 def test_validate_bids_entities_accepts_explicit_bids_schema():
-    schema = BIDSSchema.prepare(None)
+    schema = SchemaAdapter.load()
     valid, extra = validate_bids_entities({"sub": "01", "task": "rest"}, schema=schema)
     assert valid == {"sub": "01", "task": "rest"}
     assert extra == {}
 
 
 def test_validate_bids_entities_accepts_arrow_schema():
-    schema = BIDSSchema.prepare(None)
+    schema = SchemaAdapter.load()
     valid, extra = validate_bids_entities(
         {"sub": "01", "task": "rest"}, schema=schema.arrow_schema
     )
@@ -126,7 +126,7 @@ def test_validate_bids_entities_default_schema_unchanged():
 
 
 def test_validate_bids_entities_arrow_and_bids_schema_paths_agree():
-    schema = BIDSSchema.prepare(None)
+    schema = SchemaAdapter.load()
     entities = {"sub": "01", "task": "rest", "run": "1"}
     bids_result = validate_bids_entities(entities, schema=schema)
     arrow_result = validate_bids_entities(entities, schema=schema.arrow_schema)
