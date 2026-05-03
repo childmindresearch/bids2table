@@ -106,3 +106,29 @@ def test_build_adapter_from_namespace_uses_versions_and_entities():
     # Special entities are added.
     for special in ("datatype", "suffix", "extension"):
         assert special in adapter.entity_schema
+
+
+def test_load_bids_schema_default_is_cached():
+    from bids2table._schema import load_bids_schema
+
+    a = load_bids_schema()
+    b = load_bids_schema(None)
+    assert a is b
+
+
+def test_load_bids_schema_namespace_path_returns_equal_but_fresh():
+    from bids2table._schema import load_bids_schema
+
+    ns = bidsschematools.schema.load_schema()
+    a = load_bids_schema(ns)
+    b = load_bids_schema(ns)
+    # Equal by value, distinct by identity (no Namespace caching).
+    assert a == b
+    assert a is not b
+
+
+def test_load_bids_schema_rejects_unsupported_type():
+    from bids2table._schema import load_bids_schema
+
+    with pytest.raises(TypeError):
+        load_bids_schema(42)  # type: ignore[arg-type]
