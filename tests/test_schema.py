@@ -214,3 +214,22 @@ def test_pyarrow_validate_entities_takes_only_pa_schema():
     valid, extra = _pyarrow_validate_entities({"sub": "A01"}, pa_schema=pa_schema)
     assert valid["sub"] == "A01"
     assert extra == {}
+
+
+def test_get_arrow_schema_accepts_schema_kwarg():
+    from bids2table._indexing import get_arrow_schema
+
+    ns = bidsschematools.schema.load_schema()
+    schema = get_arrow_schema(schema=ns)
+    assert isinstance(schema, pa.Schema)
+    assert "sub" in schema.names
+    assert "dataset" in schema.names
+    assert "extra_entities" in schema.names
+
+
+def test_get_column_names_accepts_schema_kwarg():
+    from bids2table._indexing import get_column_names
+
+    ns = bidsschematools.schema.load_schema()
+    cols = get_column_names(schema=ns)
+    assert any(c.value == "sub" for c in cols)
