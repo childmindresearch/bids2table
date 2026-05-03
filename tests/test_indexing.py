@@ -278,3 +278,19 @@ def test_index_dataset_propagates_schema_to_workers(tmp_path):
     table = indexing.index_dataset(tmp_path / "ds", schema=ns, max_workers=2, chunksize=1)
     assert table.num_rows == 1
     assert table.schema.field("sub").metadata[b"description"] == b"Modified again"
+
+
+def test_batch_index_dataset_accepts_schema_kwarg(tmp_path):
+    from bids2table._indexing import batch_index_dataset
+
+    ds1 = tmp_path / "a"
+    (ds1 / "sub-A01" / "anat").mkdir(parents=True)
+    (ds1 / "dataset_description.json").write_text('{"Name": "a"}')
+    (ds1 / "sub-A01" / "anat" / "sub-A01_T1w.nii.gz").touch()
+
+    ns = deepcopy(bidsschematools.schema.load_schema())
+    ns.objects.entities.subject["description"] = "And again"
+    tables = list(batch_index_dataset([ds1], schema=ns))
+    assert len(tables) == 1
+    assert tables[0].num_rows == 1
+    assert tables[0].schema.field("sub").metadata[b"description"] == b"And again"
