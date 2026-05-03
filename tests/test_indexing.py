@@ -1,7 +1,9 @@
 import logging
+from copy import deepcopy
 from itertools import islice
 from pathlib import Path
 
+import bidsschematools.schema
 import pyarrow as pa
 import pytest
 from pytest import LogCaptureFixture
@@ -244,3 +246,35 @@ def test_filter_include_exclude():
 )
 def test_h_fmt(num: int, expected: str):
     assert indexing._hfmt(num) == expected
+
+
+def test_index_dataset_accepts_schema_kwarg(tmp_path):
+    # Build a minimal BIDS dataset.
+    sub = tmp_path / "ds" / "sub-A01" / "anat"
+    sub.mkdir(parents=True)
+    (tmp_path / "ds" / "dataset_description.json").write_text('{"Name": "ds"}')
+    (sub / "sub-A01_T1w.nii.gz").touch()
+
+    ns = deepcopy(bidsschematools.schema.load_schema())
+    ns.objects.entities.subject["description"] = "Modified once"
+    table = indexing.index_dataset(tmp_path / "ds", schema=ns, max_workers=0)
+    assert table.num_rows == 1
+    assert "sub" in table.column_names
+    assert table.schema.field("sub").metadata[b"description"] == b"Modified once"
+
+
+def test_index_dataset_propagates_schema_to_workers(tmp_path):
+    """Regression test.
+
+    Workers must use the schema passed via `schema=`, not re-load the default.
+    """
+    sub = tmp_path / "ds" / "sub-A01" / "anat"
+    sub.mkdir(parents=True)
+    (tmp_path / "ds" / "dataset_description.json").write_text('{"Name": "ds"}')
+    (sub / "sub-A01_T1w.nii.gz").touch()
+
+    ns = deepcopy(bidsschematools.schema.load_schema())
+    ns.objects.entities.subject["description"] = "Modified again"
+    table = indexing.index_dataset(tmp_path / "ds", schema=ns, max_workers=2, chunksize=1)
+    assert table.num_rows == 1
+    assert table.schema.field("sub").metadata[b"description"] == b"Modified again"
