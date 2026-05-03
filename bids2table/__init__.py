@@ -14,6 +14,7 @@ __all__ = [
     "format_bids_path",
     "load_bids_metadata",
     "cloudpathlib_is_available",
+    "SchemaSpec",
 ]
 
 import importlib.util
@@ -38,4 +39,5 @@ from ._indexing import (
 )
 from ._metadata import load_bids_metadata
 from ._pathlib import cloudpathlib_is_available
+from ._schema import SchemaSpec
 from ._version import *
