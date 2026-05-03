@@ -14,7 +14,12 @@ import pyarrow as pa
 from bidsschematools.types import Namespace
 
 from ._logging import setup_logger
-from ._schema import decode_metadata
+from ._schema import (
+    SchemaSpec,
+    decode_metadata,
+    entity_arrow_schema,
+    load_bids_schema,
+)
 
 BIDSValue = str | int
 
@@ -196,30 +201,42 @@ def _parse_bids_datatype(path: Path) -> str | None:
 
 def validate_bids_entities(
     entities: dict[str, Any],
+    *,
+    schema: SchemaSpec = None,
 ) -> tuple[dict[str, BIDSValue], dict[str, Any]]:
-    """Validate BIDS entities.
-
-    Validates the type and allowed values of each entity against the BIDS schema.
+    """Validate BIDS entities against a BIDS schema.
 
     Args:
         entities: dict mapping BIDS keys to unvalidated entities
+        schema: optional `SchemaSpec` (`Namespace | str | PathT | None`).
+            `None` uses the default BIDS schema bundled with bidsschematools.
 
     Returns:
-        A tuple of `(valid_entities, extra_entities)`, where `valid_entities` is a
-            mapping of valid BIDS keys to type-casted values, and `extra_entities` a
-            mapping of any leftover entity mappings that didn't match a known entity or
-            failed validation.
+        `(valid_entities, extra_entities)` — valid entities cast to the
+        declared type, plus any leftover entries that did not match a
+        known entity or failed validation.
     """
-    valid_entities = {}
-    extra_entities = {}
+    adapter = load_bids_schema(schema)
+    pa_schema = entity_arrow_schema(adapter)
+    return _pyarrow_validate_entities(entities, pa_schema=pa_schema)
+
+
+def _pyarrow_validate_entities(
+    entities: dict[str, Any],
+    *,
+    pa_schema: pa.Schema,
+) -> tuple[dict[str, BIDSValue], dict[str, Any]]:
+    """Pyarrow-tier validation. Workers call this directly with a `pa.Schema`."""
+    name_to_entity, entity_cfg = _lookups_from_arrow(pa_schema)
+    valid_entities: dict[str, BIDSValue] = {}
+    extra_entities: dict[str, Any] = {}
 
     for name, value in entities.items():
-        if name in _BIDS_NAME_ENTITY_MAP:
-            entity = _BIDS_NAME_ENTITY_MAP[name]
-            cfg = _BIDS_ENTITY_SCHEMA[entity]
+        if name in name_to_entity:
+            entity = name_to_entity[name]
+            cfg = entity_cfg[entity]
             typ = _BIDS_FORMAT_PY_TYPE_MAP[cfg["format"]]
 
-            # Cast to target type.
             try:
                 value = typ(value)
             except ValueError:
@@ -229,7 +246,6 @@ def validate_bids_entities(
                 extra_entities[name] = value
                 continue
 
-            # Check allowed values.
             if "enum" in cfg and value not in cfg["enum"]:
                 _logger.warning(
                     f"Value {value} for entity '{name}' isn't one of the "
