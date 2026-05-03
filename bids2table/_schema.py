@@ -7,10 +7,15 @@ full design.
 """
 
 import json
+import os
 from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import Any
 
+import bidsschematools.schema
 from bidsschematools.types import Namespace
+
+from bids2table._pathlib import PathT
 
 
 def encode_metadata(metadata: dict[str, Any]) -> dict[bytes, bytes]:
@@ -102,4 +107,28 @@ def _build_adapter_from_namespace(schema: Namespace) -> BIDSSchemaAdapter:
         bids_version=schema["bids_version"],
         schema_version=schema["schema_version"],
         entity_schema=entity_schema,
+    )
+
+
+@lru_cache
+def _load_from_path(path: str | PathT | None) -> BIDSSchemaAdapter:
+    """Load and cache a BIDSSchemaAdapter from a path or the default schema."""
+    schema = bidsschematools.schema.load_schema(path)
+    return _build_adapter_from_namespace(schema)
+
+
+def load_bids_schema(spec=None) -> BIDSSchemaAdapter:
+    """Resolve a `SchemaSpec` to a `BIDSSchemaAdapter`.
+
+    Hashable specs (`None`, `str`, `PathT`) hit a memoized loader.
+    `Namespace` instances fall through to a fresh build per call;
+    `Namespace` is not stably hashable and the caller has already paid
+    the load cost.
+    """
+    if isinstance(spec, Namespace):
+        return _build_adapter_from_namespace(spec)
+    if spec is None or isinstance(spec, (str, os.PathLike)):
+        return _load_from_path(spec)
+    raise TypeError(
+        f"schema must be Namespace | str | PathT | None, got {type(spec).__name__}"
     )
