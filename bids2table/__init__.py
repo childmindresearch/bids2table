@@ -8,9 +8,6 @@ __all__ = [
     "get_column_names",
     "parse_bids_entities",
     "validate_bids_entities",
-    "set_bids_schema",
-    "get_bids_schema",
-    "get_bids_entity_arrow_schema",
     "format_bids_path",
     "load_bids_metadata",
     "cloudpathlib_is_available",
@@ -24,10 +21,7 @@ if importlib.util.find_spec("pandas"):
 
 from ._entities import (
     format_bids_path,
-    get_bids_entity_arrow_schema,
-    get_bids_schema,
     parse_bids_entities,
-    set_bids_schema,
     validate_bids_entities,
 )
 from ._indexing import (
