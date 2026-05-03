@@ -10,7 +10,7 @@ import json
 import os
 from dataclasses import dataclass, field
 from functools import lru_cache
-from typing import Any
+from typing import Any, TypeAlias
 
 import bidsschematools.schema
 from bidsschematools.types import Namespace
@@ -110,6 +110,9 @@ def _build_adapter_from_namespace(schema: Namespace) -> BIDSSchemaAdapter:
     )
 
 
+SchemaSpec: TypeAlias = Namespace | str | PathT | None
+
+
 @lru_cache
 def _load_from_path(path: str | PathT | None) -> BIDSSchemaAdapter:
     """Load and cache a BIDSSchemaAdapter from a path or the default schema."""
@@ -117,7 +120,7 @@ def _load_from_path(path: str | PathT | None) -> BIDSSchemaAdapter:
     return _build_adapter_from_namespace(schema)
 
 
-def load_bids_schema(spec=None) -> BIDSSchemaAdapter:
+def load_bids_schema(spec: SchemaSpec = None) -> BIDSSchemaAdapter:
     """Resolve a `SchemaSpec` to a `BIDSSchemaAdapter`.
 
     Hashable specs (`None`, `str`, `PathT`) hit a memoized loader.
