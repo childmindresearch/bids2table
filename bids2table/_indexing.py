@@ -19,7 +19,7 @@ from tqdm import tqdm
 
 from ._entities import (
     _cache_parse_bids_entities,
-    validate_bids_entities,
+    _pyarrow_validate_entities,
 )
 from ._logging import setup_logger
 from ._pathlib import CloudPath, PathT, as_path, cloudpathlib_is_available
@@ -196,6 +196,8 @@ def index_dataset(
     root: str | PathT,
     include_subjects: str | list[str] | None = None,
     show_progress: bool = False,
+    *,
+    schema: SchemaSpec = None,
 ) -> pa.Table:
     """Index a BIDS dataset.
 
@@ -204,29 +206,31 @@ def index_dataset(
         include_subjects: Glob pattern or list of patterns for matching subjects to
             include in the index.
         show_progress: Show progress bar.
+        schema: BIDS schema specification to use. If ``None``, uses the bundled
+            default schema.
 
     Returns:
         An Arrow table index of the BIDS dataset.
     """
     root = as_path(root)
 
-    schema = get_arrow_schema()
+    arrow_schema = get_arrow_schema(schema=schema)
 
     dataset, _ = _get_bids_dataset(root)
     if dataset is None:
         _logger.warning(f"Path {root} is not a valid BIDS dataset directory.")
-        return pa.Table.from_pylist([], schema=schema)
+        return pa.Table.from_pylist([], schema=arrow_schema)
 
     subject_dirs = _find_bids_subject_dirs(root, include_subjects)
     subject_dirs = sorted(subject_dirs, key=lambda p: p.name)
     if len(subject_dirs) == 0:
         _logger.warning(f"Path {root} contains no matching subject dirs.")
-        return pa.Table.from_pylist([], schema=schema)
+        return pa.Table.from_pylist([], schema=arrow_schema)
 
     tables = []
     file_count = 0
     for sub in subject_dirs:
-        _, table = _index_bids_subject_dir(sub, schema=schema, dataset=dataset)
+        _, table = _index_bids_subject_dir(sub, schema=arrow_schema, dataset=dataset)
         tables.append(table)
         file_count += len(table)
     table = pa.concat_tables(tables).combine_chunks()
@@ -390,7 +394,9 @@ def _index_bids_subject_dir(
     for p in paths:
         if _is_bids_file(p):
             entities = _cache_parse_bids_entities(p)
-            valid_entities, extra_entities = validate_bids_entities(entities)
+            valid_entities, extra_entities = _pyarrow_validate_entities(
+                entities, pa_schema=schema
+            )
             record = {
                 "dataset": dataset,
                 **valid_entities,
