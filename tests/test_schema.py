@@ -186,3 +186,31 @@ def test_lookups_from_arrow_skips_non_entity_fields():
     full = pa.schema(list(entity_schema) + [extra], metadata=entity_schema.metadata)
     name_map, _ = _lookups_from_arrow(full)
     assert "dataset" not in name_map
+
+
+def test_validate_bids_entities_accepts_schema_kwarg_namespace():
+    from bids2table._entities import validate_bids_entities
+
+    ns = bidsschematools.schema.load_schema()
+    valid, extra = validate_bids_entities({"sub": "A01", "task": "rest"}, schema=ns)
+    assert valid["sub"] == "A01"
+    assert valid["task"] == "rest"
+    assert extra == {}
+
+
+def test_validate_bids_entities_default_schema():
+    from bids2table._entities import validate_bids_entities
+
+    valid, extra = validate_bids_entities({"sub": "A01", "unknown": "x"})
+    assert valid["sub"] == "A01"
+    assert extra == {"unknown": "x"}
+
+
+def test_pyarrow_validate_entities_takes_only_pa_schema():
+    from bids2table._entities import _pyarrow_validate_entities
+
+    adapter = load_bids_schema()
+    pa_schema = entity_arrow_schema(adapter)
+    valid, extra = _pyarrow_validate_entities({"sub": "A01"}, pa_schema=pa_schema)
+    assert valid["sub"] == "A01"
+    assert extra == {}
