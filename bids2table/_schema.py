@@ -13,6 +13,7 @@ from functools import lru_cache
 from typing import Any, TypeAlias
 
 import bidsschematools.schema
+import pyarrow as pa
 from bidsschematools.types import Namespace
 
 from bids2table._pathlib import PathT
@@ -135,3 +136,33 @@ def load_bids_schema(spec: SchemaSpec = None) -> BIDSSchemaAdapter:
     raise TypeError(
         f"schema must be Namespace | str | PathT | None, got {type(spec).__name__}"
     )
+
+
+_BIDS_FORMAT_ARROW_DTYPE_MAP: dict[str, pa.DataType] = {
+    "index": pa.int32(),
+    "label": pa.string(),
+    "special": pa.string(),
+}
+
+
+@lru_cache
+def entity_arrow_schema(adapter: BIDSSchemaAdapter) -> pa.Schema:
+    """Construct a `pa.Schema` of the BIDS entity columns from `adapter`.
+
+    Per-field metadata carries the long entity name and the entity config
+    so that workers receiving only `pa.Schema` can reconstruct the lookups
+    they need (see `_lookups_from_arrow` in _entities.py).
+    """
+    fields = []
+    for entity, cfg in adapter.entity_schema.items():
+        name = cfg["name"]
+        dtype = _BIDS_FORMAT_ARROW_DTYPE_MAP[cfg["format"]]
+        metadata = encode_metadata({"entity": entity, **cfg})
+        fields.append(pa.field(name, dtype, metadata=metadata))
+    schema_metadata = encode_metadata(
+        {
+            "bids_version": adapter.bids_version,
+            "schema_version": adapter.schema_version,
+        }
+    )
+    return pa.schema(fields, metadata=schema_metadata)
