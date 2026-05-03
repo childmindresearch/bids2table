@@ -14,6 +14,7 @@ import pyarrow as pa
 from bidsschematools.types import Namespace
 
 from ._logging import setup_logger
+from ._schema import decode_metadata
 
 BIDSValue = str | int
 
@@ -242,6 +243,27 @@ def validate_bids_entities(
             extra_entities[name] = value
 
     return valid_entities, extra_entities
+
+
+@lru_cache
+def _lookups_from_arrow(
+    pa_schema: pa.Schema,
+) -> tuple[dict[str, str], dict[str, dict[str, Any]]]:
+    """Reconstruct (name_entity_map, entity_schema) from a `pa.Schema`.
+
+    Used inside `_pyarrow_validate_entities`. Filters out non-entity fields
+    (those without an "entity" key in their decoded metadata). `pa.Schema`
+    is hashable, so `lru_cache` keys correctly. The cache lives in the
+    worker process; one field-walk per worker per distinct schema.
+    """
+    name_entity_map: dict[str, str] = {}
+    entity_schema: dict[str, dict[str, Any]] = {}
+    for field in pa_schema:
+        meta = decode_metadata(field.metadata or {})
+        if long_entity := meta.pop("entity", None):
+            name_entity_map[field.name] = long_entity
+            entity_schema[long_entity] = meta
+    return name_entity_map, entity_schema
 
 
 def format_bids_path(entities: dict[str, Any], int_format: str = "%d") -> Path:
