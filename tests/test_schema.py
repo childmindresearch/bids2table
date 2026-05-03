@@ -1,6 +1,9 @@
+import functools
+from dataclasses import FrozenInstanceError
+
 import pytest
 
-from bids2table._schema import decode_metadata, encode_metadata
+from bids2table._schema import BIDSSchemaAdapter, decode_metadata, encode_metadata
 
 
 @pytest.mark.parametrize(
@@ -30,3 +33,54 @@ def test_encode_keeps_strings_verbatim():
 def test_encode_json_encodes_non_strings():
     encoded = encode_metadata({"enum": ["a", "b"]})
     assert encoded == {b"enum": b'["a", "b"]'}
+
+
+def _adapter(versions=("1.0.0", "0.1.0"), entities=None):
+    return BIDSSchemaAdapter(
+        bids_version=versions[0],
+        schema_version=versions[1],
+        entity_schema=entities or {"sub": {"name": "sub", "format": "label"}},
+    )
+
+
+def test_adapter_equal_when_all_fields_equal():
+    a = _adapter()
+    b = _adapter()
+    assert a == b
+    assert hash(a) == hash(b)
+
+
+def test_adapter_unequal_when_entity_schema_differs():
+    a = _adapter(entities={"sub": {"name": "sub"}})
+    b = _adapter(entities={"task": {"name": "task"}})
+    assert a != b
+    # Same versions → same hash bucket; eq fall-through distinguishes them.
+    assert hash(a) == hash(b)
+
+
+def test_adapter_unequal_and_different_hash_when_versions_differ():
+    a = _adapter(versions=("1.0.0", "0.1.0"))
+    b = _adapter(versions=("2.0.0", "0.1.0"))
+    assert a != b
+    assert hash(a) != hash(b)
+
+
+def test_adapter_lru_cache_distinguishes_same_version_different_content():
+    """A function memoized on the adapter must not collide across distinct
+    adapters that happen to share versions."""
+
+    @functools.lru_cache
+    def derive(adapter: BIDSSchemaAdapter) -> int:
+        return id(adapter.entity_schema)
+
+    a = _adapter(entities={"sub": {"name": "sub"}})
+    b = _adapter(entities={"task": {"name": "task"}})
+    assert derive(a) != derive(b)
+    # And cache hit on identical adapter:
+    assert derive(a) == derive(_adapter(entities={"sub": {"name": "sub"}}))
+
+
+def test_adapter_is_frozen():
+    a = _adapter()
+    with pytest.raises(FrozenInstanceError):
+        a.bids_version = "9.9.9"  # type: ignore[misc]
