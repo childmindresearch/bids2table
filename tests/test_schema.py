@@ -149,3 +149,40 @@ def test_entity_arrow_schema_is_cached():
     a = entity_arrow_schema(adapter)
     b = entity_arrow_schema(adapter)
     assert a is b
+
+
+def test_lookups_from_arrow_round_trips_with_adapter():
+    from bids2table._entities import _lookups_from_arrow
+
+    adapter = load_bids_schema()
+    schema = entity_arrow_schema(adapter)
+    name_entity_map, entity_cfg = _lookups_from_arrow(schema)
+
+    # Recovers entity schema content from the Arrow schema metadata.
+    assert entity_cfg == adapter.entity_schema
+    # The name-entity map is precomputed and included in memoized results.
+    assert name_entity_map == {
+        cfg["name"]: entity for entity, cfg in adapter.entity_schema.items()
+    }
+
+
+def test_lookups_from_arrow_is_cached():
+    from bids2table._entities import _lookups_from_arrow
+
+    adapter = load_bids_schema()
+    schema = entity_arrow_schema(adapter)
+    a = _lookups_from_arrow(schema)
+    b = _lookups_from_arrow(schema)
+    assert a is b
+
+
+def test_lookups_from_arrow_skips_non_entity_fields():
+    """Non-entity fields (no 'entity' key in metadata) must be skipped."""
+    from bids2table._entities import _lookups_from_arrow
+
+    adapter = load_bids_schema()
+    entity_schema = entity_arrow_schema(adapter)
+    extra = pa.field("dataset", pa.string(), metadata={b"name": b"dataset"})
+    full = pa.schema(list(entity_schema) + [extra], metadata=entity_schema.metadata)
+    name_map, _ = _lookups_from_arrow(full)
+    assert "dataset" not in name_map
