@@ -7,6 +7,7 @@ full design.
 """
 
 import json
+from dataclasses import dataclass, field
 from typing import Any
 
 
@@ -43,3 +44,21 @@ def decode_metadata(metadata: dict[bytes, bytes]) -> dict[str, Any]:
         except json.JSONDecodeError:
             out[k.decode()] = s
     return out
+
+
+@dataclass(frozen=True)
+class BIDSSchemaAdapter:
+    """Internal value object holding the BIDS schema components bids2table uses.
+
+    `entity_schema` is excluded from `__hash__` (its dict value is unhashable)
+    but included in `__eq__`. This means two adapters with the same
+    (bids_version, schema_version) hash identically; structural equality
+    falls through to compare `entity_schema`. `lru_cache` therefore treats
+    same-version-different-content adapters as distinct entries.
+
+    Not part of the public API.
+    """
+
+    bids_version: str
+    schema_version: str
+    entity_schema: dict[str, dict[str, Any]] = field(hash=False)
