@@ -3,15 +3,12 @@
 Uses the BIDS schema for validation.
 """
 
-import json
 import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-import bidsschematools.schema
 import pyarrow as pa
-from bidsschematools.types import Namespace
 
 from ._logging import setup_logger
 from ._schema import (
@@ -22,48 +19,6 @@ from ._schema import (
 )
 
 BIDSValue = str | int
-
-# Global BIDS schema namespace.
-_BIDS_SCHEMA: Namespace
-# Map of entity names to schema metadata.
-_BIDS_ENTITY_SCHEMA: dict[str, dict[str, Any]]
-# Map of BIDS short names (e.g. 'sub') to long entities ('subject').
-_BIDS_NAME_ENTITY_MAP: dict[str, str]
-
-# BIDS schema in Arrow format
-_BIDS_ENTITY_ARROW_SCHEMA: pa.Schema
-
-# "Special" entities that are part of the BIDS file name spec but not in the BIDS schema
-# (bc they don't follow the '{key}-{value}' format).
-_BIDS_SPECIAL_ENTITY_SCHEMA = {
-    "datatype": {
-        "name": "datatype",
-        "display_name": "Data type",
-        "description": "A functional group of different types of data.",
-        "type": "string",
-        "format": "special",
-    },
-    "suffix": {
-        "name": "suffix",
-        "display_name": "Suffix",
-        "description": "Final part of file name after final '_' and before extension.",
-        "type": "string",
-        "format": "special",
-    },
-    "extension": {
-        "name": "ext",
-        "display_name": "File extension",
-        "description": "Full file extension after the left-most period.",
-        "type": "string",
-        "format": "special",
-    },
-}
-
-_BIDS_FORMAT_ARROW_DTYPE_MAP = {
-    "index": pa.int32(),
-    "label": pa.string(),
-    "special": pa.string(),
-}
 
 _BIDS_FORMAT_PY_TYPE_MAP = {
     "index": int,
@@ -78,66 +33,6 @@ _BIDS_DATATYPE_PATTERN = re.compile(
 )
 
 _logger = setup_logger(__package__)
-
-
-def set_bids_schema(path: str | Path | None = None) -> None:
-    """Set the BIDS schema."""
-    global _BIDS_SCHEMA, _BIDS_ENTITY_SCHEMA, _BIDS_NAME_ENTITY_MAP
-    global _BIDS_ENTITY_ARROW_SCHEMA
-
-    schema = bidsschematools.schema.load_schema(path)
-    entity_schema = {
-        entity: schema.objects.entities[entity].to_dict()
-        for entity in schema.rules.entities
-    }
-    # Also include special extra entities (datatype, suffix, extension).
-    entity_schema.update(_BIDS_SPECIAL_ENTITY_SCHEMA)
-    name_entity_map = {cfg["name"]: entity for entity, cfg in entity_schema.items()}
-
-    _BIDS_SCHEMA = schema
-    _BIDS_ENTITY_SCHEMA = entity_schema
-    _BIDS_NAME_ENTITY_MAP = name_entity_map
-
-    _BIDS_ENTITY_ARROW_SCHEMA = _bids_entity_arrow_schema(
-        entity_schema,
-        bids_version=schema["bids_version"],
-        schema_version=schema["schema_version"],
-    )
-
-
-def _bids_entity_arrow_schema(
-    entity_schema: dict[str, dict[str, Any]],
-    bids_version: str,
-    schema_version: str,
-) -> pa.Schema:
-    """Create Arrow schema from BIDS entity schema."""
-    fields = []
-    for entity, cfg in entity_schema.items():
-        # Use short entity name (e.g. sub) as the field name.
-        name = cfg["name"]
-        dtype = _BIDS_FORMAT_ARROW_DTYPE_MAP[cfg["format"]]
-        # Insert full entity name (e.g. subject) into metadata.
-        metadata = {"entity": entity}
-        metadata.update(
-            {k: v if isinstance(v, str) else json.dumps(v) for k, v in cfg.items()}
-        )
-
-        field = pa.field(name, dtype, metadata=metadata)
-        fields.append(field)
-
-    metadata = {"bids_version": bids_version, "schema_version": schema_version}
-    arrow_schema = pa.schema(fields, metadata=metadata)
-    return arrow_schema
-
-
-def get_bids_schema() -> Namespace:
-    """Get the current BIDS schema."""
-    return _BIDS_SCHEMA
-
-
-def get_bids_entity_arrow_schema() -> pa.Schema:
-    """Get the current BIDS entity schema in Arrow format."""
-    return _BIDS_ENTITY_ARROW_SCHEMA
 
 
 def parse_bids_entities(path: str | Path) -> dict[str, str]:
@@ -317,7 +212,3 @@ def format_bids_path(entities: dict[str, Any], int_format: str = "%d") -> Path:
         path = f"ses-{ses}" / path
     path = f"sub-{entities['sub']}" / path
     return path
-
-
-# Initialize the default BIDS schema.
-set_bids_schema()
