@@ -242,6 +242,8 @@ def batch_index_dataset(
     max_workers: int | None = 0,
     executor_cls: type[Executor] = ProcessPoolExecutor,
     show_progress: bool = False,
+    *,
+    schema: SchemaSpec = None,
 ) -> Generator[pa.Table, None, None]:
     """Index a batch of BIDS datasets.
 
@@ -253,14 +255,16 @@ def batch_index_dataset(
             `concurrent.futures.ProcessPoolExecutor` for details.
         executor_cls: Executor class to use for parallel indexing.
         show_progress: Show progress bar.
+        schema: Optional `SchemaSpec`. `None` uses the default BIDS schema.
 
     Yields:
         An Arrow table index for each BIDS dataset.
     """
+    func = partial(_batch_index_func, schema=schema)
     file_count = 0
     for dataset, table in (
         pbar := tqdm(
-            _pmap(_batch_index_func, roots, max_workers, executor_cls=executor_cls),
+            _pmap(func, roots, max_workers, executor_cls=executor_cls),
             total=len(roots) if isinstance(roots, Sequence) else None,
             disable=show_progress not in {True, "dataset"},
         )
@@ -270,9 +274,11 @@ def batch_index_dataset(
         yield table
 
 
-def _batch_index_func(root: str | PathT) -> tuple[str | None, pa.Table]:
+def _batch_index_func(
+    root: str | PathT, *, schema: SchemaSpec = None
+) -> tuple[str | None, pa.Table]:
     dataset, _ = _get_bids_dataset(root)
-    table = index_dataset(root, show_progress=False)
+    table = index_dataset(root, show_progress=False, schema=schema)
     return dataset, table
 
 
