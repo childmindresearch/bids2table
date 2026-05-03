@@ -2,6 +2,7 @@ import functools
 from dataclasses import FrozenInstanceError
 
 import bidsschematools.schema
+import pyarrow as pa
 import pytest
 
 from bids2table._schema import (
@@ -9,6 +10,8 @@ from bids2table._schema import (
     _build_adapter_from_namespace,
     decode_metadata,
     encode_metadata,
+    entity_arrow_schema,
+    load_bids_schema,
 )
 
 
@@ -100,25 +103,19 @@ def test_build_adapter_from_namespace_uses_versions_and_entities():
     assert adapter.schema_version == ns["schema_version"]
 
     # All entities listed in rules.entities are present.
-    for entity in ns.rules.entities:
-        assert entity in adapter.entity_schema
+    assert set(ns.rules.entities) <= adapter.entity_schema.keys()
 
     # Special entities are added.
-    for special in ("datatype", "suffix", "extension"):
-        assert special in adapter.entity_schema
+    assert {"datatype", "suffix", "extension"} <= adapter.entity_schema.keys()
 
 
 def test_load_bids_schema_default_is_cached():
-    from bids2table._schema import load_bids_schema
-
     a = load_bids_schema()
     b = load_bids_schema(None)
     assert a is b
 
 
 def test_load_bids_schema_namespace_path_returns_equal_but_fresh():
-    from bids2table._schema import load_bids_schema
-
     ns = bidsschematools.schema.load_schema()
     a = load_bids_schema(ns)
     b = load_bids_schema(ns)
@@ -128,7 +125,27 @@ def test_load_bids_schema_namespace_path_returns_equal_but_fresh():
 
 
 def test_load_bids_schema_rejects_unsupported_type():
-    from bids2table._schema import load_bids_schema
-
     with pytest.raises(TypeError):
         load_bids_schema(42)  # type: ignore[arg-type]
+
+
+def test_entity_arrow_schema_metadata_is_bytes():
+    adapter = load_bids_schema()
+    schema = entity_arrow_schema(adapter)
+    assert isinstance(schema, pa.Schema)
+    assert schema.metadata[b"bids_version"].decode() == adapter.bids_version
+    assert schema.metadata[b"schema_version"].decode() == adapter.schema_version
+
+
+def test_entity_arrow_schema_field_carries_entity_metadata():
+    adapter = load_bids_schema()
+    schema = entity_arrow_schema(adapter)
+    sub_field = schema.field("sub")
+    assert sub_field.metadata[b"entity"] == b"subject"
+
+
+def test_entity_arrow_schema_is_cached():
+    adapter = load_bids_schema()
+    a = entity_arrow_schema(adapter)
+    b = entity_arrow_schema(adapter)
+    assert a is b
