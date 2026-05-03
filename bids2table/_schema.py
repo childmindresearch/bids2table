@@ -10,6 +10,8 @@ import json
 from dataclasses import dataclass, field
 from typing import Any
 
+from bidsschematools.types import Namespace
+
 
 def encode_metadata(metadata: dict[str, Any]) -> dict[bytes, bytes]:
     """Encode a metadata dict for use as `pa.field(metadata=...)`.
@@ -62,3 +64,42 @@ class BIDSSchemaAdapter:
     bids_version: str
     schema_version: str
     entity_schema: dict[str, dict[str, Any]] = field(hash=False)
+
+
+_BIDS_SPECIAL_ENTITY_SCHEMA: dict[str, dict[str, Any]] = {
+    "datatype": {
+        "name": "datatype",
+        "display_name": "Data type",
+        "description": "A functional group of different types of data.",
+        "type": "string",
+        "format": "special",
+    },
+    "suffix": {
+        "name": "suffix",
+        "display_name": "Suffix",
+        "description": "Final part of file name after final '_' and before extension.",
+        "type": "string",
+        "format": "special",
+    },
+    "extension": {
+        "name": "ext",
+        "display_name": "File extension",
+        "description": "Full file extension after the left-most period.",
+        "type": "string",
+        "format": "special",
+    },
+}
+
+
+def _build_adapter_from_namespace(schema: Namespace) -> BIDSSchemaAdapter:
+    """Build a `BIDSSchemaAdapter` from a loaded `bidsschematools` Namespace."""
+    entity_schema = {
+        entity: schema.objects.entities[entity].to_dict()
+        for entity in schema.rules.entities
+    }
+    entity_schema.update(_BIDS_SPECIAL_ENTITY_SCHEMA)
+    return BIDSSchemaAdapter(
+        bids_version=schema["bids_version"],
+        schema_version=schema["schema_version"],
+        entity_schema=entity_schema,
+    )
