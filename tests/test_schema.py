@@ -1,9 +1,15 @@
 import functools
 from dataclasses import FrozenInstanceError
 
+import bidsschematools.schema
 import pytest
 
-from bids2table._schema import BIDSSchemaAdapter, decode_metadata, encode_metadata
+from bids2table._schema import (
+    BIDSSchemaAdapter,
+    _build_adapter_from_namespace,
+    decode_metadata,
+    encode_metadata,
+)
 
 
 @pytest.mark.parametrize(
@@ -84,3 +90,19 @@ def test_adapter_is_frozen():
     a = _adapter()
     with pytest.raises(FrozenInstanceError):
         a.bids_version = "9.9.9"  # type: ignore[misc]
+
+
+def test_build_adapter_from_namespace_uses_versions_and_entities():
+    ns = bidsschematools.schema.load_schema()
+    adapter = _build_adapter_from_namespace(ns)
+
+    assert adapter.bids_version == ns["bids_version"]
+    assert adapter.schema_version == ns["schema_version"]
+
+    # All entities listed in rules.entities are present.
+    for entity in ns.rules.entities:
+        assert entity in adapter.entity_schema
+
+    # Special entities are added.
+    for special in ("datatype", "suffix", "extension"):
+        assert special in adapter.entity_schema
