@@ -3,7 +3,6 @@ from pathlib import Path
 import pytest
 
 from bids2table._metadata import load_bids_metadata
-from bids2table._pathlib import cloudpathlib_is_available
 
 BIDS_EXAMPLES = Path(__file__).parents[1] / "bids-examples"
 
@@ -24,9 +23,7 @@ def test_load_bids_metadata(inherit: bool):
     assert metadata == expected_metadata
 
 
-@pytest.mark.skipif(
-    not cloudpathlib_is_available(), reason="cloudpathlib not installed"
-)
+@pytest.mark.cloud
 def test_load_bids_metadata_s3():
     path = (
         "s3://openneuro.org/ds000102/sub-01/func/sub-01_task-flanker_run-1_bold.nii.gz"

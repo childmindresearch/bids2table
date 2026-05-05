@@ -7,7 +7,6 @@ import pytest
 from pytest import LogCaptureFixture
 
 import bids2table._indexing as indexing
-from bids2table._pathlib import cloudpathlib_is_available
 
 BIDS_EXAMPLES = Path(__file__).parents[1] / "bids-examples"
 
@@ -52,9 +51,7 @@ def test_find_bids_datasets():
     assert datasets_no_derivatives == expected_datasets_no_derivatives
 
 
-@pytest.mark.skipif(
-    not cloudpathlib_is_available(), reason="cloudpathlib not installed"
-)
+@pytest.mark.cloud
 def test_find_bids_datasets_s3():
     root = "s3://openneuro.org"
     datasets = list(islice(indexing.find_bids_datasets(root, maxdepth=2), 10))
@@ -80,9 +77,7 @@ def test_index_dataset(root: str, expected_count: int):
     assert len(table) == expected_count
 
 
-@pytest.mark.skipif(
-    not cloudpathlib_is_available(), reason="cloudpathlib not installed"
-)
+@pytest.mark.cloud
 def test_index_dataset_s3():
     root = "s3://openneuro.org/ds000102"
     expected_count = 130
