@@ -69,4 +69,7 @@ lint.extend-select = ["I"]
 [tool.pytest.ini_options]
 log_cli = true
 log_cli_level = "INFO"
-markers = ["cloud: Tests requiring cloud group dependencies"]
+markers = [
+    "benchmark: Tests used for benchmarking",
+    "cloud: Tests requiring cloud group dependencies",
+]
