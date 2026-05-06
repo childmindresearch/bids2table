@@ -43,15 +43,12 @@ s3 = [
 ]
 
 [package.dev-dependencies]
-benchmark = [
-    { name = "polars" },
-    { name = "pytest" },
-    { name = "pytest-benchmark" },
-]
 dev = [
     { name = "pdoc" },
+    { name = "polars" },
     { name = "pre-commit" },
     { name = "pytest" },
+    { name = "pytest-benchmark" },
     { name = "pytest-cov" },
     { name = "ruff" },
 ]
@@ -68,15 +65,12 @@ requires-dist = [
 provides-extras = ["cloud", "s3", "pybids"]
 
 [package.metadata.requires-dev]
-benchmark = [
-    { name = "polars", specifier = ">=1.40.1" },
-    { name = "pytest", specifier = ">=9.0.3" },
-    { name = "pytest-benchmark", specifier = ">=5.2.3" },
-]
 dev = [
     { name = "pdoc", specifier = ">=16.0.0" },
+    { name = "polars", specifier = ">=1.40.1" },
     { name = "pre-commit", specifier = ">=4.6.0" },
     { name = "pytest", specifier = ">=9.0.3" },
+    { name = "pytest-benchmark", specifier = ">=5.2.3" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
     { name = "ruff", specifier = ">=0.15.13" },
 ]
@@ -105,9 +99,7 @@ dependencies = [
     { name = "s3transfer" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/67/2f/c4159fa45079b41f11ad17d8c5df8e1d10169b94d1e4240df5be116d3f0a/boto3-1.43.12.tar.gz", hash = "sha256:4a60cdf02c52cb0a60f8dbc986142ce2c31e87e3df1438ffe6755b83008f3e4e", size = 113142, upload-time = "2026-05-20T19:38:13.163Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/a2/35/b7ab4b6977811f9887405e24460640033c22f4515cf1e904480710bd6296/boto3-1.43.12-py3-none-any.whl", hash = "sha256:685c3e6093455623bfc22dac55b4946ea243095252f7f9c11a99d84b38033bcf", size = 140537, upload-time = "2026-05-20T19:38:09.995Z" },
-]
+
 
 [[package]]
 name = "botocore"

@@ -35,7 +35,7 @@ jobs:
           ref: ${{ matrix.target.ref }}
           submodules: true
       - uses: astral-sh/setup-uv@v8.1.0
-      - run: uv sync --group "benchmark" --extra "cloud"
+      - run: uv sync --extra "cloud"
       - name: Run benchmarks
         run: |
           uv run .github/scripts/run_benchmarks.py \ 
@@ -51,7 +51,6 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: astral-sh/setup-uv@v8.1.0
-      - run: uv sync --group "benchmark"
       - uses: actions/download-artifact@v8
         with:
           pattern: benchmark-*

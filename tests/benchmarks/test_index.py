@@ -67,6 +67,7 @@ def _run_benchmark(
 
 
 @pytest.mark.benchmark
+@pytest.mark.cloud
 def test_openneuro(benchmark: BenchmarkFixture, tmp_path: Path) -> None:
     """Benchmark b2t2 with a subset of datasets on OpenNeuro."""
     workers = 4
