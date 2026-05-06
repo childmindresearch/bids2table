@@ -4,31 +4,38 @@ on:
   pull_request:
     branches: [ "main" ]
 
+permissions:
+  pull-requests: write
 jobs:
-  get-tag:
+  prep:
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.last_tag.outputs.tag }}
+      short_sha: ${{ steps.short.outputs.sha }}
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-tags: true
           fetch-depth: 0
       - id: last_tag
-        run: echo ="tag=$(git describe --tags --abbrev=0)" >> $GITHUB_OUTPUT
+        run: echo "tag=$(git describe --tags --abbrev=0)" >> $GITHUB_OUTPUT
+      - id: short
+        run: echo "sha=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
 
   benchmark:
-    needs: get-tag
+    needs: prep
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         target:
-          - name: pr
+          - name: ${{ needs.prep.outputs.short_sha }}
             ref: ${{ github.sha }}
           - name: main
             ref: main
-          - name: ${{ needs.get_tag.outputs.tag }}
-            ref: ${{ needs.get_tag.outputs.tag }}
+          # Tag comparison disabled until next release (missing benchmark dependencies)
+          # - name: ${{ needs.prep.outputs.tag }}
+          #   ref: ${{ needs.prep.outputs.tag }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -38,15 +45,19 @@ jobs:
       - run: uv sync --extra "cloud"
       - name: Run benchmarks
         run: |
-          uv run .github/scripts/run_benchmarks.py \ 
-            --output benchmark-${{matrix.target.name }}.json
+          FILENAME="benchmark-${{ matrix.target.name }}-PR-${{ github.event.pull_request.number }}.json"
+          uv run .github/scripts/run_benchmarks.py --output "$FILENAME"
+          echo "REPORT_PATH=$FILENAME" >> $GITHUB_ENV
       - uses: actions/upload-artifact@v7
         with:
-          name: benchmark-${{ matrix.target.name }}
-          path: benchmark-${{ matrix.target.name }}.json
+          name: benchmark-${{ matrix.target.name }}-PR-${{
+            github.event.pull_request.number }}
+          path: ${{ env.REPORT_PATH }}
+          retention-days: 1
+          overwrite: true
 
   report:
-    needs: [ get-tag, benchmark ]
+    needs: [ prep, benchmark ]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -54,8 +65,25 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           pattern: benchmark-*
+          merge-multiple: true
+          path: benchmark-results
       - name: Generate report
         run: |
           uv run .github/scripts/compare_benchmarks.py \
-            --output benchmarks.md \
-            --pattern benchmark-*.json
+            --output "benchmarks.md" \
+            --pattern "benchmark-results/benchmark-*-PR-${{ github.event.pull_request.number }}.json"
+      - name: Find Comment
+        uses: peter-evans/find-comment@v3
+        id: fc
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: "github-actions[bot]"
+          body-includes: "Benchmark Results"
+
+      - name: Create / update comment
+        uses: peter-evans/create-or-update-comment@v5
+        with:
+          comment-id: ${{ steps.fc.outputs.comment-id }}
+          issue-number: ${{ github.event.pull_request.number }}
+          body-path: "benchmarks.md"
+          edit-mode: replace

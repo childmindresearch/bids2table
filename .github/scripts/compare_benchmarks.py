@@ -2,9 +2,16 @@
 """Compare benchmark results across PR, main, and tag and output a markdown table."""
 
 import json
+import logging
+import re
 import statistics
 from pathlib import Path
 from typing import Literal, NamedTuple
+
+_logger = logging.getLogger(__name__)
+
+
+ALERT = 250  # Value (arbitrary; in ms) to indicate difference between benchmarks
 
 
 class BenchmarkResult(NamedTuple):
@@ -64,9 +71,9 @@ def _delta(pr: BenchmarkResult, ref: BenchmarkResult) -> str:
     if ref == 0:
         return "N/A"
     diff = _scale(pr.median - ref.median)
-    pct = (pr.median / ref.median - 1) * 100
-    icon = "🔴" if pct > 5 else "🟢" if pct < -5 else "⚪"
-    return f"{icon} {diff:+.3f} ms ({pct:+.1f}%)"
+    # Indicator for 250ms absolute diff (arbitrary)
+    icon = "🔴" if diff > ALERT else "🟢" if diff < -ALERT else "⚪"
+    return f"{icon} {diff:+.3f}ms"
 
 
 def _label(result: BenchmarkResult) -> str:
@@ -83,10 +90,13 @@ def _label(result: BenchmarkResult) -> str:
 def build_table(
     pr: dict[str, BenchmarkResult],
     main: dict[str, BenchmarkResult],
-    tag: dict[str, BenchmarkResult],
-    tag_name: str,
+    tag: dict[str, BenchmarkResult] = {},
+    tag_name: str | None = None,
 ) -> str:
     all_keys = set(pr) | set(main) | set(tag)
+    all_keys = sorted(
+        all_keys, key=lambda x: (0 if "index" in x else 1 if "query" in x else 2, x)
+    )
     labels = [_label((pr.get(k) or main.get(k) or tag.get(k))) for k in all_keys]
 
     col_sep = " | "
@@ -110,14 +120,14 @@ def build_table(
         divider,
         row("PR", pr),
         row("main", main),
-        row(tag_name, tag),
+        # row(tag_name, tag),
         divider.replace("-", ""),
         delta_row("PR vs main", main),
-        delta_row(f"PR vs {tag_name}", tag),
+        # delta_row(f"PR vs {tag_name}", tag),
         "",
         "> `median (mean ± std)`",
         "> ",
-        "🔴 >5% slower &nbsp; ⚪ within 5% &nbsp; 🟢 >5% faster",
+        f"> 🔴 >{ALERT}ms slower &nbsp; ⚪ within {ALERT}ms &nbsp; 🟢 >{ALERT}ms faster",
     ]
     return "\n".join(lines)
 
@@ -134,27 +144,33 @@ def main():
     parser.add_argument(
         "-o",
         "--output",
+        type=Path,
         help="Output markdown filepath containing benchmark comparisons",
     )
     args = parser.parse_args()
 
     files = sorted(Path(".").glob(args.pattern))
-    assert len(files) == 3, f"Expected 3 files, found {len(files)}: {files}"
+    assert len(files) > 1, "Expected more than 1 file for benchmark comparison."
 
     # Infer pr/main/tag from directory name
     parsed: dict[str, BenchmarkResult] = {}
     tag = None
     for f in files:
-        stem = f.parent.name  # e.g. "benchmark-pr"
-        key = stem.split("-")[-1]  # "pr", "main", tag
-        if key not in ("pr", "main"):
+        stem = f.name  # e.g. "benchmark-pr-PR-#"
+        key = stem.split("-")[1]  # commit-sha, "main", tag
+
+        # Special cases
+        if re.match(r"^v\d+\.\d+.\d+$", key):
             tag = key
+        elif key != "main":
+            key = "pr"
+
         parsed[key] = parse_file(f)
     if tag is None:
-        raise ValueError("Unknown tag")
-    table = build_table(parsed["pr"], parsed["main"], parsed[tag], tag_name=tag)
+        _logger.warning("Tag not found")
+    table = build_table(parsed["pr"], parsed["main"], parsed.get(tag, {}), tag_name=tag)
     args.output.write_text(table)
-    print(table)
+    _logger.info(table)
 
 
 if __name__ == "__main__":

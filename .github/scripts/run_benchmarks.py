@@ -14,7 +14,7 @@ def main():
     pytest.main(
         [
             "-m",
-            "benchmark and not cloud",
+            "benchmark",
             "--benchmark-save-data",
             f"--benchmark-json={args.output}",
             "--benchmark-time-unit=ms",
