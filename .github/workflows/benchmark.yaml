@@ -1,0 +1,62 @@
+name: Benchmark
+
+on:
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  get-tag:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.last_tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-tags: true
+          fetch-depth: 0
+      - id: last_tag
+        run: echo ="tag=$(git describe --tags --abbrev=0)" >> $GITHUB_OUTPUT
+
+  benchmark:
+    needs: get-tag
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target:
+          - name: pr
+            ref: ${{ github.sha }}
+          - name: main
+            ref: main
+          - name: ${{ needs.get_tag.outputs.tag }}
+            ref: ${{ needs.get_tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ matrix.target.ref }}
+          submodules: true
+      - uses: astral-sh/setup-uv@v8.1.0
+      - run: uv sync --group "benchmark" --extra "cloud"
+      - name: Run benchmarks
+        run: |
+          uv run .github/scripts/run_benchmarks.py \ 
+            --output benchmark-${{matrix.target.name }}.json
+      - uses: actions/upload-artifact@v7
+        with:
+          name: benchmark-${{ matrix.target.name }}
+          path: benchmark-${{ matrix.target.name }}.json
+
+  report:
+    needs: [ get-tag, benchmark ]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v8.1.0
+      - run: uv sync --group "benchmark"
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: benchmark-*
+      - name: Generate report
+        run: |
+          uv run .github/scripts/compare_benchmarks.py \
+            --output benchmarks.md \
+            --pattern benchmark-*.json
