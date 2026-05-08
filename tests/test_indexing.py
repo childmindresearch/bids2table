@@ -275,7 +275,9 @@ def test_index_dataset_propagates_schema_to_workers(tmp_path):
 
     ns = deepcopy(bidsschematools.schema.load_schema())
     ns.objects.entities.subject["description"] = "Modified again"
-    table = indexing.index_dataset(tmp_path / "ds", schema=ns, max_workers=2, chunksize=1)
+    table = indexing.index_dataset(
+        tmp_path / "ds", schema=ns, max_workers=2, chunksize=1
+    )
     assert table.num_rows == 1
     assert table.schema.field("sub").metadata[b"description"] == b"Modified again"
 
