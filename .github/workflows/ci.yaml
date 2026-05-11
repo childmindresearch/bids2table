@@ -2,17 +2,15 @@ name: CI
 
 permissions:
   contents: read
-  pull-requests: write
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 env:
   UV_FROZEN: true
-  COVERAGE_PYTHON: "3.12"
 
 jobs:
   format:
@@ -33,7 +31,7 @@ jobs:
     needs: format
     strategy:
       matrix:
-        python-version: [ "3.11", "3.12", "3.13", "3.14" ]
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@v6
         with:
@@ -68,10 +66,10 @@ jobs:
             pytest-cloud.xml \
             pytest.xml
 
-      - name: Pytest coverage comment
-        if: github.event_name == 'pull_request' && matrix.python-version ==
-          env.COVERAGE_PYTHON
-        uses: MishaKav/pytest-coverage-comment@v1
+      - uses: actions/upload-artifact@v7
+        if: github.event_name == 'pull_request' && matrix.python-version == '3.12'
         with:
-          pytest-xml-coverage-path: ./coverage.xml
-          junitxml-path: ./pytest.xml
+          name: coverage-${{ github.event.number }}
+          path: |
+            coverage.xml
+            pytest.xml
