@@ -78,7 +78,7 @@ class BIDSLayout:
         # b2t always validates, so we can contiue
 
         # Load or create index
-        self._tab = self._load_or_create_index()
+        self._tab = self._load_or_create_index().flatten()
 
         # Handle derivatives
         if derivatives is not None:
