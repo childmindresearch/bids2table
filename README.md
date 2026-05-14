@@ -23,7 +23,7 @@ pip install bids2table[cloud]
 ```
 
 > [!WARNING]
-> Previous version only supported s3. s3 installation is still supported, but will be deprecated in the next version. Please update any installation scripts.
+> Previous version only supported s3 cloud storage. `s3` dependency group installation is still supported, but will be deprecated in the next version. Please update any installation scripts to use the `cloud` dependency group.
 
 The latest development version can be installed with
 
