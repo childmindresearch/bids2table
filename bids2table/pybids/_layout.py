@@ -34,7 +34,6 @@ class BIDSLayout:
 
     Args:
         root: Path to BIDS dataset root
-        validate: Whether to validate BIDS compliance (currently ignored)
         derivatives: Path(s) to derivative datasets to include
         cache_path: Path to parquet cache file (default: {root}/.bids2table_cache.parquet)
         database_path: Legacy parameter (ignored, use cache_path instead)
@@ -49,7 +48,6 @@ class BIDSLayout:
     def __init__(
         self,
         root: Union[str, Path],
-        validate: bool = True,
         derivatives: Optional[Union[str, Path, List[Union[str, Path]]]] = None,
         cache_path: Optional[Path] = None,
         database_path: Optional[Path] = None,
@@ -75,8 +73,6 @@ class BIDSLayout:
         else:
             self.cache_path = Path(cache_path)
 
-        # b2t always validates, so we can contiue
-
         # Load or create index
         self._tab = self._load_or_create_index().flatten()
 
@@ -88,7 +84,7 @@ class BIDSLayout:
         entity_schema = self._tab.schema
         self._entity_map = {}
         for entity in entity_schema:
-            # Pull the name (uesd by B2T) and entity (used by pyBIDS) labels
+            # Pull the name (used by B2T) and entity (used by pyBIDS) labels
             name = entity.metadata[b"name"]
             dname = entity.metadata.get(b"entity", name)
             # Decode them from bytestrings into real strings, and store
