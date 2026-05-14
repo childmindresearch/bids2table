@@ -449,3 +449,7 @@ class BIDSLayout:
             f"BIDSLayout(root='{self.root}', "
             f"subjects={n_subjects}, sessions={n_sessions}, files={n_files})"
         )
+
+    def to_df(self) -> pd.DataFrame:
+        """Explicit method to return converted dataframe, mirroring pybids."""
+        return self.df
