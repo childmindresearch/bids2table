@@ -7,7 +7,7 @@ while leveraging bids2table's superior performance.
 
 import warnings
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 import pandas as pd
 import pyarrow as pa
@@ -47,10 +47,10 @@ class BIDSLayout:
 
     def __init__(
         self,
-        root: Union[str, Path],
-        derivatives: Optional[Union[str, Path, List[Union[str, Path]]]] = None,
-        cache_path: Optional[Path] = None,
-        database_path: Optional[Path] = None,
+        root: str | Path,
+        derivatives: str | Path | list[str | Path] | None = None,
+        cache_path: Path | None = None,
+        database_path: Path | None = None,
         reset_database: bool = False,
         **kwargs,
     ):
@@ -162,7 +162,7 @@ class BIDSLayout:
 
         return tab
 
-    def _add_derivatives(self, derivatives: Union[str, Path, List[Union[str, Path]]]):
+    def _add_derivatives(self, derivatives: str | Path | list[str | Path]):
         """
         Add derivative datasets to the index.
 
@@ -192,7 +192,7 @@ class BIDSLayout:
         if deriv_tabs:
             self._tab = pa.concat_tables([self._tab] + deriv_tabs)
 
-    def get(self, return_type: str = "file", **entities) -> List[Union[str, BIDSFile]]:
+    def get(self, return_type: str = "file", **entities) -> list[str | BIDSFile]:
         """
         Query files by BIDS entities.
 
@@ -265,7 +265,7 @@ class BIDSLayout:
                 "Valid options: 'file', 'filename', 'id', 'dir'"
             )
 
-    def get_subjects(self, **filters) -> List[str]:
+    def get_subjects(self, **filters) -> list[str]:
         """
         Get list of unique subject IDs.
 
@@ -294,7 +294,7 @@ class BIDSLayout:
 
         return sorted(subjects.tolist())
 
-    def get_sessions(self, subject: Optional[str] = None, **filters) -> List[str]:
+    def get_sessions(self, subject: str | None = None, **filters) -> list[str]:
         """
         Get list of unique session IDs.
 
@@ -326,7 +326,7 @@ class BIDSLayout:
         sessions = result_df["ses"].dropna().unique()
         return sorted(sessions.tolist())
 
-    def get_metadata(self, path: str) -> Dict[str, Any]:
+    def get_metadata(self, path: str) -> dict[str, Any]:
         """
         Load metadata from JSON sidecar(s) for a given file.
 
@@ -366,7 +366,7 @@ class BIDSLayout:
         """
         return BIDSFile(path)
 
-    def get_entities(self, **filters) -> Dict[str, List[str]]:
+    def get_entities(self, **filters) -> dict[str, list[str]]:
         """
         Get dictionary of all entities and their unique values.
 
@@ -406,7 +406,10 @@ class BIDSLayout:
         return entities
 
     def add_custom_entity(
-        self, name: str, values: Union[List, Dict, Any], overwrite: bool = False
+        self,
+        name: str,
+        values: list[Any] | dict[str, Any] | Any,
+        overwrite: bool = False,
     ):
         """
         Add a custom entity column to the layout.
