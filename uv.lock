@@ -35,6 +35,9 @@ dependencies = [
 cloud = [
     { name = "cloudpathlib", extra = ["gs", "s3"] },
 ]
+pybids = [
+    { name = "pandas" },
+]
 s3 = [
     { name = "cloudpathlib", extra = ["s3"] },
 ]
@@ -54,10 +57,11 @@ requires-dist = [
     { name = "bidsschematools", specifier = ">=1.0" },
     { name = "cloudpathlib", extras = ["gs", "s3"], marker = "extra == 'cloud'", specifier = ">=0.21.0" },
     { name = "cloudpathlib", extras = ["s3"], marker = "extra == 's3'", specifier = ">=0.21.0" },
+    { name = "pandas", marker = "extra == 'pybids'", specifier = ">=2.0.0" },
     { name = "pyarrow", specifier = ">=24.0.0" },
     { name = "tqdm", specifier = ">=4.67.3" },
 ]
-provides-extras = ["cloud", "s3"]
+provides-extras = ["cloud", "s3", "pybids"]
 
 [package.metadata.requires-dev]
 dev = [
