@@ -68,9 +68,10 @@ jobs:
             pytest-cloud.xml \
             pytest.xml
 
+      # Disabled for forks because GITHUB_TOKEN doesn't have permissions to comment
       - name: Pytest coverage comment
         if: github.event_name == 'pull_request' && matrix.python-version ==
-          env.COVERAGE_PYTHON
+          env.COVERAGE_PYTHON && !github.event.pull_request.head.repo.fork
         uses: MishaKav/pytest-coverage-comment@v1
         with:
           pytest-xml-coverage-path: ./coverage.xml
