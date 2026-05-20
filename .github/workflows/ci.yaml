@@ -11,6 +11,7 @@ on:
 
 env:
   UV_FROZEN: true
+  COVERAGE_PYTHON: "3.12"
 
 jobs:
   format:
@@ -66,10 +67,16 @@ jobs:
             pytest-cloud.xml \
             pytest.xml
 
+      - name: Record PR number
+        if: github.event_name == 'pull_request' && matrix.python-version == env.COVERAGE_PYTHON
+        run: echo "${{ github.event.number }}" > pr-number.txt
+
       - uses: actions/upload-artifact@v7
-        if: github.event_name == 'pull_request' && matrix.python-version == '3.12'
+        if: github.event_name == 'pull_request' && matrix.python-version == env.COVERAGE_PYTHON
         with:
-          name: coverage-${{ github.event.number }}
+          name: coverage
+          retention-days: 1
           path: |
             coverage.xml
             pytest.xml
+            pr-number.txt
