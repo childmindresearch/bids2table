@@ -10,25 +10,36 @@ Index [BIDS](https://bids-specification.readthedocs.io/en/stable/) datasets fast
 
 ## Installation
 
-To install the latest release from pypi, you can run
+Install the core package using `pip`:
 
 ```sh
 pip install bids2table
 ```
 
-To install with cloud support, include the `cloud` extra
+### Variants
 
-```sh
-pip install bids2table[cloud]
-```
+Depending on your use case, you may need extra dependencies. Choose the option that
+matches your use case:
+
+| If you want to... | Run this command |
+| - | - |
+| Add cloud storage support (S3, GCS) | `pip install bids2table[cloud]` |
+| Enable `pybids` compatibility | `pip install bids2table[pybids]` |
+| Install everything | `pip install bids2table[cloud,pybids]` |
+
 
 > [!WARNING]
-> Previous version only supported s3 cloud storage. `s3` dependency group installation is still supported, but will be deprecated in the next version. Please update any installation scripts to use the `cloud` dependency group.
+> *Deprecation Warning:* Previous versions used `bids2table[s3]` for cloud support.
+> While the `s3` extra still works for now, it will be removed in the next major
+> release. Please update your installation scripts to use `[cloud]`.
 
-The latest development version can be installed with
+### Development Version
+
+To test out the absolute latest features directly from the main branch, install
+directly from GitHub:
 
 ```sh
-pip install "bids2table[cloud] @ git+https://github.com/childmindresearch/bids2table.git"
+pip install "bids2table[cloud,pybids] @ git+https://github.com/childmindresearch/bids2table.git"
 ```
 
 ## Usage
