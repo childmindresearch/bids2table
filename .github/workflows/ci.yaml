@@ -40,6 +40,7 @@ jobs:
       - uses: astral-sh/setup-uv@v8.1.0
         with:
           python-version: ${{ matrix.python-version }}
+      - run: uv sync --all-extras
 
       - name: Run tests without cloudpathlib
         run: |
@@ -52,7 +53,7 @@ jobs:
 
       - name: Run tests with cloudpathlib
         run: |
-          uv run --extra cloud pytest \
+          uv run pytest \
             -m "cloud" \
             --junitxml=pytest-cloud.xml \
             --cov-report=xml:coverage.xml \
