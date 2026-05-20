@@ -30,7 +30,7 @@ matches your use case:
 
 > [!WARNING]
 > *Deprecation Warning:* Previous versions used `bids2table[s3]` for cloud support.
-> While the `s3` extra still works for now, it will be removed in the next major
+> While `[s3]`  still works for now, it will be removed in the next major
 > release. Please update your installation scripts to use `[cloud]`.
 
 ### Development Version
