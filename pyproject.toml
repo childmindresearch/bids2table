@@ -36,7 +36,7 @@ pybids = ["pandas>=2.0.0"]
 
 [dependency-groups]
 dev = [
-    "pandas==3.0.2",
+    "pandas==3.0.3",
     "pdoc>=16.0.0",
     "pre-commit>=4.6.0",
     "pytest>=9.0.3",
