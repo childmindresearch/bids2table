@@ -348,7 +348,7 @@ class BIDSLayout:
         if not Path(path).is_absolute():
             path = str(self.root / path)
 
-        return load_bids_metadata(path, str(self.root))
+        return load_bids_metadata(path)
 
     def get_file(self, path: str) -> BIDSFile:
         """
