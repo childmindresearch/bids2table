@@ -7,7 +7,7 @@ while leveraging bids2table's superior performance.
 
 import warnings
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 import pandas as pd
 import pyarrow as pa
@@ -34,7 +34,6 @@ class BIDSLayout:
 
     Args:
         root: Path to BIDS dataset root
-        validate: Whether to validate BIDS compliance (currently ignored)
         derivatives: Path(s) to derivative datasets to include
         cache_path: Path to parquet cache file (default: {root}/.bids2table_cache.parquet)
         database_path: Legacy parameter (ignored, use cache_path instead)
@@ -48,11 +47,10 @@ class BIDSLayout:
 
     def __init__(
         self,
-        root: Union[str, Path],
-        validate: bool = True,
-        derivatives: Optional[Union[str, Path, List[Union[str, Path]]]] = None,
-        cache_path: Optional[Path] = None,
-        database_path: Optional[Path] = None,
+        root: str | Path,
+        derivatives: str | Path | list[str | Path] | None = None,
+        cache_path: Path | None = None,
+        database_path: Path | None = None,
         reset_database: bool = False,
         **kwargs,
     ):
@@ -75,10 +73,8 @@ class BIDSLayout:
         else:
             self.cache_path = Path(cache_path)
 
-        # b2t always validates, so we can contiue
-
         # Load or create index
-        self._tab = self._load_or_create_index().flatten()
+        self._tab = self._load_or_create_index()
 
         # Handle derivatives
         if derivatives is not None:
@@ -88,7 +84,7 @@ class BIDSLayout:
         entity_schema = self._tab.schema
         self._entity_map = {}
         for entity in entity_schema:
-            # Pull the name (uesd by B2T) and entity (used by pyBIDS) labels
+            # Pull the name (used by B2T) and entity (used by pyBIDS) labels
             name = entity.metadata[b"name"]
             dname = entity.metadata.get(b"entity", name)
             # Decode them from bytestrings into real strings, and store
@@ -96,8 +92,36 @@ class BIDSLayout:
             self._entity_map[dname.decode("utf-8")] = name.decode("utf-8")
             self._entity_map[name.decode("utf-8")] = name.decode("utf-8")
 
+        # Flatten extra entities after
+        self._flatten_extra_entities()
+
         # Convert to pandas DataFrame for querying
         self.df = self._tab.to_pandas(types_mapper=pd.ArrowDtype)
+
+    def _flatten_extra_entities(self) -> None:
+        """Flatten extra entities in the table."""
+        if "extra_entities" not in self._tab.column_names:
+            return
+
+        idx = self._tab.schema.get_field_index("extra_entities")
+        dicts = [
+            dict(r) if r else {} for r in self._tab.column("extra_entities").to_pylist()
+        ]
+        all_keys = set().union(*dicts)
+
+        self._tab = self._tab.remove_column(idx)
+        if all_keys:
+            for k in all_keys:
+                self._tab = self._tab.append_column(
+                    pa.field(k, pa.string()), pa.array([d.get(k) for d in dicts])
+                )
+                self._entity_map[k] = k
+
+        cols = [c for c in self._tab.column_names if c not in ("root", "path")] + [
+            "root",
+            "path",
+        ]
+        self._tab = self._tab.select(cols)
 
     def _load_or_create_index(self) -> pa.Table:
         """
@@ -138,7 +162,7 @@ class BIDSLayout:
 
         return tab
 
-    def _add_derivatives(self, derivatives: Union[str, Path, List[Union[str, Path]]]):
+    def _add_derivatives(self, derivatives: str | Path | list[str | Path]):
         """
         Add derivative datasets to the index.
 
@@ -168,7 +192,7 @@ class BIDSLayout:
         if deriv_tabs:
             self._tab = pa.concat_tables([self._tab] + deriv_tabs)
 
-    def get(self, return_type: str = "file", **entities) -> List[Union[str, BIDSFile]]:
+    def get(self, return_type: str = "file", **entities) -> list[str | BIDSFile]:
         """
         Query files by BIDS entities.
 
@@ -241,7 +265,7 @@ class BIDSLayout:
                 "Valid options: 'file', 'filename', 'id', 'dir'"
             )
 
-    def get_subjects(self, **filters) -> List[str]:
+    def get_subjects(self, **filters) -> list[str]:
         """
         Get list of unique subject IDs.
 
@@ -270,7 +294,7 @@ class BIDSLayout:
 
         return sorted(subjects.tolist())
 
-    def get_sessions(self, subject: Optional[str] = None, **filters) -> List[str]:
+    def get_sessions(self, subject: str | None = None, **filters) -> list[str]:
         """
         Get list of unique session IDs.
 
@@ -302,7 +326,7 @@ class BIDSLayout:
         sessions = result_df["ses"].dropna().unique()
         return sorted(sessions.tolist())
 
-    def get_metadata(self, path: str) -> Dict[str, Any]:
+    def get_metadata(self, path: str) -> dict[str, Any]:
         """
         Load metadata from JSON sidecar(s) for a given file.
 
@@ -342,7 +366,7 @@ class BIDSLayout:
         """
         return BIDSFile(path)
 
-    def get_entities(self, **filters) -> Dict[str, List[str]]:
+    def get_entities(self, **filters) -> dict[str, list[str]]:
         """
         Get dictionary of all entities and their unique values.
 
@@ -374,10 +398,6 @@ class BIDSLayout:
         # Extract unique values for each entity column
         entities = {}
         for ekey, evalue in self._entity_map.items():
-            # TODO: think about if we want to handle extra entities here?
-            # Disabled for now since unique and lists don't play nice
-            if evalue == "extra_entities":
-                continue
             if evalue in filtered_df.columns:
                 unique_vals = filtered_df[evalue].dropna().unique().tolist()
                 if unique_vals:  # Only include if not empty
@@ -386,7 +406,10 @@ class BIDSLayout:
         return entities
 
     def add_custom_entity(
-        self, name: str, values: Union[List, Dict, Any], overwrite: bool = False
+        self,
+        name: str,
+        values: list[Any] | dict[str, Any] | Any,
+        overwrite: bool = False,
     ):
         """
         Add a custom entity column to the layout.
@@ -453,3 +476,7 @@ class BIDSLayout:
             f"BIDSLayout(root='{self.root}', "
             f"subjects={n_subjects}, sessions={n_sessions}, files={n_files})"
         )
+
+    def to_df(self) -> pd.DataFrame:
+        """Explicit method to return converted dataframe, mirroring pybids."""
+        return self.df
