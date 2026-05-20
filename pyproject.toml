@@ -5,7 +5,12 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "bids2table"
 dynamic = ["version"]
-authors = [{ name = "Connor Lane", email = "connor.lane858@gmail.com" }]
+authors = [
+  { name = "Connor Lane", email = "connor.lane858@gmail.com" },
+  { name = "Jason Kai" },
+  { name = "Florian Rupprecht" },
+  { name = "Gregory Kiar" }
+]
 description = "Index BIDS datasets fast, locally or in the cloud."
 readme = "README.md"
 requires-python = ">=3.11"
