@@ -2,6 +2,20 @@ from pathlib import Path
 
 import pytest
 
+from bids2table._pathlib import cloudpathlib_is_available
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers", "cloud: Tests requiring cloud group dependencies"
+    )
+
+
+def pytest_runtest_setup(item):
+    if "cloud" in item.keywords:
+        if not cloudpathlib_is_available():
+            pytest.skip("cloudpathlib is not available or not fully functional")
+
 
 @pytest.fixture
 def symlink_dataset(tmp_path: Path, sub: str = "sub-001", ses: str = "ses-001") -> Path:

@@ -9,7 +9,7 @@ try:
     S3Client(no_sign_request=True).set_as_default_client()
     GSClient().set_as_default_client()
 
-except ImportError:
+except Exception:
     AnyPath = CloudPath = Path
 
     _CLOUDPATHLIB_AVAILABLE = False
