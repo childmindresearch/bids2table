@@ -48,7 +48,15 @@ _BIDS_NESTED_PARENT_DIRNAMES = {
 # Typically json files are reserved for sidecar metadata only. However there are some
 # exceptions where .json IS the data format. These suffixes are collected from the
 # BIDS schema by _get_json_data_suffixes().
-_BIDS_JSON_SIDECAR_EXCEPTION_SUFFIXES = _get_json_data_suffixes()
+_BIDS_JSON_SIDECAR_EXCEPTION_SUFFIXES: frozenset[str] = frozenset()
+
+
+def _init_json_data_suffixes() -> None:
+    global _BIDS_JSON_SIDECAR_EXCEPTION_SUFFIXES
+    _BIDS_JSON_SIDECAR_EXCEPTION_SUFFIXES = _get_json_data_suffixes()
+
+
+_init_json_data_suffixes()
 
 # Configs for index arrow fields to add to the entity schema (defined elsewhere).
 _INDEX_ARROW_FIELDS = {
@@ -346,6 +354,7 @@ def clear_schema_caches() -> None:
     """
     _get_bids_dataset.cache_clear()
     _is_bids_dataset.cache_clear()
+    _init_json_data_suffixes()
 
 
 def index_dataset(
@@ -737,10 +746,8 @@ def _is_bids_json_sidecar(path: PathT) -> bool:
         return True
 
     # All sidecars must contain a suffix.
-    # Also check if suffix matches special cases of data files with json extension.
+    # Also check if suffix matches JSON data files (derived from schema).
     suffix = entities.get("suffix")
-    # These are BIDS extension suffixes not present in the core schema, so they remain
-    # hardcoded here.
     if suffix is None or suffix in _BIDS_JSON_SIDECAR_EXCEPTION_SUFFIXES:
         return False
     return True

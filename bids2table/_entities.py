@@ -355,30 +355,6 @@ def get_entity_glob_pattern(entity_type: str) -> str:
     return f"{name}-*"
 
 
-def get_required_entity_types(dataset_type: str = "raw") -> list[str]:
-    """Get the required entity types for a given BIDS dataset type.
-
-    Args:
-        dataset_type: BIDS dataset type (e.g. 'raw', 'derivative', 'study').
-
-    Returns:
-        List of entity type names that are required for the dataset type.
-    """
-    try:
-        directories = _BIDS_SCHEMA["rules"]["directories"]
-        dir_rules = directories.get(dataset_type, {})
-    except (KeyError, AttributeError):
-        return []
-
-    entity_types = []
-    for rule in dir_rules.values():
-        entity = rule.get("entity") if hasattr(rule, "get") else None
-        level = rule.get("level") if hasattr(rule, "get") else None
-        if entity and level == "required":
-            entity_types.append(entity)
-    return entity_types
-
-
 def get_all_dataset_types() -> tuple[str, ...]:
     """Get all BIDS dataset types defined in the schema (e.g. 'raw', 'derivative', 'study')."""
     try:
@@ -454,11 +430,6 @@ def get_all_root_entity_types() -> tuple[str, ...]:
                 seen.add(et)
                 result.append(et)
     return tuple(result)
-
-
-def get_all_entity_prefixes() -> frozenset[str]:
-    """Get all BIDS entity name prefixes used in filenames (e.g. 'sub', 'tpl', 'ses')."""
-    return frozenset(_BIDS_NAME_ENTITY_MAP.keys())
 
 
 def get_entity_child_dirs(dataset_type: str, parent_rule: str = "root") -> list[str]:
