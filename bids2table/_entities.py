@@ -264,9 +264,7 @@ def _get_entity_prefix_directory_order() -> list[str]:
     for dtype in get_all_dataset_types():
         rules_raw = _BIDS_SCHEMA.get("rules", {}).get("directories", {}).get(dtype, {})
         # bidsschematools may return Namespace objects; normalise to plain dict.
-        rules: dict[str, Any] = (
-            rules_raw.to_dict() if hasattr(rules_raw, "to_dict") else rules_raw
-        )
+        rules: dict[str, Any] = _ensure_dict(rules_raw)
         queue: list[tuple[str, int]] = [("root", 0)]
         visited: set[str] = set()
         while queue:
@@ -364,6 +362,11 @@ def get_all_dataset_types() -> tuple[str, ...]:
         return ()
 
 
+def _ensure_dict(obj: Any) -> dict:
+    """Convert a bidsschematools Namespace to a plain dict."""
+    return obj.to_dict() if hasattr(obj, "to_dict") else obj
+
+
 def _get_subdir_names(subdirs: list) -> list[str]:
     """Normalize a subdirs list into flat name strings, expanding ``oneOf`` entries."""
     names: list[str] = []
@@ -389,14 +392,14 @@ def _get_json_data_suffixes() -> frozenset[str]:
         if hasattr(node, "items"):
             items = node.items()
         elif hasattr(node, "to_dict"):
-            items = node.to_dict().items()
+            items = _ensure_dict(node).items()
         else:
             return
         for _, v in items:
             if v is None:
                 continue
             if hasattr(v, "get") or isinstance(v, dict):
-                inner = v.to_dict() if hasattr(v, "to_dict") else v
+                inner = _ensure_dict(v)
                 if isinstance(inner, dict):
                     sufs = inner.get("suffixes", [])
                     exts = inner.get("extensions", [])

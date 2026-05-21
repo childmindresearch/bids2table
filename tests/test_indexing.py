@@ -179,7 +179,7 @@ def test_index_subject_dir(path: str, expected_count: int):
         ("ieeg_epilepsyNWB/derivatives/brainvisa/sub-01_ses-pre", False),
     ],
 )
-def test_is_bids_subject_dir(path: str, expected: bool):
+def test_is_bids_entity_dir(path: str, expected: bool):
     assert indexing._is_bids_entity_dir(BIDS_EXAMPLES / path, "subject") == expected
 
 
