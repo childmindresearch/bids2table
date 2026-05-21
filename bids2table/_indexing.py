@@ -7,15 +7,16 @@ Returns a dataset index as an Arrow table.
 import enum
 import fnmatch
 import importlib.metadata
+import json
 import re
 import sys
-import json
 from concurrent.futures import Executor, ProcessPoolExecutor
 from functools import lru_cache, partial
 from glob import glob
 from typing import Any, Callable, Generator, Iterable, Sequence
 
 import pyarrow as pa
+from bidsschematools.schema import load_schema
 from tqdm import tqdm
 
 from ._entities import (
@@ -25,8 +26,6 @@ from ._entities import (
 )
 from ._logging import setup_logger
 from ._pathlib import CloudPath, PathT, as_path, cloudpathlib_is_available
-
-from bidsschematools.schema import load_schema
 
 SCHEMA = load_schema()
 
