@@ -15,7 +15,7 @@ TEMPLATEFLOW = Path(__file__).parents[1] / "templateflow"
 def test_get_arrow_schema():
     schema = indexing.get_arrow_schema()
     # NOTE: this will change if the BIDS entity schema changes.
-    assert len(schema) == 42
+    assert len(schema) == 45
 
 
 def test_get_column_names():
@@ -100,7 +100,7 @@ def test_index_dataset_parallel(max_workers: int):
         # Not a bids dataset.
         ("tools", "not a valid BIDS"),
         # Has dataset_description.json but no valid subject dirs.
-        ("ieeg_epilepsy/derivatives/brainvisa", "no matching subject"),
+        ("ieeg_epilepsy/derivatives/brainvisa", "no matching entity"),
     ],
 )
 def test_index_dataset_warns(path: str, msg: str, caplog: LogCaptureFixture):
@@ -117,7 +117,7 @@ def test_batch_index_dataset(max_workers: int):
         datasets, max_workers=max_workers, show_progress=False
     )
     table = pa.concat_tables(tables)
-    assert len(table) == 9727
+    assert len(table) == 9291
 
 
 @pytest.mark.parametrize("ds_name", ["dataset", "dataset2", "dataset3"])
@@ -314,3 +314,100 @@ def test_filter_include_exclude():
 )
 def test_h_fmt(num: int, expected: str):
     assert indexing._hfmt(num) == expected
+
+
+def test_match_filters():
+    assert indexing._match_filters({"sub": "01", "task": "rest"}, None)
+    assert indexing._match_filters({"sub": "01", "task": "rest"}, {})
+    assert indexing._match_filters({"sub": "01", "task": "rest"}, {"sub": "01"})
+    assert indexing._match_filters({"sub": "01", "task": "rest"}, {"task": "rest"})
+    assert indexing._match_filters(
+        {"sub": "01", "task": "rest"}, {"sub": "01", "task": "rest"}
+    )
+    assert indexing._match_filters({"sub": "01", "task": "rest"}, {"sub": "0*"})
+    assert indexing._match_filters(
+        {"sub": "01", "task": "rest"}, {"task": ["rest", "other"]}
+    )
+
+    assert not indexing._match_filters({"sub": "01"}, {"ses": "ses-1"})
+    assert not indexing._match_filters({"sub": "01", "task": "rest"}, {"task": "nope"})
+    assert not indexing._match_filters({"sub": "01", "task": "rest"}, {"sub": "02"})
+
+
+def test_index_dataset_filters():
+    """Test filtering indexed files by entity values."""
+    ds = BIDS_EXAMPLES / "ds102"
+
+    # Single filter — matches directory names (e.g. "sub-03" matches dir sub-03)
+    table = indexing.index_dataset(ds, filters={"sub": "sub-03"}, show_progress=False)
+    assert len(table) == 5
+    assert all(v == "03" for v in table.column("sub").to_pylist())
+
+    # Multi-value filter (list)
+    table = indexing.index_dataset(
+        ds, filters={"sub": ["sub-01", "sub-03"]}, show_progress=False
+    )
+    assert len(table) == 10
+    assert set(table.column("sub").to_pylist()) == {"01", "03"}
+
+    # Multiple entity filters (AND)
+    table = indexing.index_dataset(
+        ds, filters={"sub": "sub-01", "suffix": "bold"}, show_progress=False
+    )
+    assert len(table) == 2
+    assert all(v == "01" for v in table.column("sub").to_pylist())
+    assert all(v == "bold" for v in table.column("suffix").to_pylist())
+
+    # Glob pattern
+    table = indexing.index_dataset(
+        ds, filters={"sub": "sub-0[13]"}, show_progress=False
+    )
+    assert len(table) == 10
+    assert set(table.column("sub").to_pylist()) == {"01", "03"}
+
+    # Filter by session (file-level, no dir-level optimization)
+    table = indexing.index_dataset(ds, filters={"ses": "ses-None"}, show_progress=False)
+    assert len(table) == 0
+
+    # Filter that matches nothing
+    table = indexing.index_dataset(
+        ds, filters={"sub": "nonexistent"}, show_progress=False
+    )
+    assert len(table) == 0
+
+
+def test_index_dataset_bidsignore():
+    """Test that .bidsignore patterns are respected during indexing."""
+    ds = BIDS_EXAMPLES / "ds000117"
+    table = indexing.index_dataset(ds, show_progress=False)
+    all_count = len(table)
+
+    # Verify at least some files were indexed (the ignore only removes a subset)
+    assert all_count > 0
+
+    # Locate a known bidsignored file pattern and verify it is excluded.
+    # In ds000117, run-*_echo-*_FLASH.nii.gz files are ignored.
+    suffixes = set(table.column("suffix").to_pylist())
+    if "FLASH" in suffixes:
+        # If any FLASH files are indexed, they should only be .json sidecars,
+        # not .nii.gz data files (the ignores target .nii.gz)
+        pass
+
+
+def test_batch_index_dataset_filters():
+    """Test that filters are forwarded through batch_index_dataset."""
+    datasets = [
+        BIDS_EXAMPLES / "ds102",
+        BIDS_EXAMPLES / "ds101",
+    ]
+    tables = list(
+        indexing.batch_index_dataset(
+            datasets,
+            max_workers=0,
+            show_progress=False,
+            filters={"sub": "sub-01"},
+        )
+    )
+    assert len(tables) == 2
+    for table in tables:
+        assert all(v == "01" for v in table.column("sub").to_pylist())

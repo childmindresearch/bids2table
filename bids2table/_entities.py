@@ -335,14 +335,79 @@ def get_required_entity_types(dataset_type: str = "raw") -> list[str]:
     return entity_types
 
 
+def get_all_dataset_types() -> tuple[str, ...]:
+    """Get all BIDS dataset types defined in the schema (e.g. 'raw', 'derivative', 'study')."""
+    try:
+        directories = _BIDS_SCHEMA["rules"]["directories"]
+        return tuple(directories.keys())
+    except (KeyError, AttributeError):
+        return ()
+
+
 def get_all_entity_prefixes() -> frozenset[str]:
     """Get all BIDS entity name prefixes used in filenames (e.g. 'sub', 'tpl', 'ses')."""
     return frozenset(_BIDS_NAME_ENTITY_MAP.keys())
 
 
+def get_entity_child_dirs(dataset_type: str, parent_rule: str = "root") -> list[str]:
+    """Get entity types valid as child directories of a parent in a dataset type.
+
+    Uses the BIDS schema's directory rules to determine which entity types can
+    appear as subdirectories. For example, in a 'raw' dataset, the root may
+    contain 'subject' entity dirs; in a 'derivative' dataset, the root may
+    contain both 'subject' and 'template' entity dirs.
+
+    Args:
+        dataset_type: BIDS dataset type (e.g. 'raw', 'derivative', 'study').
+        parent_rule: Name of the parent directory rule (e.g. 'root', 'subject').
+
+    Returns:
+        List of entity type names (e.g. ['subject'], ['subject', 'template']).
+    """
+    try:
+        directories = _BIDS_SCHEMA["rules"]["directories"]
+        dir_rules = directories.get(dataset_type, {})
+    except (KeyError, AttributeError):
+        return []
+
+    if not hasattr(dir_rules, "get"):
+        return []
+
+    parent = dir_rules.get(parent_rule, {})
+    if not hasattr(parent, "get"):
+        return []
+
+    subdirs = parent.get("subdirs", [])
+    entity_types = []
+
+    for entry in subdirs:
+        if isinstance(entry, dict):
+            names = entry.get("oneOf", [])
+        else:
+            names = [entry]
+
+        for name in names:
+            child = dir_rules.get(name, {})
+            entity = child.get("entity") if hasattr(child, "get") else None
+            if entity:
+                entity_types.append(entity)
+
+    return entity_types
+
+
 def get_file_entity_prefixes() -> tuple[str, ...]:
-    """Get entity name prefixes that BIDS filenames can start with (e.g. 'sub', 'tpl')."""
-    return ("sub", "tpl")
+    """Get entity name prefixes that BIDS filenames can start with (e.g. 'sub', 'tpl').
+
+    Derived from the schema — any entity type that can appear as a root-level
+    child directory in any dataset type is included.
+    """
+    prefixes: set[str] = set()
+    for dtype in ("raw", "derivative"):
+        for et in get_entity_child_dirs(dtype, "root"):
+            name = get_entity_name(et)
+            if name:
+                prefixes.add(name)
+    return tuple(sorted(prefixes))
 
 
 # Initialize the default BIDS schema.
