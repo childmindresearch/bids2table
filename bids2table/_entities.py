@@ -292,7 +292,7 @@ def format_bids_path(entities: dict[str, Any], int_format: str = "%d") -> Path:
         int_format: format string for integer (index) BIDS values.
 
     Returns:
-        A formatted ``Path`` instance.
+        A formatted `Path` instance.
     """
     special = {cfg["name"] for cfg in _BIDS_SPECIAL_ENTITY_SCHEMA.values()}
 
