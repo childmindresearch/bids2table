@@ -281,11 +281,7 @@ def _get_entity_prefix_directory_order() -> list[str]:
                 if ename and (ename not in depths or depth < depths[ename]):
                     depths[ename] = depth
             for subdir in rule.get("subdirs", []):
-                if isinstance(subdir, dict):
-                    names = subdir.get("oneOf", [])
-                else:
-                    names = [subdir]
-                for name in names:
+                for name in _get_subdir_names([subdir]):
                     queue.append((name, depth + 1))
     return sorted(depths, key=lambda n: depths[n])
 
@@ -392,6 +388,74 @@ def get_all_dataset_types() -> tuple[str, ...]:
         return ()
 
 
+def _get_subdir_names(subdirs: list) -> list[str]:
+    """Normalize a subdirs list into flat name strings, expanding ``oneOf`` entries."""
+    names: list[str] = []
+    for entry in subdirs:
+        if isinstance(entry, dict):
+            names.extend(entry.get("oneOf", []))
+        else:
+            names.append(entry)
+    return names
+
+
+def _get_json_data_suffixes() -> frozenset[str]:
+    """Collect suffixes for which ``.json`` is the only valid extension.
+
+    These are data files (not sidecars), e.g. ``coordsystem.json``.
+    Derived from the schema's ``rules.files``.
+    """
+    from collections import defaultdict
+
+    suffix_exts: dict[str, set[str]] = defaultdict(set)
+
+    def _walk(node) -> None:
+        if hasattr(node, "items"):
+            items = node.items()
+        elif hasattr(node, "to_dict"):
+            items = node.to_dict().items()
+        else:
+            return
+        for _, v in items:
+            if v is None:
+                continue
+            if hasattr(v, "get") or isinstance(v, dict):
+                inner = v.to_dict() if hasattr(v, "to_dict") else v
+                if isinstance(inner, dict):
+                    sufs = inner.get("suffixes", [])
+                    exts = inner.get("extensions", [])
+                    if sufs and exts:
+                        for s in sufs:
+                            suffix_exts[s].update(exts)
+            _walk(v)
+
+    try:
+        files_rules = _BIDS_SCHEMA["rules"]["files"]
+        _walk(files_rules)
+    except (KeyError, AttributeError):
+        return frozenset()
+
+    return frozenset(
+        s for s, exts in suffix_exts.items()
+        if ".json" in exts and all(e == ".json" for e in exts)
+    )
+
+
+def get_all_root_entity_types() -> tuple[str, ...]:
+    """Return deduplicated root-level entity types across all dataset types.
+
+    For example, across raw/derivative/study this returns ``("subject", "template")``.
+    """
+    seen: set[str] = set()
+    result: list[str] = []
+    for dtype in get_all_dataset_types():
+        for et in get_entity_child_dirs(dtype, "root"):
+            if et not in seen:
+                seen.add(et)
+                result.append(et)
+    return tuple(result)
+
+
 def get_all_entity_prefixes() -> frozenset[str]:
     """Get all BIDS entity name prefixes used in filenames (e.g. 'sub', 'tpl', 'ses')."""
     return frozenset(_BIDS_NAME_ENTITY_MAP.keys())
@@ -428,17 +492,11 @@ def get_entity_child_dirs(dataset_type: str, parent_rule: str = "root") -> list[
     subdirs = parent.get("subdirs", [])
     entity_types = []
 
-    for entry in subdirs:
-        if isinstance(entry, dict):
-            names = entry.get("oneOf", [])
-        else:
-            names = [entry]
-
-        for name in names:
-            child = dir_rules.get(name, {})
-            entity = child.get("entity") if hasattr(child, "get") else None
-            if entity:
-                entity_types.append(entity)
+    for name in _get_subdir_names(subdirs):
+        child = dir_rules.get(name, {})
+        entity = child.get("entity") if hasattr(child, "get") else None
+        if entity:
+            entity_types.append(entity)
 
     return entity_types
 
@@ -450,11 +508,10 @@ def get_file_entity_prefixes() -> tuple[str, ...]:
     child directory in any dataset type is included.
     """
     prefixes: set[str] = set()
-    for dtype in get_all_dataset_types():
-        for et in get_entity_child_dirs(dtype, "root"):
-            name = get_entity_name(et)
-            if name:
-                prefixes.add(name)
+    for et in get_all_root_entity_types():
+        name = get_entity_name(et)
+        if name:
+            prefixes.add(name)
     return tuple(sorted(prefixes))
 
 

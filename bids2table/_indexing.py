@@ -21,7 +21,9 @@ from tqdm import tqdm
 
 from ._entities import (
     _cache_parse_bids_entities,
+    _get_json_data_suffixes,
     get_all_dataset_types,
+    get_all_root_entity_types,
     get_bids_entity_arrow_schema,
     get_entity_child_dirs,
     get_entity_glob_pattern,
@@ -44,15 +46,9 @@ _BIDS_NESTED_PARENT_DIRNAMES = {
 }
 
 # Typically json files are reserved for sidecar metadata only. However there are some
-# exceptions. One way to test whether a json file is sidecar or data is to check for any
-# matching non-json files at the same level. But that is a lot of work to do for a few
-# special cases. Rather, we just list the special case suffixes here. (Honestly, using
-# plain json extension for data files should be discouraged.)
-# These are BIDS extension suffixes not present in the core schema, so they remain
-# hardcoded here.
-_BIDS_JSON_SIDECAR_EXCEPTION_SUFFIXES = {
-    "coordsystem",
-}
+# exceptions where .json IS the data format. These suffixes are collected from the
+# BIDS schema by _get_json_data_suffixes().
+_BIDS_JSON_SIDECAR_EXCEPTION_SUFFIXES = _get_json_data_suffixes()
 
 # Configs for index arrow fields to add to the entity schema (defined elsewhere).
 _INDEX_ARROW_FIELDS = {
@@ -316,13 +312,7 @@ def _resolve_entity_dirs(
 
     # Build the master list of all possible root entity types across all
     # schema-defined dataset types, used for fallback discovery and matching.
-    all_entity_types: list[str] = []
-    seen_types: set[str] = set()
-    for dtype in get_all_dataset_types():
-        for et in get_entity_child_dirs(dtype, "root"):
-            if et not in seen_types:
-                seen_types.add(et)
-                all_entity_types.append(et)
+    all_entity_types = list(get_all_root_entity_types())
 
     entity_dirs = _discover_entity_dirs(root, root_entity_types, filters)
 
@@ -544,7 +534,7 @@ def _is_bids_dataset(path: PathT) -> bool:
     if path.name.startswith("."):
         return False
     # Subject/template dirs are not datasets.
-    if _is_bids_entity_dir(path, "subject") or _is_bids_entity_dir(path, "template"):
+    if any(_is_bids_entity_dir(path, et) for et in get_all_root_entity_types()):
         return False
 
     # Check if contains a dataset_description.json or is a derivatives directory
