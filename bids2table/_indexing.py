@@ -304,29 +304,29 @@ def _resolve_entity_dirs(
     the detected type.
     """
     root_entity_types = get_entity_child_dirs(dataset_type, "root")
+
+    # Build the master list of all possible root entity types across all
+    # schema-defined dataset types, used for fallback discovery and matching.
+    all_entity_types: list[str] = []
+    seen_types: set[str] = set()
+    for dtype in get_all_dataset_types():
+        for et in get_entity_child_dirs(dtype, "root"):
+            if et not in seen_types:
+                seen_types.add(et)
+                all_entity_types.append(et)
+
     entity_dirs = _discover_entity_dirs(root, root_entity_types, filters)
 
+    # Fallback: try all entity types when none match the detected dataset type.
     if not entity_dirs:
-        seen = set(root_entity_types)
-        for dtype in get_all_dataset_types():
-            if dtype == dataset_type:
+        for et in all_entity_types:
+            if et in root_entity_types:
                 continue
-            for et in get_entity_child_dirs(dtype, "root"):
-                if et not in seen:
-                    seen.add(et)
-                    dirs = _discover_entity_dirs(root, [et], filters)
-                    entity_dirs.extend(dirs)
+            entity_dirs.extend(_discover_entity_dirs(root, [et], filters))
         entity_dirs.sort(key=lambda p: p.name)
 
     if not entity_dirs:
         return []
-
-    # Collect all possible root entity types for dir detection
-    all_entity_types = list(root_entity_types)
-    for dtype in get_all_dataset_types():
-        for et in get_entity_child_dirs(dtype, "root"):
-            if et not in all_entity_types:
-                all_entity_types.append(et)
 
     schedule: list[tuple[PathT, str]] = []
     for entity_dir in entity_dirs:
@@ -337,6 +337,16 @@ def _resolve_entity_dirs(
                 break
         schedule.append((entity_dir, entity_type))
     return schedule
+
+
+def clear_schema_caches() -> None:
+    """Clear LRU caches that depend on the BIDS schema.
+
+    Call after :func:`bids2table.set_bids_schema` to avoid stale results from
+    previously cached schema-dependent function calls.
+    """
+    _get_bids_dataset.cache_clear()
+    _is_bids_dataset.cache_clear()
 
 
 def index_dataset(
@@ -369,7 +379,8 @@ def index_dataset(
     # Normalise filters: merge include_subjects for backward compat
     filters = dict(filters or {})
     if include_subjects is not None:
-        filters["sub"] = include_subjects
+        sub_key = get_entity_name("subject") or "sub"
+        filters[sub_key] = include_subjects
 
     schema = get_arrow_schema()
 

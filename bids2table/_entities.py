@@ -65,11 +65,9 @@ _BIDS_FORMAT_PY_TYPE_MAP = {
     "special": str,
 }
 
-# Matches sub-directory after subject ('sub-abc') and (optionally) session ('ses-01')
-# directories. Must be all lowercase.
-_BIDS_DATATYPE_PATTERN = re.compile(
-    r"sub-[a-zA-Z0-9]+(?:[/\\]ses-[a-zA-Z0-9]+)?[/\\]([a-z]+)[/\\]"
-)
+# Matches sub-directory after subject and (optionally) session directories.
+# Must be all lowercase. Rebuilt in set_bids_schema() once schema is loaded.
+_BIDS_DATATYPE_PATTERN: re.Pattern | None = None
 
 _logger = setup_logger(__package__)
 
@@ -77,12 +75,12 @@ _logger = setup_logger(__package__)
 def set_bids_schema(path: str | Path | None = None) -> None:
     """Set the BIDS schema."""
     global _BIDS_SCHEMA, _BIDS_ENTITY_SCHEMA, _BIDS_NAME_ENTITY_MAP
-    global _BIDS_ENTITY_ARROW_SCHEMA
+    global _BIDS_ENTITY_ARROW_SCHEMA, _BIDS_DATATYPE_PATTERN
 
     schema = bidsschematools.schema.load_schema(path)
     entity_schema = {
         entity: schema.objects.entities[entity].to_dict()
-        for entity in schema.rules.entities
+        for entity in schema.objects.entities
     }
     # Also include special extra entities (datatype, suffix, extension).
     entity_schema.update(_BIDS_SPECIAL_ENTITY_SCHEMA)
@@ -98,6 +96,13 @@ def set_bids_schema(path: str | Path | None = None) -> None:
         schema_version=schema["schema_version"],
     )
 
+    # Build datatype pattern from entity names (e.g. sub, ses).
+    sub_name = get_entity_name("subject")
+    ses_name = get_entity_name("session")
+    _BIDS_DATATYPE_PATTERN = re.compile(
+        rf"{sub_name}-[a-zA-Z0-9]+(?:[/\\]{ses_name}-[a-zA-Z0-9]+)?[/\\]([a-z]+)[/\\]"
+    )
+
 
 def _bids_entity_arrow_schema(
     entity_schema: dict[str, dict[str, Any]],
@@ -109,7 +114,7 @@ def _bids_entity_arrow_schema(
     for entity, cfg in entity_schema.items():
         # Use short entity name (e.g. sub) as the field name.
         name = cfg["name"]
-        dtype = _BIDS_FORMAT_ARROW_DTYPE_MAP[cfg["format"]]
+        dtype = _BIDS_FORMAT_ARROW_DTYPE_MAP.get(cfg["format"], pa.string())
         # Insert full entity name (e.g. subject) into metadata.
         metadata = {"entity": entity}
         metadata.update(
@@ -188,6 +193,8 @@ def _parse_bids_datatype(path: Path) -> str | None:
     Datatype is assumed to be the name of the sub-directory after the subject and
     (optionally) session directories. Returns `None` if no match found.
     """
+    if _BIDS_DATATYPE_PATTERN is None:
+        return None
     match = re.search(_BIDS_DATATYPE_PATTERN, str(path))
     datatype = match.group(1) if match is not None else None
     return datatype
@@ -244,7 +251,7 @@ def validate_bids_entities(
     return valid_entities, extra_entities
 
 
-def _get_entity_directory_order() -> list[str]:
+def _get_entity_prefix_directory_order() -> list[str]:
     """Return entity name prefixes (e.g. 'sub', 'ses') in schema-defined
     directory hierarchy order (shallower depth first).
 
@@ -255,19 +262,19 @@ def _get_entity_directory_order() -> list[str]:
     """
     depths: dict[str, int] = {}
     for dtype in get_all_dataset_types():
-        rules = _BIDS_SCHEMA.get("rules", {}).get("directories", {}).get(dtype, {})
-        if not hasattr(rules, "get"):
-            continue
+        rules_raw = _BIDS_SCHEMA.get("rules", {}).get("directories", {}).get(dtype, {})
+        # bidsschematools may return Namespace objects; normalise to plain dict.
+        rules: dict[str, Any] = (
+            rules_raw.to_dict() if hasattr(rules_raw, "to_dict") else rules_raw
+        )
         queue: list[tuple[str, int]] = [("root", 0)]
-        seen: set[str] = set()
+        visited: set[str] = set()
         while queue:
             rule_name, depth = queue.pop(0)
-            if rule_name in seen:
+            if rule_name in visited:
                 continue
-            seen.add(rule_name)
+            visited.add(rule_name)
             rule = rules.get(rule_name, {})
-            if not hasattr(rule, "get"):
-                continue
             entity = rule.get("entity")
             if entity:
                 ename = get_entity_name(entity)
@@ -293,7 +300,7 @@ def format_bids_path(entities: dict[str, Any], int_format: str = "%d") -> Path:
     Returns:
         A formatted ``Path`` instance.
     """
-    special = {"datatype", "suffix", "ext"}
+    special = {cfg["name"] for cfg in _BIDS_SPECIAL_ENTITY_SCHEMA.values()}
 
     # Formatted key-value entities.
     entities_fmt = []
@@ -313,7 +320,7 @@ def format_bids_path(entities: dict[str, Any], int_format: str = "%d") -> Path:
     path = Path(filename)
 
     # Prepend schema-derived directory hierarchy.
-    dir_order = _get_entity_directory_order()
+    dir_order = _get_entity_prefix_directory_order()
     dir_entities = [n for n in dir_order if n in entities]
     if datatype := entities.get("datatype"):
         path = datatype / path
@@ -443,7 +450,7 @@ def get_file_entity_prefixes() -> tuple[str, ...]:
     child directory in any dataset type is included.
     """
     prefixes: set[str] = set()
-    for dtype in ("raw", "derivative"):
+    for dtype in get_all_dataset_types():
         for et in get_entity_child_dirs(dtype, "root"):
             name = get_entity_name(et)
             if name:

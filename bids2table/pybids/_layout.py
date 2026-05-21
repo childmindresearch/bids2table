@@ -319,7 +319,7 @@ class BIDSLayout:
 
         # Apply additional filters
         for key, value in filters.items():
-            key = self._map_entity_key(key)
+            key = self._entity_map.get(key, key)
             if key in result_df.columns:
                 result_df = result_df[result_df[key] == value]
 
@@ -389,7 +389,7 @@ class BIDSLayout:
         if filters:
             filtered_df = self.df.copy()
             for key, value in filters.items():
-                key = self._map_entity_key(key)
+                key = self._entity_map.get(key, key)
                 if key in filtered_df.columns:
                     filtered_df = filtered_df[filtered_df[key] == value]
         else:
