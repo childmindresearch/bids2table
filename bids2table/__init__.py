@@ -14,10 +14,13 @@ __all__ = [
     "format_bids_path",
     "load_bids_metadata",
     "cloudpathlib_is_available",
-    "pybids",
 ]
 
-from . import pybids
+import importlib.util
+
+if importlib.util.find_spec("pandas"):
+    __all__.append("pybids")
+
 from ._entities import (
     format_bids_path,
     get_bids_entity_arrow_schema,
