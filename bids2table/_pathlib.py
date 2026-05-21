@@ -1,13 +1,20 @@
 from pathlib import Path
 
 try:
-    from cloudpathlib import AnyPath, CloudPath, GSClient, S3Client
+    from cloudpathlib import AnyPath, CloudPath, S3Client
 
     _CLOUDPATHLIB_AVAILABLE = True
-
-    # Set default clients for cloud paths
     S3Client(no_sign_request=True).set_as_default_client()
-    GSClient().set_as_default_client()
+
+    # Necessary while s3 dependencies can be installed without gcs dependencies
+    try:
+        from cloudpathlib import GSClient
+
+        GSClient().set_as_default_client()
+    # Using generalized Exception here, as DefaultCredentialsError is not available for
+    # import if GSClient is not available
+    except Exception:
+        pass
 
 except ImportError:
     AnyPath = CloudPath = Path
