@@ -9,6 +9,7 @@ import fnmatch
 import importlib.metadata
 import re
 import sys
+import json
 from concurrent.futures import Executor, ProcessPoolExecutor
 from functools import lru_cache, partial
 from glob import glob
@@ -25,12 +26,15 @@ from ._entities import (
 from ._logging import setup_logger
 from ._pathlib import CloudPath, PathT, as_path, cloudpathlib_is_available
 
-_BIDS_SUBJECT_DIR_PATTERN = re.compile(r"sub-[a-zA-Z0-9]+")
+from bidsschematools.schema import load_schema
+
+SCHEMA = load_schema()
 
 # Path names of BIDS dataset sub-directories that may contain nested BIDS datasets.
 # Other candidates to consider including:
 #   - sourcedata
 #   - code
+# TODO: Remove this and replace where it is invoked with reference from bidsschematools
 _BIDS_NESTED_PARENT_DIRNAMES = {
     "derivatives",
 }
@@ -40,6 +44,7 @@ _BIDS_NESTED_PARENT_DIRNAMES = {
 # matching non-json files at the same level. But that is a lot of work to do for a few
 # special cases. Rather, we just list the special case suffixes here. (Honestly, using
 # plain json extension for data files should be discouraged.)
+# TODO: Remove this and replace where it is invoked with reference from bidsschematools
 _BIDS_JSON_SIDECAR_EXCEPTION_SUFFIXES = {
     "coordsystem",
 }
@@ -185,6 +190,7 @@ def find_bids_datasets(
             descend = descend and not (entry.suffix or entry.name.startswith("."))
             # Only descend into specific subdirectories of BIDS directories.
             descend = descend and (
+                # TODO: Remove this and replace where it is invoked with reference from bidsschematools
                 not inside_bids or entry.name in _BIDS_NESTED_PARENT_DIRNAMES
             )
             # Finally, check if actually a directory (which is slow so we want to
@@ -323,16 +329,37 @@ def _is_bids_dataset(path: PathT) -> bool:
     if _is_bids_subject_dir(path):
         return False
 
-    # Check if contains a dataset_description.json or any subject directories. Note,
-    # it's common for ppl to forget the dataset description, so let's not be too strict.
+    # Check if contains a dataset_description.json or is a derivatives directory
     description_exists = (path / "dataset_description.json").exists()
-    return description_exists or _contains_bids_subject_dirs(path)
+
+    if description_exists:
+        try:
+            with open(path / "dataset_description.json") as f:
+                desc = json.load(f)
+            dataset_type = desc.get("DatasetType", "raw")
+            if dataset_type == "raw":
+                return True
+            elif dataset_type == "derivative":
+                return _contains_bids_subject_dirs(path) or any(
+                    p.is_dir()
+                    for p in path.iterdir()
+                    # TODO: Pull these valid paths from bidsschematools
+                    if p.name in {"derivatives", "code", "logs"}
+                )
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    return False
 
 
 def _contains_bids_subject_dirs(root: PathT) -> bool:
     """Check if a path contains one or more BIDS subject dirs."""
-    # Nb, this will return on the first matching path thanks to the generator.
-    return any(_is_bids_subject_dir(path) for path in root.glob("sub-*"))
+    if not root.is_dir():
+        return False
+    return any(
+        _is_bids_subject_dir(path)
+        for path in root.iterdir()
+    )
 
 
 def _find_bids_subject_dirs(
@@ -344,7 +371,11 @@ def _find_bids_subject_dirs(
     Note, only looks one level down. Does not find nested subject directories, e.g. in
     derivatives datasets.
     """
-    paths = [path for path in root.glob("sub-*") if _is_bids_subject_dir(path)]
+    paths = [
+        path
+        for path in root.iterdir()
+        if _is_bids_subject_dir(path)
+    ]
 
     if include_subjects:
         filtered_names = _filter_include(
@@ -356,11 +387,9 @@ def _find_bids_subject_dirs(
 
 def _is_bids_subject_dir(path: PathT) -> bool:
     """Check if a path is a BIDS subject directory."""
-    # NOTE: not checking if the path is in fact a directory.
-    # This is a slow op, especially on cloud. Can assume that there are no files
-    # matching the subject dir pattern, and even if there are, the rglob that happens
-    # later will just return empty.
-    return bool(re.fullmatch(_BIDS_SUBJECT_DIR_PATTERN, path.name))
+    subject_entity = SCHEMA["objects"]["entities"]["subject"]
+    subject_re = re.compile(subject_entity.get("pattern", r"sub-[a-zA-Z0-9]+"))
+    return bool(re.fullmatch(subject_re, path.name))
 
 
 def _index_bids_subject_dir(
@@ -455,6 +484,7 @@ def _is_bids_json_sidecar(path: PathT) -> bool:
     # All sidecars must contain a suffix.
     # Also check if suffix matches special cases of data files with json extension.
     suffix = entities.get("suffix")
+    # TODO: Remove this and replace where it is invoked with reference from bidsschematools
     if suffix is None or suffix in _BIDS_JSON_SIDECAR_EXCEPTION_SUFFIXES:
         return False
     return True
