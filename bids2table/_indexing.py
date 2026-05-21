@@ -16,18 +16,18 @@ from glob import glob
 from typing import Any, Callable, Generator, Iterable, Sequence
 
 import pyarrow as pa
-from bidsschematools.schema import load_schema
 from tqdm import tqdm
 
 from ._entities import (
     _cache_parse_bids_entities,
     get_bids_entity_arrow_schema,
+    get_entity_glob_pattern,
+    get_entity_pattern,
+    get_file_entity_prefixes,
     validate_bids_entities,
 )
 from ._logging import setup_logger
 from ._pathlib import CloudPath, PathT, as_path, cloudpathlib_is_available
-
-SCHEMA = load_schema()
 
 # Path names of BIDS dataset sub-directories that may contain nested BIDS datasets.
 # Other candidates to consider including:
@@ -224,15 +224,20 @@ def index_dataset(
         return pa.Table.from_pylist([], schema=schema)
 
     subject_dirs = _find_bids_subject_dirs(root, include_subjects)
-    subject_dirs = sorted(subject_dirs, key=lambda p: p.name)
-    if len(subject_dirs) == 0:
-        _logger.warning(f"Path {root} contains no matching subject dirs.")
+    template_dirs = _find_bids_entity_dirs(root, "template")
+    entity_dirs = subject_dirs + template_dirs
+    entity_dirs.sort(key=lambda p: p.name)
+    if len(entity_dirs) == 0:
+        _logger.warning(f"Path {root} contains no matching subject or template dirs.")
         return pa.Table.from_pylist([], schema=schema)
 
     tables = []
     file_count = 0
-    for sub in subject_dirs:
-        _, table = _index_bids_subject_dir(sub, schema=schema, dataset=dataset)
+    for entity_dir in entity_dirs:
+        entity_type = "template" if entity_dir in template_dirs else "subject"
+        _, table = _index_bids_entity_dir(
+            entity_dir, entity_type, schema=schema, dataset=dataset
+        )
         tables.append(table)
         file_count += len(table)
     table = pa.concat_tables(tables).combine_chunks()
@@ -339,7 +344,7 @@ def _is_bids_dataset(path: PathT) -> bool:
             if dataset_type == "raw":
                 return True
             elif dataset_type == "derivative":
-                return _contains_bids_subject_dirs(path) or any(
+                return _contains_bids_entity_dirs(path, ["subject", "template"]) or any(
                     p.is_dir()
                     for p in path.iterdir()
                     # TODO: Pull these valid paths from bidsschematools
@@ -353,9 +358,7 @@ def _is_bids_dataset(path: PathT) -> bool:
 
 def _contains_bids_subject_dirs(root: PathT) -> bool:
     """Check if a path contains one or more BIDS subject dirs."""
-    if not root.is_dir():
-        return False
-    return any(_is_bids_subject_dir(path) for path in root.iterdir())
+    return _contains_bids_entity_dirs(root, ["subject"])
 
 
 def _find_bids_subject_dirs(
@@ -367,21 +370,45 @@ def _find_bids_subject_dirs(
     Note, only looks one level down. Does not find nested subject directories, e.g. in
     derivatives datasets.
     """
-    paths = [path for path in root.iterdir() if _is_bids_subject_dir(path)]
+    return _find_bids_entity_dirs(root, "subject", include_subjects)
 
-    if include_subjects:
+
+def _find_bids_entity_dirs(
+    root: PathT,
+    entity_type: str,
+    include_pattern: str | list[str] | None = None,
+) -> list[PathT]:
+    """Find all BIDS entity dirs of a given type in a root directory."""
+    paths = [path for path in root.iterdir() if _is_bids_entity_dir(path, entity_type)]
+
+    if include_pattern:
         filtered_names = _filter_include(
-            set(path.name for path in paths), include_subjects
+            set(path.name for path in paths), include_pattern
         )
         paths = [path for path in paths if path.name in filtered_names]
     return paths
 
 
+def _is_bids_entity_dir(path: PathT, entity_type: str) -> bool:
+    """Check if a path is a BIDS entity directory (e.g. sub-*, tpl-*, ses-*)."""
+    pattern = get_entity_pattern(entity_type)
+    if not pattern:
+        return False
+    return bool(re.fullmatch(pattern, path.name))
+
+
+def _contains_bids_entity_dirs(root: PathT, entity_types: list[str]) -> bool:
+    """Check if a path contains directories matching any of the given entity types."""
+    if not root.is_dir():
+        return False
+    return any(
+        _is_bids_entity_dir(path, et) for path in root.iterdir() for et in entity_types
+    )
+
+
 def _is_bids_subject_dir(path: PathT) -> bool:
     """Check if a path is a BIDS subject directory."""
-    subject_entity = SCHEMA["objects"]["entities"]["subject"]
-    subject_re = re.compile(subject_entity.get("pattern", r"sub-[a-zA-Z0-9]+"))
-    return bool(re.fullmatch(subject_re, path.name))
+    return _is_bids_entity_dir(path, "subject")
 
 
 def _index_bids_subject_dir(
@@ -390,6 +417,16 @@ def _index_bids_subject_dir(
     dataset: str | None = None,
 ) -> tuple[str, pa.Table]:
     """Index a BIDS subject directory and return an Arrow table."""
+    return _index_bids_entity_dir(path, "subject", schema, dataset)
+
+
+def _index_bids_entity_dir(
+    path: PathT,
+    entity_type: str = "subject",
+    schema: pa.Schema | None = None,
+    dataset: str | None = None,
+) -> tuple[str, pa.Table]:
+    """Index a BIDS entity directory and return an Arrow table."""
     root = path.parent
     root_fmt = str(root.absolute())
     if dataset is None:
@@ -397,17 +434,19 @@ def _index_bids_subject_dir(
     if schema is None:
         schema = get_arrow_schema()
 
-    _, subject = path.name.split("-", maxsplit=1)
+    _, entity_id = path.name.split("-", maxsplit=1)
+
+    glob_pattern = get_entity_glob_pattern(entity_type)
 
     records = []
     # Use built-in rglob methods for CloudPath and py3.13+
     if cloudpathlib_is_available() and isinstance(path, CloudPath):
-        paths = map(as_path, path.rglob("sub-*"))
+        paths = map(as_path, path.rglob(glob_pattern))
     elif sys.version_info >= (3, 13):
-        paths = map(as_path, path.rglob("sub-*", recurse_symlinks=True))
+        paths = map(as_path, path.rglob(glob_pattern, recurse_symlinks=True))
     else:
         # Fall back to glob.glob for <py3.13
-        paths = map(as_path, glob(f"{path}/**/sub-*", recursive=True))
+        paths = map(as_path, glob(f"{path}/**/{glob_pattern}", recursive=True))
 
     for p in paths:
         if _is_bids_file(p):
@@ -423,7 +462,7 @@ def _index_bids_subject_dir(
             records.append(record)
 
     table = pa.Table.from_pylist(records, schema=schema)
-    return subject, table
+    return entity_id, table
 
 
 def _is_bids_file(path: PathT) -> bool:
@@ -434,8 +473,8 @@ def _is_bids_file(path: PathT) -> bool:
     # TODO: other checks?
     #   - skip files matching patterns in .bidsignore?
 
-    # initial fast checks for missing extension or name that doesn't start with sub-
-    if path.suffix == "" or not path.name.startswith("sub-"):
+    # initial fast checks for missing extension or name without entity prefix
+    if path.suffix == "" or not path.name.startswith(get_file_entity_prefixes()):
         return False
 
     entities = _cache_parse_bids_entities(path)

@@ -9,6 +9,7 @@ from pytest import LogCaptureFixture
 import bids2table._indexing as indexing
 
 BIDS_EXAMPLES = Path(__file__).parents[1] / "bids-examples"
+TEMPLATEFLOW = Path(__file__).parents[1] / "templateflow"
 
 
 def test_get_arrow_schema():
@@ -220,6 +221,74 @@ def test_is_bids_subject_dir(path: str, expected: bool):
 )
 def test_is_bids_file(path: str, expected: bool):
     assert indexing._is_bids_file(Path(path)) == expected
+
+
+templateflow_available = pytest.mark.skipif(
+    not TEMPLATEFLOW.is_dir(), reason="templateflow directory not available"
+)
+
+
+@templateflow_available
+def test_is_bids_entity_dir_template():
+    tpl_dir = TEMPLATEFLOW / "tpl-MNI152NLin2009aAsym"
+    assert tpl_dir.is_dir()
+    assert indexing._is_bids_entity_dir(tpl_dir, "template")
+
+
+@templateflow_available
+@pytest.mark.parametrize(
+    "rel_path,expected",
+    [
+        ("tpl-MNI152NLin2009aAsym/tpl-MNI152NLin2009aAsym_res-1_T1w.nii.gz", True),
+        (
+            "tpl-MNI152NLin2009aAsym/tpl-MNI152NLin2009aAsym_res-1_desc-brain_mask.nii.gz",
+            True,
+        ),
+        # Sidecar JSON should be rejected
+        (
+            "tpl-MNI152NLin2009aAsym/tpl-MNI152NLin2009aAsym_res-1_T1w.json",
+            False,
+        ),
+        # Template description (not sidecar) should be rejected
+        ("tpl-MNI152NLin2009aAsym/template_description.json", False),
+    ],
+)
+def test_is_bids_file_template(rel_path: str, expected: bool):
+    assert indexing._is_bids_file(TEMPLATEFLOW / rel_path) == expected
+
+
+@templateflow_available
+def test_find_bids_entity_dirs_template():
+    dirs = indexing._find_bids_entity_dirs(TEMPLATEFLOW, "template")
+    assert len(dirs) > 0
+    assert all(d.name.startswith("tpl-") for d in dirs)
+
+
+@templateflow_available
+@pytest.mark.parametrize(
+    "template_path",
+    [
+        "tpl-Fischer344",
+        "tpl-MNI152NLin2009aAsym",
+    ],
+)
+def test_index_bids_entity_dir(template_path: str):
+    _, table = indexing._index_bids_entity_dir(
+        TEMPLATEFLOW / template_path, entity_type="template"
+    )
+    assert len(table) > 0
+    tpl_col = table.column("tpl")
+    assert tpl_col.null_count == 0
+    assert all(v == template_path.split("-", 1)[1] for v in tpl_col.to_pylist())
+
+
+@templateflow_available
+def test_index_template_dataset():
+    table = indexing.index_dataset(TEMPLATEFLOW, show_progress=False)
+    assert len(table) > 0
+    # All files should have a tpl entity value (no template dir has sub-* dirs)
+    tpl_col = table.column("tpl")
+    assert tpl_col.null_count == 0
 
 
 def test_filter_include_exclude():

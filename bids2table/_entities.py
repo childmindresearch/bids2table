@@ -281,5 +281,69 @@ def format_bids_path(entities: dict[str, Any], int_format: str = "%d") -> Path:
     return path
 
 
+def get_entity_name(entity_type: str) -> str:
+    """Get the short name prefix for a BIDS entity (e.g. 'sub' for 'subject')."""
+    ent = _BIDS_ENTITY_SCHEMA.get(entity_type)
+    if ent is not None:
+        return ent.get("name", "")
+    try:
+        ent = _BIDS_SCHEMA["objects"]["entities"].get(entity_type)
+        if ent is not None:
+            return ent.get("name", "")
+    except (KeyError, AttributeError):
+        pass
+    return ""
+
+
+def get_entity_pattern(entity_type: str) -> str:
+    """Get the regex pattern for a BIDS entity directory name (e.g. 'sub-[a-zA-Z0-9]+')."""
+    name = get_entity_name(entity_type)
+    if not name:
+        return ""
+    return f"{name}-[a-zA-Z0-9]+"
+
+
+def get_entity_glob_pattern(entity_type: str) -> str:
+    """Get the glob pattern for a BIDS entity directory (e.g. 'sub-*' for 'subject')."""
+    name = get_entity_name(entity_type)
+    if not name:
+        return ""
+    return f"{name}-*"
+
+
+def get_required_entity_types(dataset_type: str = "raw") -> list[str]:
+    """Get the required entity types for a given BIDS dataset type.
+
+    Args:
+        dataset_type: BIDS dataset type (e.g. 'raw', 'derivative', 'study').
+
+    Returns:
+        List of entity type names that are required for the dataset type.
+    """
+    try:
+        directories = _BIDS_SCHEMA["rules"]["directories"]
+        dir_rules = directories.get(dataset_type, {})
+    except (KeyError, AttributeError):
+        return []
+
+    entity_types = []
+    for rule in dir_rules.values():
+        entity = rule.get("entity") if hasattr(rule, "get") else None
+        level = rule.get("level") if hasattr(rule, "get") else None
+        if entity and level == "required":
+            entity_types.append(entity)
+    return entity_types
+
+
+def get_all_entity_prefixes() -> frozenset[str]:
+    """Get all BIDS entity name prefixes used in filenames (e.g. 'sub', 'tpl', 'ses')."""
+    return frozenset(_BIDS_NAME_ENTITY_MAP.keys())
+
+
+def get_file_entity_prefixes() -> tuple[str, ...]:
+    """Get entity name prefixes that BIDS filenames can start with (e.g. 'sub', 'tpl')."""
+    return ("sub", "tpl")
+
+
 # Initialize the default BIDS schema.
 set_bids_schema()
