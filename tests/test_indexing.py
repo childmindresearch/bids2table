@@ -183,6 +183,35 @@ def test_is_bids_subject_dir(path: str, expected: bool):
     assert indexing._is_bids_entity_dir(BIDS_EXAMPLES / path, "subject") == expected
 
 
+def test_derivative_detection():
+    """Derivative datasets are correctly detected or rejected."""
+    # 1. Derivative with dataset_description.json and valid entity dirs.
+    path = BIDS_EXAMPLES / "synthetic/derivatives/fmriprep"
+    assert indexing._is_bids_dataset(path)
+
+    # 2. Derivative without dataset_description.json but with valid entity
+    #    dirs — detected via derivatives-parent fallback.
+    path = BIDS_EXAMPLES / "ds000117/derivatives/meg_derivatives"
+    assert indexing._is_bids_dataset(path)
+
+    # 3. Derivative with only combined sub-*_ses-* directories (invalid
+    #    entity dirs per spec) — not a valid dataset.
+    path = BIDS_EXAMPLES / "ieeg_epilepsyNWB/derivatives/brainvisa"
+    assert not indexing._is_bids_dataset(path)
+
+    # 4. Combined sub-*_ses-* directory is neither an entity dir nor a
+    #    dataset root.
+    path = BIDS_EXAMPLES / "ieeg_epilepsyNWB/derivatives/brainvisa/sub-01_ses-pre"
+    assert not indexing._is_bids_entity_dir(path, "subject")
+    assert not indexing._is_bids_entity_dir(path, "template")
+    assert not indexing._is_bids_dataset(path)
+
+    # 5. A no-description derivative indexes correctly via the fallback.
+    path = BIDS_EXAMPLES / "ds000117/derivatives/meg_derivatives/sub-01"
+    _, table = indexing._index_bids_entity_dir(path)
+    assert len(table) == 12
+
+
 @pytest.mark.parametrize(
     "path,expected",
     [

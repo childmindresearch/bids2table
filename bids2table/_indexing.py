@@ -250,9 +250,18 @@ def _read_dataset_description(path: PathT) -> dict[str, Any]:
 
 
 def _get_dataset_type(root: PathT) -> str:
-    """Read the BIDS dataset type from dataset_description.json. Defaults to 'raw'."""
+    """Read the BIDS dataset type from dataset_description.json.
+
+    Falls back to ``"derivative"`` when the directory is inside a known
+    nested-parent (e.g. ``derivatives/``) even without a description file.
+    Defaults to ``"raw"``.
+    """
     desc = _read_dataset_description(root)
-    return desc.get("DatasetType", "raw")
+    if desc:
+        return desc.get("DatasetType", "raw")
+    if as_path(root).parent.name in _BIDS_NESTED_PARENT_DIRNAMES:
+        return "derivative"
+    return "raw"
 
 
 def _match_filters(
@@ -534,8 +543,8 @@ def _is_bids_dataset(path: PathT) -> bool:
     # Path should not be hidden.
     if path.name.startswith("."):
         return False
-    # Subject dirs are not datasets.
-    if _is_bids_entity_dir(path, "subject"):
+    # Subject/template dirs are not datasets.
+    if _is_bids_entity_dir(path, "subject") or _is_bids_entity_dir(path, "template"):
         return False
 
     # Check if contains a dataset_description.json or is a derivatives directory
@@ -552,6 +561,13 @@ def _is_bids_dataset(path: PathT) -> bool:
                 if entity_types:
                     return _contains_bids_entity_dirs(path, entity_types)
                 return True
+
+    # Fallback: derivatives directories are datasets even without a
+    # dataset_description.json if they contain entity subdirectories.
+    if as_path(path).parent.name in _BIDS_NESTED_PARENT_DIRNAMES:
+        entity_types = get_entity_child_dirs("derivative", "root")
+        if entity_types and _contains_bids_entity_dirs(path, entity_types):
+            return True
 
     return False
 
