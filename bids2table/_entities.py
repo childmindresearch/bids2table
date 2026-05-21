@@ -244,6 +244,45 @@ def validate_bids_entities(
     return valid_entities, extra_entities
 
 
+def _get_entity_directory_order() -> list[str]:
+    """Return entity name prefixes (e.g. 'sub', 'ses') in schema-defined
+    directory hierarchy order (shallower depth first).
+
+    Derived from the schema's ``rules.directories`` nesting: subject and
+    template are depth-1 children of root, session and cohort depth-2,
+    datatype depth-3.  Entity types that never appear as directories are
+    omitted.
+    """
+    depths: dict[str, int] = {}
+    for dtype in get_all_dataset_types():
+        rules = _BIDS_SCHEMA.get("rules", {}).get("directories", {}).get(dtype, {})
+        if not hasattr(rules, "get"):
+            continue
+        queue: list[tuple[str, int]] = [("root", 0)]
+        seen: set[str] = set()
+        while queue:
+            rule_name, depth = queue.pop(0)
+            if rule_name in seen:
+                continue
+            seen.add(rule_name)
+            rule = rules.get(rule_name, {})
+            if not hasattr(rule, "get"):
+                continue
+            entity = rule.get("entity")
+            if entity:
+                ename = get_entity_name(entity)
+                if ename and (ename not in depths or depth < depths[ename]):
+                    depths[ename] = depth
+            for subdir in rule.get("subdirs", []):
+                if isinstance(subdir, dict):
+                    names = subdir.get("oneOf", [])
+                else:
+                    names = [subdir]
+                for name in names:
+                    queue.append((name, depth + 1))
+    return sorted(depths, key=lambda n: depths[n])
+
+
 def format_bids_path(entities: dict[str, Any], int_format: str = "%d") -> Path:
     """Construct a formatted BIDS path from entities dict.
 
@@ -252,7 +291,7 @@ def format_bids_path(entities: dict[str, Any], int_format: str = "%d") -> Path:
         int_format: format string for integer (index) BIDS values.
 
     Returns:
-        A formatted `Path` instance.
+        A formatted ``Path`` instance.
     """
     special = {"datatype", "suffix", "ext"}
 
@@ -263,21 +302,23 @@ def format_bids_path(entities: dict[str, Any], int_format: str = "%d") -> Path:
             if isinstance(value, int):
                 value = int_format % value
             entities_fmt.append(f"{name}-{value}")
-    name = "_".join(entities_fmt)
+    filename = "_".join(entities_fmt)
 
     # Append suffix and extension.
     if suffix := entities.get("suffix"):
-        name += f"_{suffix}"
+        filename += f"_{suffix}"
     if ext := entities.get("ext"):
-        name += ext
+        filename += ext
 
-    # Prepend parent directories.
-    path = Path(name)
+    path = Path(filename)
+
+    # Prepend schema-derived directory hierarchy.
+    dir_order = _get_entity_directory_order()
+    dir_entities = [n for n in dir_order if n in entities]
     if datatype := entities.get("datatype"):
         path = datatype / path
-    if ses := entities.get("ses"):
-        path = f"ses-{ses}" / path
-    path = f"sub-{entities['sub']}" / path
+    for entity_name in reversed(dir_entities):
+        path = f"{entity_name}-{entities[entity_name]}" / path
     return path
 
 

@@ -232,17 +232,27 @@ def find_bids_datasets(
                 stack.append((entry, depth))
 
 
-def _get_dataset_type(root: PathT) -> str:
-    """Read the BIDS dataset type from dataset_description.json. Defaults to 'raw'."""
-    desc_path = root / "dataset_description.json"
+@lru_cache(maxsize=None)
+def _read_dataset_description(path: PathT) -> dict[str, Any]:
+    """Read and parse ``dataset_description.json`` from a dataset root.
+
+    Returns an empty dict if the file does not exist or cannot be parsed.
+    Cached keyed by the absolute path.
+    """
+    desc_path = as_path(path) / "dataset_description.json"
     if desc_path.exists():
         try:
             with open(desc_path) as f:
-                desc = json.load(f)
-            return desc.get("DatasetType", "raw")
+                return json.load(f)
         except (json.JSONDecodeError, OSError):
             pass
-    return "raw"
+    return {}
+
+
+def _get_dataset_type(root: PathT) -> str:
+    """Read the BIDS dataset type from dataset_description.json. Defaults to 'raw'."""
+    desc = _read_dataset_description(root)
+    return desc.get("DatasetType", "raw")
 
 
 def _match_filters(
@@ -280,6 +290,53 @@ def _match_single(value: str, key: str, pattern: str) -> bool:
         return True
     compound = f"{key}-{value}"
     return fnmatch.fnmatch(compound, pattern)
+
+
+def _resolve_entity_dirs(
+    root: PathT,
+    dataset_type: str,
+    filters: dict[str, str | list[str]] | None,
+) -> list[tuple[PathT, str]]:
+    """Discover entity directories and resolve their types.
+
+    Returns a list of ``(path, entity_type)`` pairs ordered by directory name.
+    Falls back to trying all dataset types when no entity dirs are found for
+    the detected type.
+    """
+    root_entity_types = get_entity_child_dirs(dataset_type, "root")
+    entity_dirs = _discover_entity_dirs(root, root_entity_types, filters)
+
+    if not entity_dirs:
+        seen = set(root_entity_types)
+        for dtype in get_all_dataset_types():
+            if dtype == dataset_type:
+                continue
+            for et in get_entity_child_dirs(dtype, "root"):
+                if et not in seen:
+                    seen.add(et)
+                    dirs = _discover_entity_dirs(root, [et], filters)
+                    entity_dirs.extend(dirs)
+        entity_dirs.sort(key=lambda p: p.name)
+
+    if not entity_dirs:
+        return []
+
+    # Collect all possible root entity types for dir detection
+    all_entity_types = list(root_entity_types)
+    for dtype in get_all_dataset_types():
+        for et in get_entity_child_dirs(dtype, "root"):
+            if et not in all_entity_types:
+                all_entity_types.append(et)
+
+    schedule: list[tuple[PathT, str]] = []
+    for entity_dir in entity_dirs:
+        entity_type = all_entity_types[0]
+        for et in all_entity_types:
+            if _is_bids_entity_dir(entity_dir, et):
+                entity_type = et
+                break
+        schedule.append((entity_dir, entity_type))
+    return schedule
 
 
 def index_dataset(
@@ -323,71 +380,21 @@ def index_dataset(
 
     dataset_type = _get_dataset_type(root)
 
-    # Read dataset metadata from dataset_description.json
-    desc_path = root / "dataset_description.json"
-    dataset_name = ""
-    bids_version = ""
-    if desc_path.exists():
-        try:
-            with open(desc_path) as f:
-                desc = json.load(f)
-            dataset_name = desc.get("Name", "")
-            bids_version = desc.get("BIDSVersion", "")
-        except (json.JSONDecodeError, OSError):
-            pass
-
+    desc = _read_dataset_description(root)
     record_extras = {
-        "dataset_name": dataset_name,
+        "dataset_name": desc.get("Name", ""),
         "dataset_type": dataset_type,
-        "bids_version": bids_version,
+        "bids_version": desc.get("BIDSVersion", ""),
     }
 
-    # Discover entity dirs at the dataset root.
-    root_entity_types = get_entity_child_dirs(dataset_type, "root")
-    entity_dirs = _discover_entity_dirs(root, root_entity_types, filters)
-
-    # Fallback: if no entity dirs match the detected type, try all dataset types.
-    if not entity_dirs:
-        seen = set(root_entity_types)
-        for dtype in get_all_dataset_types():
-            if dtype == dataset_type:
-                continue
-            for et in get_entity_child_dirs(dtype, "root"):
-                if et not in seen:
-                    seen.add(et)
-                    dirs = _discover_entity_dirs(root, [et], filters)
-                    entity_dirs.extend(dirs)
-        entity_dirs.sort(key=lambda p: p.name)
-
-    if not entity_dirs:
+    schedule = _resolve_entity_dirs(root, dataset_type, filters)
+    if not schedule:
         _logger.warning(
             f"Path {root} contains no matching entity dirs for dataset type '{dataset_type}'."
         )
         return pa.Table.from_pylist([], schema=schema)
 
-    # Collect all possible root entity types for dir detection
-    all_entity_types = list(root_entity_types)
-    for dtype in get_all_dataset_types():
-        for et in get_entity_child_dirs(dtype, "root"):
-            if et not in all_entity_types:
-                all_entity_types.append(et)
-
     tables = []
-    file_count = 0
-
-    # Build the scheduling list: (dir, entity_type) pairs, expanding child
-    # entity dirs when appropriate.
-    schedule: list[tuple[PathT, str]] = []
-    for entity_dir in entity_dirs:
-        entity_type = all_entity_types[0]
-        for et in all_entity_types:
-            if _is_bids_entity_dir(entity_dir, et):
-                entity_type = et
-                break
-        schedule.extend(
-            _expand_entity_dir(entity_dir, entity_type, dataset_type, filters)
-        )
-
     for entity_dir, entity_type in schedule:
         _, table = _index_bids_entity_dir(
             entity_dir,
@@ -398,10 +405,8 @@ def index_dataset(
             record_extras=record_extras,
         )
         tables.append(table)
-        file_count += len(table)
 
-    table = pa.concat_tables(tables).combine_chunks()
-    return table
+    return pa.concat_tables(tables).combine_chunks()
 
 
 def _discover_entity_dirs(
@@ -421,21 +426,6 @@ def _discover_entity_dirs(
         dirs.extend(found)
     dirs.sort(key=lambda p: p.name)
     return dirs
-
-
-def _expand_entity_dir(
-    entity_dir: PathT,
-    entity_type: str,
-    dataset_type: str,
-    filters: dict[str, str | list[str]] | None,
-) -> list[tuple[PathT, str]]:
-    """Return (dir, entity_type) pairs to index for a root entity dir.
-
-    Child entity dirs (e.g. session under subject) are indexed via flat rglob
-    from the parent using the top-level entity prefix, so we always index the
-    entity dir itself.
-    """
-    return [(entity_dir, entity_type)]
 
 
 def batch_index_dataset(
@@ -534,16 +524,15 @@ def _is_bids_dataset(path: PathT) -> bool:
     if path.name.startswith("."):
         return False
     # Subject dirs are not datasets.
-    if _is_bids_subject_dir(path):
+    if _is_bids_entity_dir(path, "subject"):
         return False
 
     # Check if contains a dataset_description.json or is a derivatives directory
     description_exists = (path / "dataset_description.json").exists()
 
     if description_exists:
-        try:
-            with open(path / "dataset_description.json") as f:
-                desc = json.load(f)
+        desc = _read_dataset_description(path)
+        if desc:
             dataset_type = desc.get("DatasetType", "raw")
             if dataset_type in get_all_dataset_types():
                 if dataset_type == "raw":
@@ -552,27 +541,8 @@ def _is_bids_dataset(path: PathT) -> bool:
                 if entity_types:
                     return _contains_bids_entity_dirs(path, entity_types)
                 return True
-        except (json.JSONDecodeError, OSError):
-            pass
 
     return False
-
-
-def _contains_bids_subject_dirs(root: PathT) -> bool:
-    """Check if a path contains one or more BIDS subject dirs."""
-    return _contains_bids_entity_dirs(root, ["subject"])
-
-
-def _find_bids_subject_dirs(
-    root: PathT,
-    include_subjects: str | list[str] | None = None,
-) -> list[PathT]:
-    """Find all BIDS subject dirs contained in a root directory.
-
-    Note, only looks one level down. Does not find nested subject directories, e.g. in
-    derivatives datasets.
-    """
-    return _find_bids_entity_dirs(root, "subject", include_subjects)
 
 
 def _find_bids_entity_dirs(
@@ -606,21 +576,6 @@ def _contains_bids_entity_dirs(root: PathT, entity_types: list[str]) -> bool:
     return any(
         _is_bids_entity_dir(path, et) for path in root.iterdir() for et in entity_types
     )
-
-
-def _is_bids_subject_dir(path: PathT) -> bool:
-    """Check if a path is a BIDS subject directory."""
-    return _is_bids_entity_dir(path, "subject")
-
-
-def _index_bids_subject_dir(
-    path: PathT,
-    schema: pa.Schema | None = None,
-    dataset: str | None = None,
-    record_extras: dict[str, Any] | None = None,
-) -> tuple[str, pa.Table]:
-    """Index a BIDS subject directory and return an Arrow table."""
-    return _index_bids_entity_dir(path, "subject", schema, dataset, record_extras)
 
 
 def _index_bids_entity_dir(
@@ -799,17 +754,6 @@ def _filter_include(
     names = set(names)
     matching_names = _multi_pattern_filter(names, patterns)
     names.intersection_update(matching_names)
-    return names
-
-
-def _filter_exclude(
-    names: Iterable[str],
-    patterns: str | list[str],
-) -> set[str]:
-    """Filter names excluding those that match a glob pattern or list of patterns."""
-    names = set(names)
-    matching_names = _multi_pattern_filter(names, patterns)
-    names.difference_update(matching_names)
     return names
 
 

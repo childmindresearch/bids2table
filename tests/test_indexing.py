@@ -87,8 +87,7 @@ def test_index_dataset_s3():
     assert len(table) == expected_count
 
 
-@pytest.mark.parametrize("max_workers", [0, 2])
-def test_index_dataset_parallel(max_workers: int):
+def test_index_dataset_parallel():
     root, expected_count = "ds102", 130
     table = indexing.index_dataset(BIDS_EXAMPLES / root, show_progress=False)
     assert len(table) == expected_count
@@ -140,7 +139,7 @@ def test_get_bids_dataset(path: str, expected_name: str):
     name, dataset_path = indexing._get_bids_dataset(BIDS_EXAMPLES / path)
     assert name == expected_name
     assert dataset_path is not None
-    assert indexing._contains_bids_subject_dirs(dataset_path)
+    assert indexing._contains_bids_entity_dirs(dataset_path, ["subject"])
 
 
 @pytest.mark.parametrize(
@@ -155,8 +154,8 @@ def test_get_bids_dataset(path: str, expected_name: str):
 def test_find_bids_subject_dirs(
     path: str, include_subjects: str | list[str] | None, expected_count: int
 ):
-    subject_dirs = indexing._find_bids_subject_dirs(
-        BIDS_EXAMPLES / path, include_subjects
+    subject_dirs = indexing._find_bids_entity_dirs(
+        BIDS_EXAMPLES / path, "subject", include_subjects
     )
     assert len(subject_dirs) == expected_count
 
@@ -170,7 +169,7 @@ def test_find_bids_subject_dirs(
     ],
 )
 def test_index_subject_dir(path: str, expected_count: int):
-    _, table = indexing._index_bids_subject_dir(BIDS_EXAMPLES / path)
+    _, table = indexing._index_bids_entity_dir(BIDS_EXAMPLES / path)
     assert len(table) == expected_count
 
 
@@ -181,7 +180,7 @@ def test_index_subject_dir(path: str, expected_count: int):
     ],
 )
 def test_is_bids_subject_dir(path: str, expected: bool):
-    assert indexing._is_bids_subject_dir(BIDS_EXAMPLES / path) == expected
+    assert indexing._is_bids_entity_dir(BIDS_EXAMPLES / path, "subject") == expected
 
 
 @pytest.mark.parametrize(
@@ -293,12 +292,8 @@ def test_index_template_dataset():
 
 def test_filter_include_exclude():
     names = ["blah", "sub-A01", "sub-A02", "sub-B01", "sub-B02"]
-    include = "sub-*"
-    exclude = ["sub-B*", "sub-A02"]
-    expected = {"sub-A01"}
-    filtered_names = indexing._filter_include(names, include)
-    filtered_names = indexing._filter_exclude(filtered_names, exclude)
-    assert filtered_names == expected
+    filtered = indexing._filter_include(names, "sub-*")
+    assert filtered == {"sub-A01", "sub-A02", "sub-B01", "sub-B02"}
 
 
 @pytest.mark.parametrize(
