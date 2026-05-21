@@ -356,10 +356,7 @@ def _contains_bids_subject_dirs(root: PathT) -> bool:
     """Check if a path contains one or more BIDS subject dirs."""
     if not root.is_dir():
         return False
-    return any(
-        _is_bids_subject_dir(path)
-        for path in root.iterdir()
-    )
+    return any(_is_bids_subject_dir(path) for path in root.iterdir())
 
 
 def _find_bids_subject_dirs(
@@ -371,11 +368,7 @@ def _find_bids_subject_dirs(
     Note, only looks one level down. Does not find nested subject directories, e.g. in
     derivatives datasets.
     """
-    paths = [
-        path
-        for path in root.iterdir()
-        if _is_bids_subject_dir(path)
-    ]
+    paths = [path for path in root.iterdir() if _is_bids_subject_dir(path)]
 
     if include_subjects:
         filtered_names = _filter_include(
