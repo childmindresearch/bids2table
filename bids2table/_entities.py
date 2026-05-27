@@ -337,12 +337,41 @@ def get_entity_name(entity_type: str) -> str:
     return ""
 
 
+def _get_entity_format_pattern(entity_type: str) -> str:
+    """Get the regex pattern for a BIDS entity value from the schema format.
+
+    Resolves the entity's ``format`` field through
+    ``schema.objects.formats[fmt].pattern``.
+    """
+    ent = _BIDS_ENTITY_SCHEMA.get(entity_type)
+    if ent is None:
+        try:
+            ent = _BIDS_SCHEMA["objects"]["entities"].get(entity_type)
+        except (KeyError, AttributeError):
+            return ""
+    if ent is None:
+        return ""
+
+    fmt = ent.get("format", "")
+    if not fmt or fmt == "special":
+        return ".+"
+
+    try:
+        fmt_obj = _BIDS_SCHEMA["objects"]["formats"].get(fmt)
+        if fmt_obj is not None:
+            return fmt_obj.get("pattern", ".+")
+    except (KeyError, AttributeError):
+        pass
+    return ".+"
+
+
 def get_entity_pattern(entity_type: str) -> str:
-    """Get the regex pattern for a BIDS entity directory name (e.g. 'sub-[a-zA-Z0-9]+')."""
+    """Get the regex pattern for a BIDS entity directory name (e.g. 'sub-[0-9a-zA-Z+]+')."""
     name = get_entity_name(entity_type)
     if not name:
         return ""
-    return f"{name}-[a-zA-Z0-9]+"
+    value_pattern = _get_entity_format_pattern(entity_type)
+    return f"{name}-{value_pattern}"
 
 
 def get_entity_glob_pattern(entity_type: str) -> str:
