@@ -16,7 +16,7 @@ try:
     except Exception:
         pass
 
-except ImportError:
+except Exception:
     AnyPath = CloudPath = Path
 
     _CLOUDPATHLIB_AVAILABLE = False

@@ -13,7 +13,7 @@ from bids2table.pybids import BIDSFile, BIDSLayout, Query
 def test_dataset():
     """Return path to a test BIDS dataset."""
     # Use one of the bids-examples datasets
-    dataset_path = Path(__file__).parents[2] / "bids-examples" / "ds001"
+    dataset_path = Path(__file__).parents[2] / "bids-examples" / "ds114"
     if not dataset_path.exists():
         pytest.skip(f"Test dataset not found: {dataset_path}")
     return dataset_path

@@ -196,9 +196,6 @@ def find_bids_datasets(
 def index_dataset(
     root: str | PathT,
     include_subjects: str | list[str] | None = None,
-    max_workers: int | None = 0,
-    chunksize: int = 32,
-    executor_cls: type[Executor] = ProcessPoolExecutor,
     show_progress: bool = False,
 ) -> pa.Table:
     """Index a BIDS dataset.
@@ -207,13 +204,6 @@ def index_dataset(
         root: BIDS dataset root directory.
         include_subjects: Glob pattern or list of patterns for matching subjects to
             include in the index.
-        max_workers: Number of indexing processes to run in parallel. Setting
-            `max_workers=0` (the default) uses the main process only. Setting
-            `max_workers=None` starts as many workers as there are available CPUs. See
-            `concurrent.futures.ProcessPoolExecutor` for details.
-        chunksize: Number of subjects per process task. Only used for
-            `ProcessPoolExecutor` when `max_workers > 0`.
-        executor_cls: Executor class to use for parallel indexing.
         show_progress: Show progress bar.
 
     Returns:
@@ -234,25 +224,12 @@ def index_dataset(
         _logger.warning(f"Path {root} contains no matching subject dirs.")
         return pa.Table.from_pylist([], schema=schema)
 
-    func = partial(_index_bids_subject_dir, schema=schema, dataset=dataset)
-
     tables = []
     file_count = 0
-    for sub, table in (
-        pbar := tqdm(
-            _pmap(func, subject_dirs, max_workers, chunksize, executor_cls),
-            desc=dataset,
-            total=len(subject_dirs),
-            disable=not show_progress,
-        )
-    ):
-        file_count += len(table)
-        pbar.set_postfix(dict(sub=sub, N=_hfmt(file_count)), refresh=False)
+    for sub in subject_dirs:
+        _, table = _index_bids_subject_dir(sub, schema=schema, dataset=dataset)
         tables.append(table)
-
-    # NOTE: concat_tables produces a table where each column is a ChunkedArray, with one
-    # chunk per original subject table. Is it better to keep the original chunks (one
-    # per subject) or merge using `combine_chunks`?
+        file_count += len(table)
     table = pa.concat_tables(tables).combine_chunks()
     return table
 
@@ -292,7 +269,7 @@ def batch_index_dataset(
 
 def _batch_index_func(root: str | PathT) -> tuple[str | None, pa.Table]:
     dataset, _ = _get_bids_dataset(root)
-    table = index_dataset(root, max_workers=0, show_progress=False)
+    table = index_dataset(root, show_progress=False)
     return dataset, table
 
 
