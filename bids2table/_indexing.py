@@ -8,7 +8,7 @@ import enum
 import fnmatch
 import importlib.metadata
 import json
-import os
+
 import re
 import sys
 from concurrent.futures import Executor, ProcessPoolExecutor
@@ -35,7 +35,6 @@ from ._entities import (
 from ._logging import setup_logger
 from ._pathlib import CloudPath, PathT, as_path, cloudpathlib_is_available
 
-_IS_WINDOWS = os.name == "nt"
 
 # Path names of BIDS dataset sub-directories that may contain nested BIDS datasets.
 # Only "derivatives" is defined by the BIDS spec for this purpose; it is not
@@ -635,7 +634,7 @@ def _index_bids_entity_dir(
         paths = map(as_path, glob(f"{path}/**/{glob_pattern}", recursive=True))
 
     for p in paths:
-        if _is_bids_file(p) and not _is_bidsignored(p):
+        if _is_bids_file(p) and not _is_bidsignored(p, root):
             entities = _cache_parse_bids_entities(p)
             if not _match_filters(entities, filters):
                 continue
@@ -680,36 +679,16 @@ def _is_bids_file(path: PathT) -> bool:
     return True
 
 
-def _is_bidsignored(path: PathT) -> bool:
-    """Check if path matches any pattern in a .bidsignore file.
-
-    Searches up from the file's directory to the dataset root for a .bidsignore
-    file and checks if the relative path matches any of its glob patterns.
-    """
-    bidsignore = _find_bidsignore(path.parent)
-    if bidsignore is None:
+def _is_bidsignored(path: PathT, root: PathT) -> bool:
+    """Check if path matches any pattern in a root-level .bidsignore file."""
+    bidsignore = root / ".bidsignore"
+    if not bidsignore.exists():
         return False
     patterns = _load_bidsignore_patterns(bidsignore)
     if not patterns:
         return False
-    rel = path.relative_to(bidsignore.parent)
+    rel = path.relative_to(root)
     return any(fnmatch.fnmatch(str(rel), pat) for pat in patterns)
-
-
-@lru_cache(maxsize=None)
-def _find_bidsignore(start: PathT) -> PathT | None:
-    """Walk up from start looking for a .bidsignore file."""
-    current = start
-    root = as_path("/") if not _IS_WINDOWS else None
-    while current != root:
-        candidate = current / ".bidsignore"
-        if candidate.exists():
-            return candidate
-        parent = current.parent
-        if parent == current:
-            break
-        current = parent
-    return None
 
 
 @lru_cache(maxsize=None)
