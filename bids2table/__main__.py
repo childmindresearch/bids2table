@@ -31,7 +31,17 @@ def main():
         nargs="+",
         default=None,
         help="List of subject names or glob patterns to only include in the index.  "
-        "Only applies when indexing a single dataset.",
+        "Deprecated; use --filter instead.",
+    )
+    parser_index.add_argument(
+        "--filter",
+        "-f",
+        metavar="ENTITY=PATTERN",
+        type=str,
+        action="append",
+        default=None,
+        help="Filter indexed files by entity value (e.g. -f sub=sub-0* -f task=rest). "
+        "Can be specified multiple times.",
     )
     parser_index.add_argument(
         "--workers",
@@ -114,10 +124,29 @@ def _index_command(args: argparse.Namespace):
         else:
             root.append(path)
 
+    # Build filters dict from --filter args
+    filters: dict[str, str | list[str]] | None = None
+    if args.filter:
+        filters = {}
+        for item in args.filter:
+            parts = item.split("=", maxsplit=1)
+            if len(parts) == 2:
+                filters[parts[0]] = parts[1]
+            else:
+                _logger.warning(
+                    f"Ignoring malformed filter: '{item}' (expected ENTITY=PATTERN)"
+                )
+
+    # Merge deprecated --subjects into filters
+    if args.subjects:
+        if filters is None:
+            filters = {}
+        filters.setdefault("sub", args.subjects)
+
     if len(root) == 1:
         table = b2t2.index_dataset(
             root[0],
-            include_subjects=args.subjects,
+            filters=filters,
             show_progress=not args.no_progress,
         )
         pq.write_table(table, args.output)
@@ -135,6 +164,7 @@ def _index_command(args: argparse.Namespace):
                 max_workers=max_workers,
                 executor_cls=executor_cls,
                 show_progress=not args.no_progress,
+                filters=filters,
             ):
                 writer.write_table(table)
 

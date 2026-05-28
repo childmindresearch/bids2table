@@ -9,13 +9,16 @@ __all__ = [
     "parse_bids_entities",
     "validate_bids_entities",
     "set_bids_schema",
+    "clear_schema_caches",
     "get_bids_schema",
     "get_bids_entity_arrow_schema",
     "format_bids_path",
     "load_bids_metadata",
     "cloudpathlib_is_available",
+    "pybids",
 ]
 
+from . import pybids
 from ._entities import (
     format_bids_path,
     get_bids_entity_arrow_schema,
@@ -26,6 +29,7 @@ from ._entities import (
 )
 from ._indexing import (
     batch_index_dataset,
+    clear_schema_caches,
     find_bids_datasets,
     get_arrow_schema,
     get_column_names,
