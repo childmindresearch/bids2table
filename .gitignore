@@ -26,6 +26,7 @@ htmlcov
 
 # Local data and scratch
 .scratch
+benchmarks/
 
 # Local virtual environment
 .venv

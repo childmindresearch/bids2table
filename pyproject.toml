@@ -37,8 +37,10 @@ pybids = ["pandas>=2.0.0"]
 [dependency-groups]
 dev = [
     "pdoc>=16.0.0",
+    "polars>=1.40.1",
     "pre-commit>=4.6.0",
     "pytest>=9.0.3",
+    "pytest-benchmark>=5.2.3",
     "pytest-cov>=7.1.0",
     "ruff>=0.15.13",
 ]
@@ -68,4 +70,8 @@ lint.extend-select = ["I"]
 [tool.pytest.ini_options]
 log_cli = true
 log_cli_level = "INFO"
-markers = ["cloud: Tests requiring cloud group dependencies"]
+addopts = "--import-mode=importlib"
+markers = [
+    "benchmark: Tests used for benchmarking",
+    "cloud: Tests requiring cloud group dependencies",
+]

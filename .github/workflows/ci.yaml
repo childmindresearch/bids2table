@@ -42,19 +42,19 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: uv sync --all-extras
 
-      - name: Run tests without cloudpathlib
+      - name: Run non-cloud tests
         run: |
           uv run pytest \
-            -m "not cloud" \
+            -m "not cloud and not benchmark" \
             --junitxml=pytest-cloudless.xml \
             --cov-report=xml:coverage.xml \
-            --cov bids2table \
+            --cov=bids2table \
             tests
 
-      - name: Run tests with cloudpathlib
+      - name: Run cloud tests
         run: |
           uv run pytest \
-            -m "cloud" \
+            -m "cloud and not benchmark" \
             --junitxml=pytest-cloud.xml \
             --cov-report=xml:coverage.xml \
             --cov=bids2table \
