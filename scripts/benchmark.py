@@ -5,7 +5,8 @@
 """Perform benchmarking of bids2table against last tag, main and feature branches.
 
 Run with:
-    uv run --with <repo> scripts/benchmark.py -b <feature_branch> [-o <output_dir>]
+    uv run --with <repo> scripts/benchmark.py \
+        -b <feature_branch> [-o <output_dir>] [-f <output_file>] [-t <threshold>]
 """
 
 from __future__ import annotations
@@ -173,10 +174,15 @@ def _fmt(res: BenchmarkResult) -> str:
     return f"{median.value:.3f} ({mean:.3f} ± {stddev:.3f}) {median.unit}"
 
 
-def _ratio(pr: BenchmarkResult, ref: BenchmarkResult) -> str:
+def _ratio(pr: BenchmarkResult, ref: BenchmarkResult, threshold: float) -> str:
     ratio = pr.median / ref.median
-    icon = "🔴" if ratio > 1 else "🟢" if ratio < 1 else "⚪"
-    return f"{icon} {ratio:.2f}"
+    if abs(1 - ratio) <= threshold:
+        icon = "⚪"
+    elif ratio > 1:
+        icon = "🔴"
+    else:
+        icon = "🟢"
+    return f"{icon} {ratio:.3f}"
 
 
 def _label(result: BenchmarkResult) -> str:
@@ -191,6 +197,7 @@ def _label(result: BenchmarkResult) -> str:
 
 
 def build_table(
+    threshold: float,
     branch_name: str,
     branch: dict[str, BenchmarkResult],
     main: dict[str, BenchmarkResult],
@@ -213,7 +220,7 @@ def build_table(
 
     def ratio_row(label: str, ref: dict[str, BenchmarkResult]) -> str:
         cells = [
-            _ratio(branch[k], ref[k]) if k in branch and k in ref else "—"
+            _ratio(branch[k], ref[k], threshold) if k in branch and k in ref else "—"
             for k in all_keys
         ]
         return "| *" + label + "* |" + col_sep.join(f" {c} " for c in cells) + " |"
@@ -230,7 +237,7 @@ def build_table(
         "",
         "> `median (mean ± std)`",
         "> ",
-        "> 🔴 Slower &nbsp; ⚪ No change &nbsp; 🟢 Faster",
+        f"> 🔴 Slower &nbsp; ⚪ No change (<{threshold * 100:.0f} %) &nbsp; 🟢 Faster",
     ]
     return "\n".join(lines)
 
@@ -251,6 +258,13 @@ def _parser() -> argparse.Namespace:
         required=False,
         type=str,
         help="Output file name",
+    )
+    parser.add_argument(
+        "-t",
+        "--threshold",
+        default=0.05,
+        type=float,
+        help="Threshold for performance to be considered unchanged",
     )
     return parser.parse_args()
 
@@ -302,14 +316,16 @@ def run_benchmark(git: Git, branch: str, out_dir: Path) -> None:
 
 
 def generate_report(
-    git: Git, branch: str, out_dir: Path, out_fname: str | None = None
+    git: Git, branch: str, threshold: float, out_dir: Path, out_fname: str | None = None
 ) -> Path:
     """Generate markdown report from benchmarks.
 
     Args:
         git: Representation of current git repository for benchmarking
         branch: Feature branch benchmarked
+        threshold: Threshold for performance to be considered unchanged
         out_dir: Directory benchmarks are saved to / output report to
+        out_fname: Benchmark output file name
 
     Returns:
         Path to file containing benchmark comparison table
@@ -345,6 +361,7 @@ def generate_report(
             _logger.warning("Tag '%s' not found in benchmark files.", tag)
 
         report_contents = build_table(
+            threshold,
             branch,
             parsed[branch],
             parsed["main"],
@@ -362,6 +379,8 @@ def generate_report(
 
 def main() -> None:
     args = _parser()
+    if abs(args.threshold) > 1:
+        raise ValueError(f"Threshold should be between 0 and 1, got: {args.threshold}")
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     with Git() as git:
@@ -369,6 +388,7 @@ def main() -> None:
         report_file = generate_report(
             git=git,
             branch=args.branch,
+            threshold=args.threshold,
             out_dir=args.output_dir,
             out_fname=args.output_file,
         )

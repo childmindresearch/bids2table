@@ -23,7 +23,7 @@ jobs:
       - name: Run benchmarks
         id: run-benchmarks
         run: |
-          uv run python scripts/benchmark.py -b $BRANCH_NAME -o . -f benchmarks.md
+          uv run python scripts/benchmark.py -b $BRANCH_NAME -o . -f benchmarks.md -t 0.05
       - name: Record pr number
         run: |
           echo "${{ github.event.number }}" > pr-number.txt
