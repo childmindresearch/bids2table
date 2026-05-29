@@ -245,6 +245,13 @@ def _parser() -> argparse.Namespace:
         type=Path,
         help="Output directory to save benchmarks to",
     )
+    parser.add_argument(
+        "-f",
+        "--output-file",
+        required=False,
+        type=str,
+        help="Output file name",
+    )
     return parser.parse_args()
 
 
@@ -294,7 +301,9 @@ def run_benchmark(git: Git, branch: str, out_dir: Path) -> None:
             )
 
 
-def generate_report(git: Git, branch: str, out_dir: Path) -> Path:
+def generate_report(
+    git: Git, branch: str, out_dir: Path, out_fname: str | None = None
+) -> Path:
     """Generate markdown report from benchmarks.
 
     Args:
@@ -341,8 +350,10 @@ def generate_report(git: Git, branch: str, out_dir: Path) -> Path:
             parsed["main"],
             None,  # parsed.get(tag)
         )
-        dt = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M")
-        report_file = out_dir / f"benchmark-{_sanitize(branch)}-{dt}.md"
+        if out_fname is None:
+            dt = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M")
+            out_fname = f"benchmark-{_sanitize(branch)}-{dt}.md"
+        report_file = out_dir / out_fname
         report_file.write_text(report_contents)
         _logger.info("Report written to %s", report_file)
 
@@ -356,7 +367,10 @@ def main() -> None:
     with Git() as git:
         run_benchmark(git=git, branch=args.branch, out_dir=args.output_dir)
         report_file = generate_report(
-            git=git, branch=args.branch, out_dir=args.output_dir
+            git=git,
+            branch=args.branch,
+            out_dir=args.output_dir,
+            out_fname=args.output_file,
         )
 
         if "GITHUB_OUTPUT" in os.environ:
