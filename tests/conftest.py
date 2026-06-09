@@ -13,7 +13,7 @@ def pytest_configure(config):
 
 def pytest_runtest_setup(item):
     if "cloud" in item.keywords and not cloudpathlib_is_available():
-            pytest.skip("cloudpathlib is not available or not fully functional")
+        pytest.skip("cloudpathlib is not available or not fully functional")
 
 
 @pytest.fixture
