@@ -5,12 +5,6 @@ import pytest
 from bids2table._pathlib import cloudpathlib_is_available
 
 
-def pytest_configure(config):
-    config.addinivalue_line(
-        "markers", "cloud: Tests requiring cloud group dependencies"
-    )
-
-
 def pytest_runtest_setup(item):
     if "cloud" in item.keywords and not cloudpathlib_is_available():
         pytest.skip("cloudpathlib is not available or not fully functional")
