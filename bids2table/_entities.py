@@ -80,7 +80,7 @@ def set_bids_schema(path: str | Path | None = None) -> None:
     schema = bidsschematools.schema.load_schema(path)
     entity_schema = {
         entity: schema.objects.entities[entity].to_dict()
-        for entity in schema.objects.entities
+        for entity in schema.rules.entities
     }
     # Also include special extra entities (datatype, suffix, extension).
     entity_schema.update(_BIDS_SPECIAL_ENTITY_SCHEMA)

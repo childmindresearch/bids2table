@@ -39,7 +39,7 @@ def main():
         metavar="ENTITY=PATTERN",
         type=str,
         action="append",
-        default=None,
+        default=[],
         help="Filter indexed files by entity value (e.g. -f sub=sub-0* -f task=rest). "
         "Can be specified multiple times.",
     )
