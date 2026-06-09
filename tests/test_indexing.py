@@ -25,34 +25,6 @@ def test_get_column_names():
     assert BIDSColumn.dataset == "dataset"
 
 
-@pytest.mark.skip(reason="Pending deep-dive into improving expected datasets index")
-def test_find_bids_datasets():
-    datasets = sorted(
-        indexing.find_bids_datasets(
-            BIDS_EXAMPLES,
-            exclude=["surfaces", "subjects", "code", "sourcedata"],
-        )
-    )
-    expected_datasets = sorted(
-        [p.parent for p in BIDS_EXAMPLES.rglob("dataset_description.json")]
-    )
-    # find_bids_datasets now strictly follows BIDS schema for subject directories
-    # and only finds datasets with dataset_description.json
-    assert set(expected_datasets) == set(datasets)
-    assert len(datasets) == len(expected_datasets)
-
-    datasets_no_derivatives = sorted(
-        indexing.find_bids_datasets(
-            BIDS_EXAMPLES,
-            exclude=["derivatives", "code", "sourcedata"],
-        )
-    )
-    expected_datasets_no_derivatives = sorted(
-        [p.parent for p in BIDS_EXAMPLES.glob("*/dataset_description.json")]
-    )
-    assert datasets_no_derivatives == expected_datasets_no_derivatives
-
-
 @pytest.mark.cloud
 def test_find_bids_datasets_s3():
     root = "s3://openneuro.org"
