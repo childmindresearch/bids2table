@@ -444,7 +444,8 @@ def _get_json_data_suffixes() -> frozenset[str]:
         return frozenset()
 
     return frozenset(
-        s for s, exts in suffix_exts.items()
+        s
+        for s, exts in suffix_exts.items()
         if ".json" in exts and all(e == ".json" for e in exts)
     )
 
