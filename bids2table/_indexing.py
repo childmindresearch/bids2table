@@ -7,6 +7,8 @@ Returns a dataset index as an Arrow table.
 import enum
 import fnmatch
 import importlib.metadata
+import json
+
 import re
 import sys
 from concurrent.futures import Executor, ProcessPoolExecutor
@@ -19,30 +21,41 @@ from tqdm import tqdm
 
 from ._entities import (
     _cache_parse_bids_entities,
+    _get_json_data_suffixes,
+    get_all_dataset_types,
+    get_all_root_entity_types,
     get_bids_entity_arrow_schema,
+    get_entity_child_dirs,
+    get_entity_glob_pattern,
+    get_entity_name,
+    get_entity_pattern,
+    get_file_entity_prefixes,
     validate_bids_entities,
 )
 from ._logging import setup_logger
 from ._pathlib import CloudPath, PathT, as_path, cloudpathlib_is_available
 
-_BIDS_SUBJECT_DIR_PATTERN = re.compile(r"sub-[a-zA-Z0-9]+")
 
 # Path names of BIDS dataset sub-directories that may contain nested BIDS datasets.
-# Other candidates to consider including:
-#   - sourcedata
-#   - code
+# Only "derivatives" is defined by the BIDS spec for this purpose; it is not
+# derivable from the bidsschematools schema (no schema flag for "contains nested
+# datasets"), so it remains hardcoded here.
 _BIDS_NESTED_PARENT_DIRNAMES = {
     "derivatives",
 }
 
 # Typically json files are reserved for sidecar metadata only. However there are some
-# exceptions. One way to test whether a json file is sidecar or data is to check for any
-# matching non-json files at the same level. But that is a lot of work to do for a few
-# special cases. Rather, we just list the special case suffixes here. (Honestly, using
-# plain json extension for data files should be discouraged.)
-_BIDS_JSON_SIDECAR_EXCEPTION_SUFFIXES = {
-    "coordsystem",
-}
+# exceptions where .json IS the data format. These suffixes are collected from the
+# BIDS schema by _get_json_data_suffixes().
+_BIDS_JSON_SIDECAR_EXCEPTION_SUFFIXES: frozenset[str] = frozenset()
+
+
+def _init_json_data_suffixes() -> None:
+    global _BIDS_JSON_SIDECAR_EXCEPTION_SUFFIXES
+    _BIDS_JSON_SIDECAR_EXCEPTION_SUFFIXES = _get_json_data_suffixes()
+
+
+_init_json_data_suffixes()
 
 # Configs for index arrow fields to add to the entity schema (defined elsewhere).
 _INDEX_ARROW_FIELDS = {
@@ -83,6 +96,30 @@ _INDEX_ARROW_FIELDS = {
             "description": "Map of extra BIDS entities not matching current schema.",
         },
     },
+    "dataset_name": {
+        "dtype": pa.string(),
+        "metadata": {
+            "name": "dataset_name",
+            "display_name": "Dataset name",
+            "description": "Name of the BIDS dataset from dataset_description.json.",
+        },
+    },
+    "dataset_type": {
+        "dtype": pa.string(),
+        "metadata": {
+            "name": "dataset_type",
+            "display_name": "Dataset type",
+            "description": "BIDS dataset type (e.g. 'raw', 'derivative').",
+        },
+    },
+    "bids_version": {
+        "dtype": pa.string(),
+        "metadata": {
+            "name": "bids_version",
+            "display_name": "BIDS version",
+            "description": "BIDS version from dataset_description.json.",
+        },
+    },
 }
 
 _logger = setup_logger(__package__)
@@ -99,6 +136,9 @@ def get_arrow_schema() -> pa.Schema:
         index_fields["dataset"],
         *entity_schema,
         index_fields["extra_entities"],
+        index_fields["dataset_name"],
+        index_fields["dataset_type"],
+        index_fields["bids_version"],
         index_fields["root"],
         index_fields["path"],
     ]
@@ -185,6 +225,8 @@ def find_bids_datasets(
             descend = descend and not (entry.suffix or entry.name.startswith("."))
             # Only descend into specific subdirectories of BIDS directories.
             descend = descend and (
+                # Only descend into subdirectories that may contain nested BIDS datasets.
+                # This is not derivable from the schema, so it remains hardcoded.
                 not inside_bids or entry.name in _BIDS_NESTED_PARENT_DIRNAMES
             )
             # Finally, check if actually a directory (which is slow so we want to
@@ -193,8 +235,130 @@ def find_bids_datasets(
                 stack.append((entry, depth))
 
 
+@lru_cache(maxsize=None)
+def _read_dataset_description(path: PathT) -> dict[str, Any]:
+    """Read and parse ``dataset_description.json`` from a dataset root.
+
+    Returns an empty dict if the file does not exist or cannot be parsed.
+    Cached keyed by the absolute path.
+    """
+    desc_path = as_path(path) / "dataset_description.json"
+    if desc_path.exists():
+        try:
+            with open(desc_path) as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            pass
+    return {}
+
+
+def _get_dataset_type(root: PathT) -> str:
+    """Read the BIDS dataset type from dataset_description.json.
+
+    Falls back to ``"derivative"`` when the directory is inside a known
+    nested-parent (e.g. ``derivatives/``) even without a description file.
+    Defaults to ``"raw"``.
+    """
+    desc = _read_dataset_description(root)
+    if desc:
+        return desc.get("DatasetType", "raw")
+    if as_path(root).parent.name in _BIDS_NESTED_PARENT_DIRNAMES:
+        return "derivative"
+    return "raw"
+
+
+def _match_filters(
+    entities: dict[str, Any], filters: dict[str, str | list[str]] | None
+) -> bool:
+    """Check if parsed entities match all filter patterns.
+
+    Returns True if no filters are set or if every filter key matches the
+    corresponding entity value. A missing entity key means the file does not
+    match (e.g. filtering by ``ses`` on a file without a session).
+
+    Both entity values (``"03"``) and compound forms (``"sub-03"``) are
+    accepted for entity keys, so filters work identically at directory and
+    file levels.
+    """
+    if not filters:
+        return True
+    for key, pattern in filters.items():
+        value = entities.get(key)
+        if value is None:
+            return False
+        if isinstance(pattern, list):
+            matches = any(_match_single(str(value), key, p) for p in pattern)
+        else:
+            matches = _match_single(str(value), key, pattern)
+        if not matches:
+            return False
+    return True
+
+
+def _match_single(value: str, key: str, pattern: str) -> bool:
+    """Match a single entity value against a pattern, trying both the raw
+    value and the compound form (``{key}-{value}``)."""
+    if fnmatch.fnmatch(value, pattern):
+        return True
+    compound = f"{key}-{value}"
+    return fnmatch.fnmatch(compound, pattern)
+
+
+def _resolve_entity_dirs(
+    root: PathT,
+    dataset_type: str,
+    filters: dict[str, str | list[str]] | None,
+) -> list[tuple[PathT, str]]:
+    """Discover entity directories and resolve their types.
+
+    Returns a list of ``(path, entity_type)`` pairs ordered by directory name.
+    Falls back to trying all dataset types when no entity dirs are found for
+    the detected type.
+    """
+    root_entity_types = get_entity_child_dirs(dataset_type, "root")
+
+    # Build the master list of all possible root entity types across all
+    # schema-defined dataset types, used for fallback discovery and matching.
+    all_entity_types = list(get_all_root_entity_types())
+
+    entity_dirs = _discover_entity_dirs(root, root_entity_types, filters)
+
+    # Fallback: try all entity types when none match the detected dataset type.
+    if not entity_dirs:
+        for et in all_entity_types:
+            if et in root_entity_types:
+                continue
+            entity_dirs.extend(_discover_entity_dirs(root, [et], filters))
+        entity_dirs.sort(key=lambda p: p.name)
+
+    if not entity_dirs:
+        return []
+
+    schedule: list[tuple[PathT, str]] = []
+    for entity_dir in entity_dirs:
+        entity_type = all_entity_types[0]
+        for et in all_entity_types:
+            if _is_bids_entity_dir(entity_dir, et):
+                entity_type = et
+                break
+        schedule.append((entity_dir, entity_type))
+    return schedule
+
+
+def clear_schema_caches() -> None:
+    """Clear LRU caches that depend on the BIDS schema.
+
+    Call after :func:`bids2table.set_bids_schema` to avoid stale results from
+    previously cached schema-dependent function calls.
+    """
+    _get_bids_dataset.cache_clear()
+    _is_bids_dataset.cache_clear()
+    _init_json_data_suffixes()
+
+
 def index_dataset(
     root: str | PathT,
+    filters: dict[str, str | list[str]] | None = None,
     include_subjects: str | list[str] | None = None,
     show_progress: bool = False,
 ) -> pa.Table:
@@ -202,14 +366,28 @@ def index_dataset(
 
     Args:
         root: BIDS dataset root directory.
-        include_subjects: Glob pattern or list of patterns for matching subjects to
-            include in the index.
+        filters: Dict mapping entity names to glob patterns to filter indexed
+            files. Keys reference directory-level entities (``sub``, ``ses``,
+            ``cohort``, ``tpl``) to filter entity directories, and any parsed
+            entity to filter individual files. Examples::
+
+                {"sub": "sub-0*"}
+                {"sub": ["sub-01", "sub-02"], "task": "rest"}
+                {"ses": "ses-1"}
+
+        include_subjects: Deprecated. Use ``filters={"sub": ...}`` instead.
         show_progress: Show progress bar.
 
     Returns:
         An Arrow table index of the BIDS dataset.
     """
     root = as_path(root)
+
+    # Normalise filters: merge include_subjects for backward compat
+    filters = dict(filters or {})
+    if include_subjects is not None:
+        sub_key = get_entity_name("subject") or "sub"
+        filters[sub_key] = include_subjects
 
     schema = get_arrow_schema()
 
@@ -218,20 +396,54 @@ def index_dataset(
         _logger.warning(f"Path {root} is not a valid BIDS dataset directory.")
         return pa.Table.from_pylist([], schema=schema)
 
-    subject_dirs = _find_bids_subject_dirs(root, include_subjects)
-    subject_dirs = sorted(subject_dirs, key=lambda p: p.name)
-    if len(subject_dirs) == 0:
-        _logger.warning(f"Path {root} contains no matching subject dirs.")
+    dataset_type = _get_dataset_type(root)
+
+    desc = _read_dataset_description(root)
+    record_extras = {
+        "dataset_name": desc.get("Name", ""),
+        "dataset_type": dataset_type,
+        "bids_version": desc.get("BIDSVersion", ""),
+    }
+
+    schedule = _resolve_entity_dirs(root, dataset_type, filters)
+    if not schedule:
+        _logger.warning(
+            f"Path {root} contains no matching entity dirs for dataset type '{dataset_type}'."
+        )
         return pa.Table.from_pylist([], schema=schema)
 
     tables = []
-    file_count = 0
-    for sub in subject_dirs:
-        _, table = _index_bids_subject_dir(sub, schema=schema, dataset=dataset)
+    for entity_dir, entity_type in schedule:
+        _, table = _index_bids_entity_dir(
+            entity_dir,
+            entity_type,
+            schema=schema,
+            dataset=dataset,
+            filters=filters,
+            record_extras=record_extras,
+        )
         tables.append(table)
-        file_count += len(table)
-    table = pa.concat_tables(tables).combine_chunks()
-    return table
+
+    return pa.concat_tables(tables).combine_chunks()
+
+
+def _discover_entity_dirs(
+    root: PathT,
+    entity_types: list[str],
+    filters: dict[str, str | list[str]] | None,
+) -> list[PathT]:
+    """Find all entity directories under root matching the given entity types.
+
+    Applies directory-level filters where applicable.
+    """
+    dirs: list[PathT] = []
+    for et in entity_types:
+        entity_name = get_entity_name(et)
+        filter_pattern = filters.get(entity_name) if filters else None
+        found = _find_bids_entity_dirs(root, et, filter_pattern)
+        dirs.extend(found)
+    dirs.sort(key=lambda p: p.name)
+    return dirs
 
 
 def batch_index_dataset(
@@ -239,17 +451,19 @@ def batch_index_dataset(
     max_workers: int | None = 0,
     executor_cls: type[Executor] = ProcessPoolExecutor,
     show_progress: bool = False,
+    filters: dict[str, str | list[str]] | None = None,
 ) -> Generator[pa.Table, None, None]:
     """Index a batch of BIDS datasets.
 
     Args:
         roots: List of BIDS dataset root directories.
         max_workers: Number of indexing processes to run in parallel. Setting
-            `max_workers=0` (the default) uses the main process only. Setting
-            `max_workers=None` starts as many workers as there are available CPUs. See
-            `concurrent.futures.ProcessPoolExecutor` for details.
+            ``max_workers=0`` (the default) uses the main process only. Setting
+            ``max_workers=None`` starts as many workers as there are available CPUs.
         executor_cls: Executor class to use for parallel indexing.
         show_progress: Show progress bar.
+        filters: Dict mapping entity names to glob patterns to filter indexed
+            files (see :func:`index_dataset` for details).
 
     Yields:
         An Arrow table index for each BIDS dataset.
@@ -257,7 +471,12 @@ def batch_index_dataset(
     file_count = 0
     for dataset, table in (
         pbar := tqdm(
-            _pmap(_batch_index_func, roots, max_workers, executor_cls=executor_cls),
+            _pmap(
+                partial(_batch_index_func, filters=filters),
+                roots,
+                max_workers,
+                executor_cls=executor_cls,
+            ),
             total=len(roots) if isinstance(roots, Sequence) else None,
             disable=show_progress not in {True, "dataset"},
         )
@@ -267,9 +486,12 @@ def batch_index_dataset(
         yield table
 
 
-def _batch_index_func(root: str | PathT) -> tuple[str | None, pa.Table]:
+def _batch_index_func(
+    root: str | PathT,
+    filters: dict[str, str | list[str]] | None = None,
+) -> tuple[str | None, pa.Table]:
     dataset, _ = _get_bids_dataset(root)
-    table = index_dataset(root, show_progress=False)
+    table = index_dataset(root, show_progress=False, filters=filters)
     return dataset, table
 
 
@@ -319,56 +541,77 @@ def _is_bids_dataset(path: PathT) -> bool:
     # Path should not be hidden.
     if path.name.startswith("."):
         return False
-    # Subject dirs are not datasets.
-    if _is_bids_subject_dir(path):
+    # Subject/template dirs are not datasets.
+    if any(_is_bids_entity_dir(path, et) for et in get_all_root_entity_types()):
         return False
 
-    # Check if contains a dataset_description.json or any subject directories. Note,
-    # it's common for ppl to forget the dataset description, so let's not be too strict.
+    # Check if contains a dataset_description.json or is a derivatives directory
     description_exists = (path / "dataset_description.json").exists()
-    return description_exists or _contains_bids_subject_dirs(path)
+
+    if description_exists:
+        desc = _read_dataset_description(path)
+        if desc:
+            dataset_type = desc.get("DatasetType", "raw")
+            if dataset_type in get_all_dataset_types():
+                if dataset_type == "raw":
+                    return True
+                entity_types = get_entity_child_dirs(dataset_type, "root")
+                if entity_types:
+                    return _contains_bids_entity_dirs(path, entity_types)
+                return True
+
+    # Fallback: derivatives directories are datasets even without a
+    # dataset_description.json if they contain entity subdirectories.
+    if as_path(path).parent.name in _BIDS_NESTED_PARENT_DIRNAMES:
+        entity_types = get_entity_child_dirs("derivative", "root")
+        if entity_types and _contains_bids_entity_dirs(path, entity_types):
+            return True
+
+    return False
 
 
-def _contains_bids_subject_dirs(root: PathT) -> bool:
-    """Check if a path contains one or more BIDS subject dirs."""
-    # Nb, this will return on the first matching path thanks to the generator.
-    return any(_is_bids_subject_dir(path) for path in root.glob("sub-*"))
-
-
-def _find_bids_subject_dirs(
+def _find_bids_entity_dirs(
     root: PathT,
-    include_subjects: str | list[str] | None = None,
+    entity_type: str,
+    include_pattern: str | list[str] | None = None,
 ) -> list[PathT]:
-    """Find all BIDS subject dirs contained in a root directory.
+    """Find all BIDS entity dirs of a given type in a root directory."""
+    paths = [path for path in root.iterdir() if _is_bids_entity_dir(path, entity_type)]
 
-    Note, only looks one level down. Does not find nested subject directories, e.g. in
-    derivatives datasets.
-    """
-    paths = [path for path in root.glob("sub-*") if _is_bids_subject_dir(path)]
-
-    if include_subjects:
+    if include_pattern:
         filtered_names = _filter_include(
-            set(path.name for path in paths), include_subjects
+            set(path.name for path in paths), include_pattern
         )
         paths = [path for path in paths if path.name in filtered_names]
     return paths
 
 
-def _is_bids_subject_dir(path: PathT) -> bool:
-    """Check if a path is a BIDS subject directory."""
-    # NOTE: not checking if the path is in fact a directory.
-    # This is a slow op, especially on cloud. Can assume that there are no files
-    # matching the subject dir pattern, and even if there are, the rglob that happens
-    # later will just return empty.
-    return bool(re.fullmatch(_BIDS_SUBJECT_DIR_PATTERN, path.name))
+def _is_bids_entity_dir(path: PathT, entity_type: str) -> bool:
+    """Check if a path is a BIDS entity directory (e.g. sub-*, tpl-*, ses-*)."""
+    pattern = get_entity_pattern(entity_type)
+    if not pattern:
+        return False
+    return bool(re.fullmatch(pattern, path.name))
 
 
-def _index_bids_subject_dir(
+def _contains_bids_entity_dirs(root: PathT, entity_types: list[str]) -> bool:
+    """Check if a path contains directories matching any of the given entity types."""
+    if not root.is_dir():
+        return False
+    return any(
+        _is_bids_entity_dir(path, et) for path in root.iterdir() for et in entity_types
+    )
+
+
+def _index_bids_entity_dir(
     path: PathT,
+    entity_type: str = "subject",
     schema: pa.Schema | None = None,
     dataset: str | None = None,
+    record_extras: dict[str, Any] | None = None,
+    filters: dict[str, str | list[str]] | None = None,
 ) -> tuple[str, pa.Table]:
-    """Index a BIDS subject directory and return an Arrow table."""
+    """Index a BIDS entity directory and return an Arrow table."""
     root = path.parent
     root_fmt = str(root.absolute())
     if dataset is None:
@@ -376,33 +619,38 @@ def _index_bids_subject_dir(
     if schema is None:
         schema = get_arrow_schema()
 
-    _, subject = path.name.split("-", maxsplit=1)
+    _, entity_id = path.name.split("-", maxsplit=1)
+
+    glob_pattern = get_entity_glob_pattern(entity_type)
 
     records = []
     # Use built-in rglob methods for CloudPath and py3.13+
     if cloudpathlib_is_available() and isinstance(path, CloudPath):
-        paths = map(as_path, path.rglob("sub-*"))
+        paths = map(as_path, path.rglob(glob_pattern))
     elif sys.version_info >= (3, 13):
-        paths = map(as_path, path.rglob("sub-*", recurse_symlinks=True))
+        paths = map(as_path, path.rglob(glob_pattern, recurse_symlinks=True))
     else:
         # Fall back to glob.glob for <py3.13
-        paths = map(as_path, glob(f"{path}/**/sub-*", recursive=True))
+        paths = map(as_path, glob(f"{path}/**/{glob_pattern}", recursive=True))
 
     for p in paths:
-        if _is_bids_file(p):
+        if _is_bids_file(p) and not _is_bidsignored(p, root):
             entities = _cache_parse_bids_entities(p)
+            if not _match_filters(entities, filters):
+                continue
             valid_entities, extra_entities = validate_bids_entities(entities)
             record = {
                 "dataset": dataset,
                 **valid_entities,
                 "extra_entities": extra_entities,
+                **(record_extras or {}),
                 "root": root_fmt,
                 "path": str(p.relative_to(root)),
             }
             records.append(record)
 
     table = pa.Table.from_pylist(records, schema=schema)
-    return subject, table
+    return entity_id, table
 
 
 def _is_bids_file(path: PathT) -> bool:
@@ -410,11 +658,8 @@ def _is_bids_file(path: PathT) -> bool:
 
     Not very exact, but hopefully good enough.
     """
-    # TODO: other checks?
-    #   - skip files matching patterns in .bidsignore?
-
-    # initial fast checks for missing extension or name that doesn't start with sub-
-    if path.suffix == "" or not path.name.startswith("sub-"):
+    # initial fast checks for missing extension or name without entity prefix
+    if path.suffix == "" or not path.name.startswith(get_file_entity_prefixes()):
         return False
 
     entities = _cache_parse_bids_entities(path)
@@ -432,6 +677,33 @@ def _is_bids_file(path: PathT) -> bool:
     if _is_bids_file(path.parent):
         return False
     return True
+
+
+def _is_bidsignored(path: PathT, root: PathT) -> bool:
+    """Check if path matches any pattern in a root-level .bidsignore file."""
+    bidsignore = root / ".bidsignore"
+    if not bidsignore.exists():
+        return False
+    patterns = _load_bidsignore_patterns(bidsignore)
+    if not patterns:
+        return False
+    rel = path.relative_to(root)
+    return any(fnmatch.fnmatch(str(rel), pat) for pat in patterns)
+
+
+@lru_cache(maxsize=None)
+def _load_bidsignore_patterns(path: PathT) -> tuple[str, ...]:
+    """Load .bidsignore patterns from a file."""
+    try:
+        text = path.read_text()
+        patterns = tuple(
+            line.strip()
+            for line in text.splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        )
+        return patterns
+    except OSError:
+        return ()
 
 
 def _is_bids_json_sidecar(path: PathT) -> bool:
@@ -453,7 +725,7 @@ def _is_bids_json_sidecar(path: PathT) -> bool:
         return True
 
     # All sidecars must contain a suffix.
-    # Also check if suffix matches special cases of data files with json extension.
+    # Also check if suffix matches JSON data files (derived from schema).
     suffix = entities.get("suffix")
     if suffix is None or suffix in _BIDS_JSON_SIDECAR_EXCEPTION_SUFFIXES:
         return False
@@ -485,17 +757,6 @@ def _filter_include(
     names = set(names)
     matching_names = _multi_pattern_filter(names, patterns)
     names.intersection_update(matching_names)
-    return names
-
-
-def _filter_exclude(
-    names: Iterable[str],
-    patterns: str | list[str],
-) -> set[str]:
-    """Filter names excluding those that match a glob pattern or list of patterns."""
-    names = set(names)
-    matching_names = _multi_pattern_filter(names, patterns)
-    names.difference_update(matching_names)
     return names
 
 
