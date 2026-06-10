@@ -5,7 +5,13 @@ from pathlib import Path
 
 import pytest
 
-from bids2table.pybids import BIDSFile, BIDSLayout, Query
+pytest.importorskip("pandas", reason="pandas not available")
+
+from bids2table.pybids import (  # noqa: E402 - skip tests if pandas not avail
+    BIDSFile,
+    BIDSLayout,
+    Query,
+)
 
 
 # Fixture for test dataset
