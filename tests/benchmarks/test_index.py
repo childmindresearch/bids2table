@@ -34,7 +34,7 @@ def _run_benchmark(
     func: Callable,
     index_fpath: Path,
     version: str,
-    workers: int,
+    workers: int = 1,
     *args,
     **kwargs,
 ) -> None:
@@ -58,11 +58,7 @@ def _run_benchmark(
 
     # Additional info
     benchmark.extra_info.update(
-        {
-            "size_mb": sizes,
-            "version": version or "Unknown",
-            "workers": workers or "Unknown",
-        }
+        {"size_mb": sizes, "version": version or "Unknown", "workers": workers or 1}
     )
 
 
@@ -90,20 +86,19 @@ def test_openneuro(benchmark: BenchmarkFixture, tmp_path: Path) -> None:
         benchmark,
         index,
         index_fpath=index_fpath,
-        version=b2t2.__version__,
         workers=workers,
+        version=b2t2.__version__,
     )
 
 
 @pytest.mark.benchmark
-@pytest.mark.parametrize("workers", (1, 4))
-def test_local(benchmark: BenchmarkFixture, tmp_path: Path, workers: int) -> None:
+def test_local(benchmark: BenchmarkFixture, tmp_path: Path) -> None:
     """Bids2Table v2 benchmarking on local dataset."""
     index_fpath = tmp_path / "index.parquet"
     data_dir = Path("bids-examples/ds000117")
 
     def index() -> None:
-        table = b2t2.index_dataset(data_dir, max_workers=workers, show_progress=False)
+        table = b2t2.index_dataset(data_dir, show_progress=False)
         pq.write_table(table, index_fpath)
 
     _run_benchmark(
@@ -111,5 +106,4 @@ def test_local(benchmark: BenchmarkFixture, tmp_path: Path, workers: int) -> Non
         index,
         index_fpath=index_fpath,
         version=b2t2.__version__,
-        workers=workers,
     )
