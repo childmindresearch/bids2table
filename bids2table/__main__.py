@@ -37,14 +37,14 @@ def main():
         "--workers",
         "-j",
         type=int,
-        help="Number of worker processes. Setting to -1 runs as many workers as there "
+        help="Number of worker processes for dataset-level parallelism. Setting to -1 runs as many workers as there "
         "are cores available. Setting to 0 runs in the main process. (default: 0)",
         default=0,
     )
     parser_index.add_argument(
         "--use-threads",
         action="store_true",
-        help="Use threads instead of processes when workers > 0.",
+        help="Use threads instead of processes when workers > 0 (dataset-level parallelism only).",
     )
     parser_index.add_argument(
         "--no-progress", "-q", action="store_true", help="Disable the progress bar."
@@ -105,12 +105,6 @@ def _index_command(args: argparse.Namespace):
     for path in args.root:
         _check_path(path)
 
-    max_workers = None if args.workers == -1 else args.workers
-    if args.use_threads:
-        executor_cls = concurrent.futures.ThreadPoolExecutor
-    else:
-        executor_cls = concurrent.futures.ProcessPoolExecutor
-
     root = []
     for path in args.root:
         if glob.has_magic(path):
@@ -124,18 +118,24 @@ def _index_command(args: argparse.Namespace):
         table = b2t2.index_dataset(
             root[0],
             include_subjects=args.subjects,
-            max_workers=max_workers,
-            executor_cls=executor_cls,
             show_progress=not args.no_progress,
         )
         pq.write_table(table, args.output)
     else:
+        # Logic to hand in piped in datasets / no datasets
         if len(root) == 0 and not sys.stdin.isatty():
             # read datasets from stdin, one per line
             root = (line.strip() for line in sys.stdin if line.strip())
         elif len(root) == 0:
             _logger.error("No datasets to index given; exiting.")
             sys.exit(1)
+
+        # Set up for parallelism
+        max_workers = None if args.workers == -1 else args.workers
+        if args.use_threads:
+            executor_cls = concurrent.futures.ThreadPoolExecutor
+        else:
+            executor_cls = concurrent.futures.ProcessPoolExecutor
 
         schema = b2t2.get_arrow_schema()
         with pq.ParquetWriter(args.output, schema=schema) as writer:

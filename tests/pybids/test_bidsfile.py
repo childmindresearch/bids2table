@@ -1,6 +1,10 @@
 """Tests for BIDSFile class."""
 
-from bids2table.pybids import BIDSFile
+import pytest
+
+pandas = pytest.importorskip("pandas", reason="pandas not available")
+
+from bids2table.pybids import BIDSFile  # noqa: E402 - skip tests if pandas not avail
 
 
 def test_bidsfile_init():

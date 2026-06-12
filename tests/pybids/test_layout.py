@@ -5,7 +5,13 @@ from pathlib import Path
 
 import pytest
 
-from bids2table.pybids import BIDSFile, BIDSLayout, Query
+pytest.importorskip("pandas", reason="pandas not available")
+
+from bids2table.pybids import (  # noqa: E402 - skip tests if pandas not avail
+    BIDSFile,
+    BIDSLayout,
+    Query,
+)
 
 
 # Fixture for test dataset
@@ -13,7 +19,7 @@ from bids2table.pybids import BIDSFile, BIDSLayout, Query
 def test_dataset():
     """Return path to a test BIDS dataset."""
     # Use one of the bids-examples datasets
-    dataset_path = Path(__file__).parents[2] / "bids-examples" / "ds001"
+    dataset_path = Path(__file__).parents[2] / "bids-examples" / "ds114"
     if not dataset_path.exists():
         pytest.skip(f"Test dataset not found: {dataset_path}")
     return dataset_path
