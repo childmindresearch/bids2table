@@ -31,7 +31,7 @@ def _run_benchmark(
 class TestB2TQuery:
     """Benchmark different b2t queries."""
 
-    @pytest.fixture
+    @pytest.fixture(scope="class")
     def index(self) -> tuple:
         """Index dataset with b2t."""
         data_dir = Path("bids-examples/ds000117")
