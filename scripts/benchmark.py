@@ -269,6 +269,12 @@ def _parser() -> argparse.Namespace:
         type=float,
         help="Threshold for performance to be considered unchanged",
     )
+    parser.add_argument(
+        "-k",
+        "--filter",
+        default=None,
+        help="pytest -k expression to filter which benchmarks to run",
+    )
     return parser.parse_args()
 
 
@@ -276,7 +282,9 @@ def _sanitize(s: str) -> str:
     return s.replace("/", "-")
 
 
-def run_benchmark(git: Git, branch: str, out_dir: Path) -> None:
+def run_benchmark(
+    git: Git, branch: str, out_dir: Path, filter_expr: str | None = None
+) -> None:
     """Perform benchmarking.
 
     Args:
@@ -305,17 +313,18 @@ def run_benchmark(git: Git, branch: str, out_dir: Path) -> None:
                 )
 
             # Run benchmark
-            pytest.main(
-                [
-                    "-m",
-                    "benchmark",
-                    "--benchmark-save-data",
-                    f"--benchmark-json={fname}",
-                    "--benchmark-time-unit=ms",
-                    "--benchmark-warmup=on",
-                    f"{git.repo_path}/tests",
-                ],
-            )
+            pytest_args = [
+                "-m",
+                "benchmark",
+                "--benchmark-save-data",
+                f"--benchmark-json={fname}",
+                "--benchmark-time-unit=ms",
+                "--benchmark-warmup=on",
+            ]
+            if filter_expr:
+                pytest_args.extend(["-k", filter_expr])
+            pytest_args.append(f"{git.repo_path}/tests")
+            pytest.main(pytest_args)
 
 
 def generate_report(
@@ -387,7 +396,12 @@ def main() -> None:
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     with Git() as git:
-        run_benchmark(git=git, branch=args.branch, out_dir=args.output_dir)
+        run_benchmark(
+            git=git,
+            branch=args.branch,
+            out_dir=args.output_dir,
+            filter_expr=args.filter,
+        )
         report_file = generate_report(
             git=git,
             branch=args.branch,
