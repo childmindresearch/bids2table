@@ -1,11 +1,14 @@
 # /// script
 # requires-python = ">=3.13"
-# dependencies = []
+# dependencies = [
+#     "pytest>=9.1.1",
+#     "pytest-benchmark>=5.2.3",
+# ]
 # ///
 """Perform benchmarking of bids2table against last tag, main and feature branches.
 
 Run with:
-    uv run --with <repo> scripts/benchmark.py \
+    uv run scripts/benchmark.py \
         -b <feature_branch> [-o <output_dir>] [-f <output_file>] [-t <threshold>]
 """
 
@@ -311,7 +314,7 @@ def run_benchmark(git: Git, branch: str, out_dir: Path) -> None:
                     "--benchmark-time-unit=ms",
                     "--benchmark-warmup=on",
                     f"{git.repo_path}/tests",
-                ]
+                ],
             )
 
 
