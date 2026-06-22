@@ -65,7 +65,7 @@ class TestB2TQuery:
         )
 
         def query() -> None:
-            table.select(["ext", "suffix", "fpath"]).filter(
+            table.filter(
                 (pl.col("ext") == ".nii.gz") & (pl.col("suffix") == "bold")
             ).get_column("fpath")
 
@@ -75,13 +75,11 @@ class TestB2TQuery:
         """Benchmark query via metadata."""
         table, version = index
         table = table.with_columns(
-            pl.col("json")
-            .map_elements(lambda x: x.get("EchoTime"), return_dtype=pl.Float64)
-            .alias("echo_time")
+            pl.col("json").struct.field("EchoTime").alias("echo_time")
         )
 
         def query() -> None:
-            table.select(["sub", "echo_time", "fpath"]).filter(
+            table.filter(
                 (pl.col("sub").is_in(SUBJECTS)) & (pl.col("echo_time") == TARGET_TE)
             ).get_column("fpath")
 
