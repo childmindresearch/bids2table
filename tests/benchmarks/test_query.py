@@ -75,7 +75,9 @@ class TestB2TQuery:
         """Benchmark query via metadata."""
         table, version = index
         table = table.with_columns(
-            pl.col("json").struct.field("EchoTime").alias("echo_time")
+            pl.col("json")
+            .map_elements(lambda x: x.get("EchoTime"), return_dtype=pl.Float64)
+            .alias("echo_time")
         )
 
         def query() -> None:
