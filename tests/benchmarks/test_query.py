@@ -31,7 +31,7 @@ def _run_benchmark(
 class TestB2TQuery:
     """Benchmark different b2t queries."""
 
-    @pytest.fixture
+    @pytest.fixture(scope="class")
     def index(self) -> tuple:
         """Index dataset with b2t."""
         data_dir = Path("bids-examples/ds000117")
@@ -65,7 +65,7 @@ class TestB2TQuery:
         )
 
         def query() -> None:
-            table.select(["ext", "suffix", "fpath"]).filter(
+            table.filter(
                 (pl.col("ext") == ".nii.gz") & (pl.col("suffix") == "bold")
             ).get_column("fpath")
 
@@ -81,7 +81,7 @@ class TestB2TQuery:
         )
 
         def query() -> None:
-            table.select(["sub", "echo_time", "fpath"]).filter(
+            table.filter(
                 (pl.col("sub").is_in(SUBJECTS)) & (pl.col("echo_time") == TARGET_TE)
             ).get_column("fpath")
 

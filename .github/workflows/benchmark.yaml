@@ -17,7 +17,11 @@ jobs:
         with:
           fetch-depth: 0
           submodules: true
-          ref: ${{ github.head_ref }}
+      # Necessary for forks
+      - name: Create local branch
+        run: |
+          git checkout -b "$BRANCH_NAME" || git checkout "$BRANCH_NAME" && \
+          git checkout main
       - uses: astral-sh/setup-uv@v8.1.0
       - run: uv sync --frozen --all-extras
       - name: Run benchmarks
