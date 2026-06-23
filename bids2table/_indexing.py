@@ -19,11 +19,11 @@ from tqdm import tqdm
 
 from ._entities import (
     _cache_parse_bids_entities,
-    get_bids_entity_arrow_schema,
-    validate_bids_entities,
+    _pyarrow_validate_entities,
 )
 from ._logging import setup_logger
 from ._pathlib import CloudPath, PathT, as_path, cloudpathlib_is_available
+from ._schema import SchemaSpec, entity_arrow_schema, load_bids_schema
 
 _BIDS_SUBJECT_DIR_PATTERN = re.compile(r"sub-[a-zA-Z0-9]+")
 
@@ -88,9 +88,10 @@ _INDEX_ARROW_FIELDS = {
 _logger = setup_logger(__package__)
 
 
-def get_arrow_schema() -> pa.Schema:
+def get_arrow_schema(*, schema: SchemaSpec = None) -> pa.Schema:
     """Get Arrow schema of the BIDS dataset index."""
-    entity_schema = get_bids_entity_arrow_schema()
+    adapter = load_bids_schema(schema)
+    entity_schema = entity_arrow_schema(adapter)
     index_fields = {
         name: pa.field(name, cfg["dtype"], metadata=cfg["metadata"])
         for name, cfg in _INDEX_ARROW_FIELDS.items()
@@ -102,25 +103,23 @@ def get_arrow_schema() -> pa.Schema:
         index_fields["root"],
         index_fields["path"],
     ]
-
     metadata = {
         **entity_schema.metadata,
-        "bids2table_version": importlib.metadata.version(__package__),
+        b"bids2table_version": importlib.metadata.version(__package__).encode(),
     }
-    schema = pa.schema(fields, metadata=metadata)
-    return schema
+    return pa.schema(fields, metadata=metadata)
 
 
-def get_column_names() -> enum.StrEnum:
+def get_column_names(*, schema: SchemaSpec = None) -> enum.StrEnum:
     """Get an enum of the BIDS index columns."""
     # TODO: It might be nice if the column names were statically available. One option
     # would be to generate a static _schema.py module at install time (similar to how
     # _version.py is generated) which defines the static default schema and column
     # names.
-    schema = get_arrow_schema()
+    arrow_schema = get_arrow_schema(schema=schema)
     items = []
-    for f in schema:
-        name = f.metadata["name".encode()].decode()
+    for f in arrow_schema:
+        name = f.metadata[b"name"].decode()
         items.append((name, name))
 
     BIDSColumn = enum.StrEnum("BIDSColumn", items)
@@ -197,6 +196,8 @@ def index_dataset(
     root: str | PathT,
     include_subjects: str | list[str] | None = None,
     show_progress: bool = False,
+    *,
+    schema: SchemaSpec = None,
 ) -> pa.Table:
     """Index a BIDS dataset.
 
@@ -205,29 +206,31 @@ def index_dataset(
         include_subjects: Glob pattern or list of patterns for matching subjects to
             include in the index.
         show_progress: Show progress bar.
+        schema: BIDS schema specification to use. If ``None``, uses the bundled
+            default schema.
 
     Returns:
         An Arrow table index of the BIDS dataset.
     """
     root = as_path(root)
 
-    schema = get_arrow_schema()
+    arrow_schema = get_arrow_schema(schema=schema)
 
     dataset, _ = _get_bids_dataset(root)
     if dataset is None:
         _logger.warning(f"Path {root} is not a valid BIDS dataset directory.")
-        return pa.Table.from_pylist([], schema=schema)
+        return pa.Table.from_pylist([], schema=arrow_schema)
 
     subject_dirs = _find_bids_subject_dirs(root, include_subjects)
     subject_dirs = sorted(subject_dirs, key=lambda p: p.name)
     if len(subject_dirs) == 0:
         _logger.warning(f"Path {root} contains no matching subject dirs.")
-        return pa.Table.from_pylist([], schema=schema)
+        return pa.Table.from_pylist([], schema=arrow_schema)
 
     tables = []
     file_count = 0
     for sub in subject_dirs:
-        _, table = _index_bids_subject_dir(sub, schema=schema, dataset=dataset)
+        _, table = _index_bids_subject_dir(sub, schema=arrow_schema, dataset=dataset)
         tables.append(table)
         file_count += len(table)
     table = pa.concat_tables(tables).combine_chunks()
@@ -239,6 +242,8 @@ def batch_index_dataset(
     max_workers: int | None = 0,
     executor_cls: type[Executor] = ProcessPoolExecutor,
     show_progress: bool = False,
+    *,
+    schema: SchemaSpec = None,
 ) -> Generator[pa.Table, None, None]:
     """Index a batch of BIDS datasets.
 
@@ -250,14 +255,16 @@ def batch_index_dataset(
             `concurrent.futures.ProcessPoolExecutor` for details.
         executor_cls: Executor class to use for parallel indexing.
         show_progress: Show progress bar.
+        schema: Optional `SchemaSpec`. `None` uses the default BIDS schema.
 
     Yields:
         An Arrow table index for each BIDS dataset.
     """
+    func = partial(_batch_index_func, schema=schema)
     file_count = 0
     for dataset, table in (
         pbar := tqdm(
-            _pmap(_batch_index_func, roots, max_workers, executor_cls=executor_cls),
+            _pmap(func, roots, max_workers, executor_cls=executor_cls),
             total=len(roots) if isinstance(roots, Sequence) else None,
             disable=show_progress not in {True, "dataset"},
         )
@@ -267,9 +274,11 @@ def batch_index_dataset(
         yield table
 
 
-def _batch_index_func(root: str | PathT) -> tuple[str | None, pa.Table]:
+def _batch_index_func(
+    root: str | PathT, *, schema: SchemaSpec = None
+) -> tuple[str | None, pa.Table]:
     dataset, _ = _get_bids_dataset(root)
-    table = index_dataset(root, show_progress=False)
+    table = index_dataset(root, show_progress=False, schema=schema)
     return dataset, table
 
 
@@ -391,7 +400,9 @@ def _index_bids_subject_dir(
     for p in paths:
         if _is_bids_file(p):
             entities = _cache_parse_bids_entities(p)
-            valid_entities, extra_entities = validate_bids_entities(entities)
+            valid_entities, extra_entities = _pyarrow_validate_entities(
+                entities, pa_schema=schema
+            )
             record = {
                 "dataset": dataset,
                 **valid_entities,

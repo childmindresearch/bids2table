@@ -3,61 +3,22 @@
 Uses the BIDS schema for validation.
 """
 
-import json
 import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-import bidsschematools.schema
 import pyarrow as pa
-from bidsschematools.types import Namespace
 
 from ._logging import setup_logger
+from ._schema import (
+    SchemaSpec,
+    decode_metadata,
+    entity_arrow_schema,
+    load_bids_schema,
+)
 
 BIDSValue = str | int
-
-# Global BIDS schema namespace.
-_BIDS_SCHEMA: Namespace
-# Map of entity names to schema metadata.
-_BIDS_ENTITY_SCHEMA: dict[str, dict[str, Any]]
-# Map of BIDS short names (e.g. 'sub') to long entities ('subject').
-_BIDS_NAME_ENTITY_MAP: dict[str, str]
-
-# BIDS schema in Arrow format
-_BIDS_ENTITY_ARROW_SCHEMA: pa.Schema
-
-# "Special" entities that are part of the BIDS file name spec but not in the BIDS schema
-# (bc they don't follow the '{key}-{value}' format).
-_BIDS_SPECIAL_ENTITY_SCHEMA = {
-    "datatype": {
-        "name": "datatype",
-        "display_name": "Data type",
-        "description": "A functional group of different types of data.",
-        "type": "string",
-        "format": "special",
-    },
-    "suffix": {
-        "name": "suffix",
-        "display_name": "Suffix",
-        "description": "Final part of file name after final '_' and before extension.",
-        "type": "string",
-        "format": "special",
-    },
-    "extension": {
-        "name": "ext",
-        "display_name": "File extension",
-        "description": "Full file extension after the left-most period.",
-        "type": "string",
-        "format": "special",
-    },
-}
-
-_BIDS_FORMAT_ARROW_DTYPE_MAP = {
-    "index": pa.int32(),
-    "label": pa.string(),
-    "special": pa.string(),
-}
 
 _BIDS_FORMAT_PY_TYPE_MAP = {
     "index": int,
@@ -72,66 +33,6 @@ _BIDS_DATATYPE_PATTERN = re.compile(
 )
 
 _logger = setup_logger(__package__)
-
-
-def set_bids_schema(path: str | Path | None = None) -> None:
-    """Set the BIDS schema."""
-    global _BIDS_SCHEMA, _BIDS_ENTITY_SCHEMA, _BIDS_NAME_ENTITY_MAP
-    global _BIDS_ENTITY_ARROW_SCHEMA
-
-    schema = bidsschematools.schema.load_schema(path)
-    entity_schema = {
-        entity: schema.objects.entities[entity].to_dict()
-        for entity in schema.rules.entities
-    }
-    # Also include special extra entities (datatype, suffix, extension).
-    entity_schema.update(_BIDS_SPECIAL_ENTITY_SCHEMA)
-    name_entity_map = {cfg["name"]: entity for entity, cfg in entity_schema.items()}
-
-    _BIDS_SCHEMA = schema
-    _BIDS_ENTITY_SCHEMA = entity_schema
-    _BIDS_NAME_ENTITY_MAP = name_entity_map
-
-    _BIDS_ENTITY_ARROW_SCHEMA = _bids_entity_arrow_schema(
-        entity_schema,
-        bids_version=schema["bids_version"],
-        schema_version=schema["schema_version"],
-    )
-
-
-def _bids_entity_arrow_schema(
-    entity_schema: dict[str, dict[str, Any]],
-    bids_version: str,
-    schema_version: str,
-) -> pa.Schema:
-    """Create Arrow schema from BIDS entity schema."""
-    fields = []
-    for entity, cfg in entity_schema.items():
-        # Use short entity name (e.g. sub) as the field name.
-        name = cfg["name"]
-        dtype = _BIDS_FORMAT_ARROW_DTYPE_MAP[cfg["format"]]
-        # Insert full entity name (e.g. subject) into metadata.
-        metadata = {"entity": entity}
-        metadata.update(
-            {k: v if isinstance(v, str) else json.dumps(v) for k, v in cfg.items()}
-        )
-
-        field = pa.field(name, dtype, metadata=metadata)
-        fields.append(field)
-
-    metadata = {"bids_version": bids_version, "schema_version": schema_version}
-    arrow_schema = pa.schema(fields, metadata=metadata)
-    return arrow_schema
-
-
-def get_bids_schema() -> Namespace:
-    """Get the current BIDS schema."""
-    return _BIDS_SCHEMA
-
-
-def get_bids_entity_arrow_schema() -> pa.Schema:
-    """Get the current BIDS entity schema in Arrow format."""
-    return _BIDS_ENTITY_ARROW_SCHEMA
 
 
 def parse_bids_entities(path: str | Path) -> dict[str, str]:
@@ -195,30 +96,42 @@ def _parse_bids_datatype(path: Path) -> str | None:
 
 def validate_bids_entities(
     entities: dict[str, Any],
+    *,
+    schema: SchemaSpec = None,
 ) -> tuple[dict[str, BIDSValue], dict[str, Any]]:
-    """Validate BIDS entities.
-
-    Validates the type and allowed values of each entity against the BIDS schema.
+    """Validate BIDS entities against a BIDS schema.
 
     Args:
         entities: dict mapping BIDS keys to unvalidated entities
+        schema: optional `SchemaSpec` (`Namespace | str | PathT | None`).
+            `None` uses the default BIDS schema bundled with bidsschematools.
 
     Returns:
-        A tuple of `(valid_entities, extra_entities)`, where `valid_entities` is a
-            mapping of valid BIDS keys to type-casted values, and `extra_entities` a
-            mapping of any leftover entity mappings that didn't match a known entity or
-            failed validation.
+        `(valid_entities, extra_entities)` — valid entities cast to the
+        declared type, plus any leftover entries that did not match a
+        known entity or failed validation.
     """
-    valid_entities = {}
-    extra_entities = {}
+    adapter = load_bids_schema(schema)
+    pa_schema = entity_arrow_schema(adapter)
+    return _pyarrow_validate_entities(entities, pa_schema=pa_schema)
+
+
+def _pyarrow_validate_entities(
+    entities: dict[str, Any],
+    *,
+    pa_schema: pa.Schema,
+) -> tuple[dict[str, BIDSValue], dict[str, Any]]:
+    """Pyarrow-tier validation. Workers call this directly with a `pa.Schema`."""
+    name_to_entity, entity_cfg = _lookups_from_arrow(pa_schema)
+    valid_entities: dict[str, BIDSValue] = {}
+    extra_entities: dict[str, Any] = {}
 
     for name, value in entities.items():
-        if name in _BIDS_NAME_ENTITY_MAP:
-            entity = _BIDS_NAME_ENTITY_MAP[name]
-            cfg = _BIDS_ENTITY_SCHEMA[entity]
+        if name in name_to_entity:
+            entity = name_to_entity[name]
+            cfg = entity_cfg[entity]
             typ = _BIDS_FORMAT_PY_TYPE_MAP[cfg["format"]]
 
-            # Cast to target type.
             try:
                 value = typ(value)
             except ValueError:
@@ -228,7 +141,6 @@ def validate_bids_entities(
                 extra_entities[name] = value
                 continue
 
-            # Check allowed values.
             if "enum" in cfg and value not in cfg["enum"]:
                 _logger.warning(
                     f"Value {value} for entity '{name}' isn't one of the "
@@ -242,6 +154,27 @@ def validate_bids_entities(
             extra_entities[name] = value
 
     return valid_entities, extra_entities
+
+
+@lru_cache
+def _lookups_from_arrow(
+    pa_schema: pa.Schema,
+) -> tuple[dict[str, str], dict[str, dict[str, Any]]]:
+    """Reconstruct (name_entity_map, entity_schema) from a `pa.Schema`.
+
+    Used inside `_pyarrow_validate_entities`. Filters out non-entity fields
+    (those without an "entity" key in their decoded metadata). `pa.Schema`
+    is hashable, so `lru_cache` keys correctly. The cache lives in the
+    worker process; one field-walk per worker per distinct schema.
+    """
+    name_entity_map: dict[str, str] = {}
+    entity_schema: dict[str, dict[str, Any]] = {}
+    for field in pa_schema:
+        meta = decode_metadata(field.metadata or {})
+        if long_entity := meta.pop("entity", None):
+            name_entity_map[field.name] = long_entity
+            entity_schema[long_entity] = meta
+    return name_entity_map, entity_schema
 
 
 def format_bids_path(entities: dict[str, Any], int_format: str = "%d") -> Path:
@@ -279,7 +212,3 @@ def format_bids_path(entities: dict[str, Any], int_format: str = "%d") -> Path:
         path = f"ses-{ses}" / path
     path = f"sub-{entities['sub']}" / path
     return path
-
-
-# Initialize the default BIDS schema.
-set_bids_schema()
