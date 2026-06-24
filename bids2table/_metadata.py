@@ -3,9 +3,9 @@ from collections.abc import Generator
 from functools import lru_cache
 from typing import Any
 
-from ._entities import _cache_parse_bids_entities
-from ._indexing import _is_bids_dataset
-from ._pathlib import PathT, as_path
+from bids2table._entities import _cache_parse_bids_entities
+from bids2table._indexing import _is_bids_dataset
+from bids2table._pathlib import PathT, as_path
 
 
 def load_bids_metadata(path: str | PathT, *, inherit: bool = True) -> dict[str, Any]:

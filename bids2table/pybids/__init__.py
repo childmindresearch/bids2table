@@ -2,9 +2,6 @@
 
 __all__ = ["BIDSFile", "BIDSLayout", "Query", "listify"]
 
-from ._bidsfile import BIDSFile
-from ._layout import BIDSLayout
-from ._utils import (
-    Query,
-    listify,
-)
+from bids2table.pybids._bidsfile import BIDSFile
+from bids2table.pybids._layout import BIDSLayout
+from bids2table.pybids._utils import Query, listify

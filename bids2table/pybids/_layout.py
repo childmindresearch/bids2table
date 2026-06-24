@@ -14,9 +14,8 @@ import pyarrow.parquet as pq
 
 from bids2table._indexing import index_dataset
 from bids2table._metadata import load_bids_metadata
-
-from ._bidsfile import BIDSFile
-from ._utils import Query
+from bids2table.pybids._bidsfile import BIDSFile
+from bids2table.pybids._utils import Query
 
 
 class BIDSLayout:

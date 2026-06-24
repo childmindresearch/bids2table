@@ -17,14 +17,14 @@ from typing import Any
 import pyarrow as pa
 from tqdm import tqdm
 
-from ._entities import (
+from bids2table._entities import (
     _cache_parse_bids_entities,
     _pyarrow_validate_entities,
 )
-from ._logging import setup_logger
-from ._pathlib import CloudPath, PathT, as_path, cloudpathlib_is_available
-from ._schema import SchemaSpec, entity_arrow_schema, load_bids_schema
-from ._version import version
+from bids2table._logging import setup_logger
+from bids2table._pathlib import CloudPath, PathT, as_path, cloudpathlib_is_available
+from bids2table._schema import SchemaSpec, entity_arrow_schema, load_bids_schema
+from bids2table._version import version
 
 _BIDS_SUBJECT_DIR_PATTERN = re.compile(r"sub-[a-zA-Z0-9]+")
 

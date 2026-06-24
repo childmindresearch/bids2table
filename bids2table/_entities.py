@@ -10,8 +10,8 @@ from typing import Any
 
 import pyarrow as pa
 
-from ._logging import setup_logger
-from ._schema import (
+from bids2table._logging import setup_logger
+from bids2table._schema import (
     SchemaSpec,
     decode_metadata,
     entity_arrow_schema,
