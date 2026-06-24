@@ -60,7 +60,7 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["bids2table*"]
+include = ["bids2table"]
 
 [tool.setuptools_scm]
 version_file = "bids2table/_version.py"
@@ -68,7 +68,10 @@ version_file = "bids2table/_version.py"
 [tool.ruff]
 line-length = 88
 indent-width = 4
-src = ["bids2table"]
+src = [
+  "bids2table",
+  "tests"
+]
 target-version = "py312"
 
 [tool.ruff.lint]
