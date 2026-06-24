@@ -1,19 +1,35 @@
+"""Pytest configuration and shared fixtures."""
+
 from pathlib import Path
 
 import pytest
-
 from bids2table._pathlib import cloudpathlib_is_available
 
 
-def pytest_runtest_setup(item):
+def pytest_runtest_setup(item: pytest.Item) -> None:
+    """Skip cloud-marked tests when cloudpathlib is unavailable."""
     if "cloud" in item.keywords and not cloudpathlib_is_available():
         pytest.skip("cloudpathlib is not available or not fully functional")
 
 
 @pytest.fixture
-def symlink_dataset(tmp_path: Path, sub: str = "sub-001", ses: str = "ses-001") -> Path:
+def symlink_dataset(tmp_path: Path) -> Path:
+    """Create a temporary BIDS dataset with symlinked files and sub-datasets.
+
+    Three datasets share the same underlying files via symlinks:
+
+    - ``dataset/bids`` — raw dataset containing DWI and symlinked anatomical files
+    - ``dataset2/bids`` — symlinks to the subject directory of dataset 1
+    - ``dataset3/bids`` — symlinks to the entire dataset 1 bids root
+
+    Returns:
+        The parent directory containing the three dataset trees.
+    """
     data = tmp_path / "data"
     data.mkdir()
+
+    sub = "sub-001"
+    ses = "ses-001"
 
     # Directory paths
     ds = data / "dataset" / "bids" / sub / ses
@@ -38,6 +54,7 @@ def symlink_dataset(tmp_path: Path, sub: str = "sub-001", ses: str = "ses-001") 
     for fpath, suffix in zip(
         [d2 / fname for fname in fnames],
         ["_T1w.json", "_T1w.nii.gz", "_desc-T1w_mask.nii.gz"],
+        strict=True,
     ):
         (d1_anat / f"{sub}_{ses}_run-1{suffix}").symlink_to(fpath)
     (ds / "anat").symlink_to(d1_anat, target_is_directory=True)

@@ -4,7 +4,7 @@ import pytest
 
 pytest.importorskip("pandas", reason="pandas not available")
 
-from bids2table.pybids import Query  # noqa: E402 - skip tests if pandas not avail
+from bids2table.pybids import Query
 
 
 def test_query_sentinels_are_unique():

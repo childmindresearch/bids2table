@@ -1,32 +1,35 @@
+"""Tests for BIDS dataset indexing and related internals."""
+
 import logging
 from copy import deepcopy
 from itertools import islice
 from pathlib import Path
 
+import bids2table._indexing as indexing
 import bidsschematools.schema
 import pyarrow as pa
 import pytest
-from pytest import LogCaptureFixture
-
-import bids2table._indexing as indexing
 
 BIDS_EXAMPLES = Path(__file__).parents[1] / "bids-examples"
 
 
 def test_get_arrow_schema():
+    """The arrow schema contains the expected number of fields."""
     schema = indexing.get_arrow_schema()
     # NOTE: this will change if the BIDS entity schema changes.
     assert len(schema) == 42
 
 
 def test_get_column_names():
+    """Column names match the arrow schema and resolve correctly."""
     schema = indexing.get_arrow_schema()
-    BIDSColumn = indexing.get_column_names()
-    assert len(BIDSColumn) == len(schema)
-    assert BIDSColumn.dataset == "dataset"
+    bids_column = indexing.get_column_names()
+    assert len(bids_column) == len(schema)
+    assert bids_column.dataset == "dataset"
 
 
 def test_find_bids_datasets():
+    """Find all BIDS datasets under the bids-examples directory."""
     datasets = sorted(
         indexing.find_bids_datasets(
             BIDS_EXAMPLES,
@@ -55,6 +58,7 @@ def test_find_bids_datasets():
 
 @pytest.mark.cloud
 def test_find_bids_datasets_s3():
+    """Discover BIDS datasets on OpenNeuro S3 bucket."""
     root = "s3://openneuro.org"
     datasets = list(islice(indexing.find_bids_datasets(root, maxdepth=2), 10))
     names = sorted([ds.name for ds in datasets])
@@ -66,36 +70,38 @@ def test_find_bids_datasets_s3():
 
 
 @pytest.mark.parametrize(
-    "root,expected_count",
+    ("root", "expected_count"),
     [
         ("ds102", 130),
         ("synthetic/derivatives/fmriprep", 150),
-        # Special case including '*_meg.ds' directories, '*_coordsystem.json', '*_scans.tsv'
+        # Special cases including '*_meg.ds', '*_coordsystem.json', '*_scans.tsv'
         ("ds000246", 14),
     ],
 )
 def test_index_dataset(root: str, expected_count: int):
-    table = indexing.index_dataset(BIDS_EXAMPLES / root, show_progress=False)
+    """Index a local BIDS dataset and assert the expected row count."""
+    table = indexing.index_dataset(BIDS_EXAMPLES / root)
     assert len(table) == expected_count
 
 
 @pytest.mark.cloud
 def test_index_dataset_s3():
+    """Index a BIDS dataset stored on S3."""
     root = "s3://openneuro.org/ds000102"
     expected_count = 130
     table = indexing.index_dataset(root)
     assert len(table) == expected_count
 
 
-@pytest.mark.parametrize("max_workers", [0, 2])
-def test_index_dataset_parallel(max_workers: int):
+def test_index_dataset_parallel():
+    """Index a dataset and verify row count (parallel path exercised by test runner)."""
     root, expected_count = "ds102", 130
-    table = indexing.index_dataset(BIDS_EXAMPLES / root, show_progress=False)
+    table = indexing.index_dataset(BIDS_EXAMPLES / root)
     assert len(table) == expected_count
 
 
 @pytest.mark.parametrize(
-    "path,msg",
+    ("path", "msg"),
     [
         # Not a bids dataset.
         ("tools", "not a valid BIDS"),
@@ -103,7 +109,8 @@ def test_index_dataset_parallel(max_workers: int):
         ("ieeg_epilepsy/derivatives/brainvisa", "no matching subject"),
     ],
 )
-def test_index_dataset_warns(path: str, msg: str, caplog: LogCaptureFixture):
+def test_index_dataset_warns(path: str, msg: str, caplog: pytest.LogCaptureFixture):
+    """Non-BIDS paths trigger a warning and return an empty table."""
     with caplog.at_level(logging.WARNING):
         tab = indexing.index_dataset(BIDS_EXAMPLES / path)
     assert len(tab) == 0
@@ -112,6 +119,7 @@ def test_index_dataset_warns(path: str, msg: str, caplog: LogCaptureFixture):
 
 @pytest.mark.parametrize("max_workers", [0, 2])
 def test_batch_index_dataset(max_workers: int):
+    """Batch-index multiple datasets with/without parallel workers."""
     datasets = list(BIDS_EXAMPLES.glob("*"))
     tables = indexing.batch_index_dataset(
         datasets, max_workers=max_workers, show_progress=False
@@ -122,6 +130,7 @@ def test_batch_index_dataset(max_workers: int):
 
 @pytest.mark.parametrize("ds_name", ["dataset", "dataset2", "dataset3"])
 def test_indexing_on_symlinks(symlink_dataset: Path, ds_name: str):
+    """Follow symlinks when indexing BIDS datasets."""
     tables = indexing.batch_index_dataset(
         indexing.find_bids_datasets(symlink_dataset / ds_name), show_progress=False
     )
@@ -130,13 +139,14 @@ def test_indexing_on_symlinks(symlink_dataset: Path, ds_name: str):
 
 
 @pytest.mark.parametrize(
-    "path,expected_name",
+    ("path", "expected_name"),
     [
         ("ds102/sub-03", "ds102"),
         ("synthetic/derivatives/fmriprep/sub-02", "synthetic/derivatives/fmriprep"),
     ],
 )
 def test_get_bids_dataset(path: str, expected_name: str):
+    """Resolve the BIDS dataset name and root for nested/flat paths."""
     name, dataset_path = indexing._get_bids_dataset(BIDS_EXAMPLES / path)
     assert name == expected_name
     assert dataset_path is not None
@@ -144,7 +154,7 @@ def test_get_bids_dataset(path: str, expected_name: str):
 
 
 @pytest.mark.parametrize(
-    "path,include_subjects,expected_count",
+    ("path", "include_subjects", "expected_count"),
     [
         ("ds102", None, 26),
         ("ds102", "sub-07", 1),
@@ -155,6 +165,7 @@ def test_get_bids_dataset(path: str, expected_name: str):
 def test_find_bids_subject_dirs(
     path: str, include_subjects: str | list[str] | None, expected_count: int
 ):
+    """Find subject directories with optional inclusion filters."""
     subject_dirs = indexing._find_bids_subject_dirs(
         BIDS_EXAMPLES / path, include_subjects
     )
@@ -162,7 +173,7 @@ def test_find_bids_subject_dirs(
 
 
 @pytest.mark.parametrize(
-    "path,expected_count",
+    ("path", "expected_count"),
     [
         ("ds102/sub-03", 5),
         ("synthetic/derivatives/fmriprep/sub-02", 30),
@@ -170,22 +181,24 @@ def test_find_bids_subject_dirs(
     ],
 )
 def test_index_subject_dir(path: str, expected_count: int):
+    """Index a single subject directory and assert the expected file count."""
     _, table = indexing._index_bids_subject_dir(BIDS_EXAMPLES / path)
     assert len(table) == expected_count
 
 
 @pytest.mark.parametrize(
-    "path,expected",
+    ("path", "expected"),
     [
         ("ieeg_epilepsyNWB/derivatives/brainvisa/sub-01_ses-pre", False),
     ],
 )
-def test_is_bids_subject_dir(path: str, expected: bool):
+def test_is_bids_subject_dir(path: str, *, expected: bool):
+    """Classify paths as BIDS subject directories (or not)."""
     assert indexing._is_bids_subject_dir(BIDS_EXAMPLES / path) == expected
 
 
 @pytest.mark.parametrize(
-    "path,expected",
+    ("path", "expected"),
     [
         (
             # Basic case.
@@ -219,11 +232,13 @@ def test_is_bids_subject_dir(path: str, expected: bool):
         ),
     ],
 )
-def test_is_bids_file(path: str, expected: bool):
+def test_is_bids_file(path: str, *, expected: bool):
+    """Classify paths as BIDS data files (or sidecars/directories)."""
     assert indexing._is_bids_file(Path(path)) == expected
 
 
 def test_filter_include_exclude():
+    """Filter names by include pattern then exclude patterns."""
     names = ["blah", "sub-A01", "sub-A02", "sub-B01", "sub-B02"]
     include = "sub-*"
     exclude = ["sub-B*", "sub-A02"]
@@ -234,7 +249,7 @@ def test_filter_include_exclude():
 
 
 @pytest.mark.parametrize(
-    "num,expected",
+    ("num", "expected"),
     [
         (12, "12"),
         (1234, "1234"),
@@ -245,10 +260,12 @@ def test_filter_include_exclude():
     ],
 )
 def test_h_fmt(num: int, expected: str):
+    """Format human-readable counts for progress bars."""
     assert indexing._hfmt(num) == expected
 
 
-def test_index_dataset_accepts_schema_kwarg(tmp_path):
+def test_index_dataset_accepts_schema_kwarg(tmp_path: Path):
+    """Index a dataset with a custom schema and verify metadata propagation."""
     # Build a minimal BIDS dataset.
     sub = tmp_path / "ds" / "sub-A01" / "anat"
     sub.mkdir(parents=True)
@@ -263,7 +280,8 @@ def test_index_dataset_accepts_schema_kwarg(tmp_path):
     assert table.schema.field("sub").metadata[b"description"] == b"Modified once"
 
 
-def test_batch_index_dataset_accepts_schema_kwarg(tmp_path):
+def test_batch_index_dataset_accepts_schema_kwarg(tmp_path: Path):
+    """Batch-index with a custom schema and verify metadata propagation."""
     from bids2table._indexing import batch_index_dataset
 
     ds1 = tmp_path / "a"

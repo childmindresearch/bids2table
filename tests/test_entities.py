@@ -1,9 +1,9 @@
+"""Tests for BIDS entity parsing, validation, and path formatting."""
+
 import logging
 from typing import Any, NamedTuple
 
 import pytest
-from pytest import FixtureRequest, LogCaptureFixture
-
 from bids2table._entities import (
     format_bids_path,
     parse_bids_entities,
@@ -12,6 +12,8 @@ from bids2table._entities import (
 
 
 class ExampleCase(NamedTuple):
+    """A single BIDS entity test case with expected valid/extra splits."""
+
     path: str
     valid_entities: dict[str, Any]
     extra_entities: dict[str, Any]
@@ -62,11 +64,13 @@ EXAMPLES = [
 
 
 @pytest.fixture(params=EXAMPLES)
-def bids_example(request: FixtureRequest) -> ExampleCase:
+def bids_example(request: pytest.FixtureRequest) -> ExampleCase:
+    """Yield each ``ExampleCase`` as a separate test parameter."""
     return request.param
 
 
 def test_parse_validate_bids_entities(bids_example: ExampleCase):
+    """Verify parsing and schema-aware validation of BIDS entity paths."""
     path, expected_valid_entities, expected_extra_entities = bids_example
     entities = parse_bids_entities(path)
     valid_entities, extra_entities = validate_bids_entities(entities)
@@ -75,13 +79,14 @@ def test_parse_validate_bids_entities(bids_example: ExampleCase):
 
 
 @pytest.mark.parametrize(
-    "path,msg",
+    ("path", "msg"),
     [
         ("sub-A01_run-abc_bold.nii.gz", "type"),  # Invalid run type
         ("sub-A01_part-phasee_bold.nii.gz", "allowed"),  # Not in allowed values, typo
     ],
 )
-def test_validate_warns(path: str, msg: str, caplog: LogCaptureFixture):
+def test_validate_warns(path: str, msg: str, caplog: pytest.LogCaptureFixture):
+    """Ensure validation emits warnings for invalid entity values."""
     entities = parse_bids_entities(path)
     with caplog.at_level(logging.WARNING):
         validate_bids_entities(entities)
@@ -96,6 +101,7 @@ def test_validate_warns(path: str, msg: str, caplog: LogCaptureFixture):
     ],
 )
 def test_format_bids_path(path: str):
+    """Round-trip a BIDS path through parse → validate → format."""
     entities = parse_bids_entities(path)
     valid_entities, _ = validate_bids_entities(entities)
     path2 = format_bids_path(valid_entities)

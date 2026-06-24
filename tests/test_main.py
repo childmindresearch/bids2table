@@ -1,18 +1,19 @@
+"""Tests for the bids2table CLI entry point."""
+
 import shlex
 import sys
 from contextlib import contextmanager
 from pathlib import Path
-from typing import List
 
 import pytest
-
 from bids2table import __main__ as cli
 
 BIDS_EXAMPLES = Path(__file__).parents[1] / "bids-examples"
 
 
 @contextmanager
-def patch_argv(argv: List[str]):
+def patch_argv(argv: list[str]):
+    """Temporarily replace ``sys.argv`` for CLI invocation tests."""
     old_argv = sys.argv
     try:
         sys.argv = argv.copy()
@@ -22,7 +23,7 @@ def patch_argv(argv: List[str]):
 
 
 @pytest.mark.parametrize(
-    "cmd,output",
+    ("cmd", "output"),
     [
         ("index -o {out_dir}/ds102.parquet {examples}/ds102", "ds102.parquet"),
         (
@@ -33,9 +34,10 @@ def patch_argv(argv: List[str]):
     ],
 )
 def test_main_index(cmd: str, output: str | None, tmp_path: Path):
+    """Run the ``index`` subcommand and verify the output parquet file is created."""
     cmd_fmt = cmd.format(out_dir=tmp_path, examples=BIDS_EXAMPLES)
     prog = str(Path(cli.__file__).absolute())
-    argv = [prog] + shlex.split(cmd_fmt)
+    argv = [prog, *shlex.split(cmd_fmt)]
     with patch_argv(argv):
         cli.main()
 
@@ -45,8 +47,9 @@ def test_main_index(cmd: str, output: str | None, tmp_path: Path):
 
 @pytest.mark.parametrize("cmd", ["find {examples}"])
 def test_main_find(cmd: str):
+    """Run the ``find`` subcommand and verify it completes without error."""
     cmd_fmt = cmd.format(examples=BIDS_EXAMPLES)
     prog = str(Path(cli.__file__).absolute())
-    argv = [prog] + shlex.split(cmd_fmt)
+    argv = [prog, *shlex.split(cmd_fmt)]
     with patch_argv(argv):
         cli.main()

@@ -112,6 +112,11 @@ unfixable = []
 convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+    "ANN201", # return annotation in public function
+    "ANN202", # return annotation in private function
+    "S101" # assert usage
+]
 "__init__.py" = ["F401", "F403"]
 
 [tool.pytest.ini_options]
