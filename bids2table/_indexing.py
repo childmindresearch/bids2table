@@ -236,7 +236,7 @@ def index_dataset(
 
 
 def batch_index_dataset(
-    roots: list[str | PathT],
+    roots: Sequence[str | PathT],
     max_workers: int | None = 0,
     executor_cls: type[ProcessPoolExecutor | ThreadPoolExecutor] = ProcessPoolExecutor,
     *,

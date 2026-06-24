@@ -236,6 +236,7 @@ class TestBIDSLayoutMetadata:
             pytest.skip("No BOLD files in dataset")
 
         file_path = files[0]
+        assert isinstance(file_path, str)
         metadata = layout.get_metadata(file_path)
 
         assert isinstance(metadata, dict)
@@ -249,6 +250,7 @@ class TestBIDSLayoutMetadata:
             pytest.skip("No files in dataset")
 
         file_path = files[0]
+        assert isinstance(file_path, str)
         bids_file = layout.get_file(file_path)
 
         assert isinstance(bids_file, BIDSFile)

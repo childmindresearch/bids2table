@@ -25,7 +25,7 @@ def test_get_column_names():
     schema = indexing.get_arrow_schema()
     bids_column = indexing.get_column_names()
     assert len(bids_column) == len(schema)
-    assert bids_column.dataset == "dataset"
+    assert bids_column["dataset"] == "dataset"
 
 
 def test_find_bids_datasets():
@@ -132,7 +132,8 @@ def test_batch_index_dataset(max_workers: int):
 def test_indexing_on_symlinks(symlink_dataset: Path, ds_name: str):
     """Follow symlinks when indexing BIDS datasets."""
     tables = indexing.batch_index_dataset(
-        indexing.find_bids_datasets(symlink_dataset / ds_name), show_progress=False
+        list(indexing.find_bids_datasets(symlink_dataset / ds_name)),
+        show_progress=False,
     )
     table = pa.concat_tables(tables)
     assert len(table) == 5

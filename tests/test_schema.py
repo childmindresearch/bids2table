@@ -104,7 +104,7 @@ def test_adapter_is_frozen():
     """The adapter must be immutable after construction."""
     a = _adapter()
     with pytest.raises(FrozenInstanceError):
-        a.bids_version = "9.9.9"  # type: ignore[misc]
+        a.bids_version = "9.9.9"  # ty: ignore[invalid-assignment]
 
 
 def test_build_adapter_from_namespace_uses_versions_and_entities():
@@ -141,7 +141,7 @@ def test_load_bids_schema_namespace_path_returns_equal_but_fresh():
 def test_load_bids_schema_rejects_unsupported_type():
     """Passing an unsupported schema type raises ``TypeError``."""
     with pytest.raises(TypeError):
-        load_bids_schema(42)  # type: ignore[arg-type]
+        load_bids_schema(42)  # ty: ignore [invalid-argument-type]
 
 
 def test_entity_arrow_schema_metadata_is_bytes():
