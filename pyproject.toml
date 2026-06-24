@@ -6,51 +6,38 @@ build-backend = "setuptools.build_meta"
 name = "bids2table"
 dynamic = ["version"]
 authors = [
-  { name = "Connor Lane", email = "connor.lane858@gmail.com" },
-  { name = "Jason Kai" },
-  { name = "Florian Rupprecht" },
-  { name = "Gregory Kiar" }
+  {name = "Connor Lane", email = "connor.lane858@gmail.com"},
+  {name = "Jason Kai"},
+  {name = "Florian Rupprecht"},
+  {name = "Gregory Kiar"}
 ]
 description = "Index BIDS datasets fast, locally or in the cloud."
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "MIT License" }
+license = {text = "MIT License"}
 classifiers = [
-    "Development Status :: 5 - Production/Stable",
-    "Intended Audience :: Developers",
-    "Topic :: Scientific/Engineering",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
-    "Programming Language :: Python :: 3.14",
-    "License :: OSI Approved :: MIT License",
-    "Operating System :: POSIX",
-    "Operating System :: Unix",
-    "Operating System :: MacOS",
-    "Operating System :: Microsoft :: Windows",
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Developers",
+  "Topic :: Scientific/Engineering",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: POSIX",
+  "Operating System :: Unix",
+  "Operating System :: MacOS",
+  "Operating System :: Microsoft :: Windows"
 ]
-
 dependencies = ["bidsschematools>=1.0", "pyarrow>=24.0.0", "tqdm>=4.67.3"]
 
 [project.optional-dependencies]
 cloud = ["cloudpathlib[s3,gs]>=0.21.0"]
 s3 = [
-    "cloudpathlib[s3]>=0.21.0",
-] # Include s3 to not break backwards compatibility
+  "cloudpathlib[s3]>=0.21.0"
+]  # Include s3 to not break backwards compatibility
 pybids = ["pandas>=2.0.0"]
-
-[dependency-groups]
-dev = [
-    "pdoc>=16.0.0",
-    "polars>=1.40.1",
-    "pre-commit>=4.6.0",
-    "pytest>=9.0.3",
-    "pytest-benchmark>=5.2.3",
-    "pytest-cov>=7.1.0",
-    "ruff>=0.15.13",
-    "ty>=0.0.53",
-]
 
 [project.urls]
 "Homepage" = "https://github.com/childmindresearch/bids2table"
@@ -59,6 +46,18 @@ dev = [
 [project.scripts]
 bids2table = "bids2table.__main__:main"
 b2t2 = "bids2table.__main__:main"
+
+[dependency-groups]
+dev = [
+  "pdoc>=16.0.0",
+  "polars>=1.40.1",
+  "pre-commit>=4.6.0",
+  "pytest>=9.0.3",
+  "pytest-benchmark>=5.2.3",
+  "pytest-cov>=7.1.0",
+  "ruff>=0.15.13",
+  "ty>=0.0.53"
+]
 
 [tool.setuptools.packages.find]
 include = ["bids2table*"]
@@ -113,17 +112,23 @@ convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = [
-    "ANN201", # return annotation in public function
-    "ANN202", # return annotation in private function
-    "S101" # assert usage
+  "ANN201",  # return annotation in public function
+  "ANN202",  # return annotation in private function
+  "S101"  # assert usage
 ]
 "__init__.py" = ["F401", "F403"]
+
+[tool.ty.src]
+include = [
+  "bids2table",
+  "tests"
+]
 
 [tool.pytest.ini_options]
 log_cli = true
 log_cli_level = "INFO"
 addopts = "--import-mode=importlib"
 markers = [
-    "benchmark: Tests used for benchmarking",
-    "cloud: Tests requiring cloud group dependencies",
+  "benchmark: Tests used for benchmarking",
+  "cloud: Tests requiring cloud group dependencies"
 ]
