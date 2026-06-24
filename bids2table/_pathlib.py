@@ -17,7 +17,12 @@ try:
         pass
 
 except Exception:
-    AnyPath = CloudPath = Path
+    # Assignment of cloudpath classes if cloudpathlib is unavailable
+    class CloudPath(Path):
+        pass
+
+    class AnyPath(Path):
+        pass
 
     _CLOUDPATHLIB_AVAILABLE = False
 

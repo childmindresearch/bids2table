@@ -120,11 +120,7 @@ def _index_command(args: argparse.Namespace) -> None:
             root.append(path)
 
     if len(root) == 1:
-        table = b2t2.index_dataset(
-            root[0],
-            include_subjects=args.subjects,
-            show_progress=not args.no_progress,
-        )
+        table = b2t2.index_dataset(root[0], include_subjects=args.subjects)
         pq.write_table(table, args.output)
     else:
         # Logic to hand in piped in datasets / no datasets
@@ -145,7 +141,7 @@ def _index_command(args: argparse.Namespace) -> None:
         schema = b2t2.get_arrow_schema()
         with pq.ParquetWriter(args.output, schema=schema) as writer:
             for table in b2t2.batch_index_dataset(
-                root,
+                list(root),
                 max_workers=max_workers,
                 executor_cls=executor_cls,
                 show_progress=not args.no_progress,

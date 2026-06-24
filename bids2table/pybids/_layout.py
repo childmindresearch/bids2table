@@ -54,7 +54,7 @@ class BIDSLayout:
         database_path: Path | None = None,
         *,
         reset_database: bool = False,
-        **kwargs: dict[str, Any],  # noqa: ARG002 - allow for other kwargs to be passed
+        **kwargs: Any,  # noqa: ANN401, ARG002 - additional kwargs (any type) can be passed
     ) -> None:
         # Initialize BIDSLayout with dataset indexing.
         self.root = Path(root).absolute()
@@ -192,7 +192,9 @@ class BIDSLayout:
             self._tab = pa.concat_tables([self._tab, *deriv_tabs])
 
     def get(
-        self, return_type: str = "file", **entities: dict[str, Any]
+        self,
+        return_type: str = "file",
+        **entities: str | int,
     ) -> list[str | BIDSFile]:
         """Query files by BIDS entities.
 
@@ -206,7 +208,7 @@ class BIDSLayout:
         result_df = self._filter_df(entities)
         return self._format_results(result_df, return_type)
 
-    def _filter_df(self, entities: dict[str, Any]) -> pd.DataFrame:
+    def _filter_df(self, entities: dict[str, str | int]) -> pd.DataFrame:
         """Apply entity filters to dataframe."""
         result_df = self.df
         for key, value in entities.items():
@@ -225,7 +227,7 @@ class BIDSLayout:
         self,
         df: pd.DataFrame,
         key: str,
-        value: Any,  # noqa: ANN401
+        value: Query | list[str | int] | str | int,
     ) -> pd.DataFrame:
         """Apply single entity filter, handling Query sentinels."""
         if value in (Query.OPTIONAL, Query.ANY):
@@ -239,23 +241,22 @@ class BIDSLayout:
     def _format_results(
         self, df: pd.DataFrame, return_type: str
     ) -> list[str | BIDSFile]:
-        """Convert filtered dataframe to requested return type."""
-        formatters = {
-            "filename": lambda d: d["path"].tolist(),
-            "file": lambda d: [BIDSFile(p) for p in d["path"].tolist()],
-            "id": lambda d: d.index.tolist(),
-            "dir": lambda d: sorted(
-                d["path"].apply(lambda p: str(Path(p).parent)).unique().tolist()
-            ),
-        }
-        if return_type not in formatters:
-            raise ValueError(
-                f"Unknown return_type: {return_type}. "
-                "Valid options: 'file', 'filename', 'id', 'dir'"
+        if return_type == "filename":
+            return df["path"].tolist()
+        if return_type == "file":
+            return [BIDSFile(p) for p in df["path"].tolist()]
+        if return_type == "id":
+            return [str(x) for x in df.index.tolist()]
+        if return_type == "dir":
+            return sorted(
+                df["path"].apply(lambda p: str(Path(p).parent)).unique().tolist()
             )
-        return formatters[return_type](df)
+        raise ValueError(
+            f"Unknown return_type: {return_type}. "
+            "Valid options: 'file', 'filename', 'id', 'dir'"
+        )
 
-    def get_subjects(self, **filters: dict[str, str | int]) -> list[str]:
+    def get_subjects(self, **filters: str | int) -> list[str]:
         """Get list of unique subject IDs.
 
         Args:
@@ -284,7 +285,7 @@ class BIDSLayout:
         return sorted(subjects.tolist())
 
     def get_sessions(
-        self, subject: str | None = None, **filters: dict[str, str | int]
+        self, subject: str | None = None, **filters: str | int
     ) -> list[str]:
         """Get list of unique session IDs.
 
@@ -309,7 +310,7 @@ class BIDSLayout:
 
         # Apply additional filters
         for key, value in filters.items():
-            key = self._map_entity_key(key)
+            key = self._entity_map.get(key, key)
             if key in result_df.columns:
                 result_df = result_df[result_df[key] == value]
 
@@ -354,7 +355,7 @@ class BIDSLayout:
         """
         return BIDSFile(path)
 
-    def get_entities(self, **filters: dict[str, str | int]) -> dict[str, list[str]]:
+    def get_entities(self, **filters: str | int) -> dict[str, list[str]]:
         """Get dictionary of all entities and their unique values.
 
         Args:
@@ -376,7 +377,7 @@ class BIDSLayout:
         if filters:
             filtered_df = self.df.copy()
             for key, value in filters.items():
-                key = self._map_entity_key(key)
+                key = self._entity_map.get(key, key)
                 if key in filtered_df.columns:
                     filtered_df = filtered_df[filtered_df[key] == value]
         else:
@@ -395,7 +396,7 @@ class BIDSLayout:
     def add_custom_entity(
         self,
         name: str,
-        values: list[Any] | dict[str, Any] | Any,  # noqa: ANN401 - custom entities
+        values: list[str | int] | dict[str, str | int] | str | int,
         *,
         overwrite: bool = False,
     ) -> None:
