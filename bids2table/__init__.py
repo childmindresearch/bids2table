@@ -1,17 +1,17 @@
 """.. include:: ../README.md"""  # noqa: D415
 
 __all__ = [
-    "index_dataset",
+    "SchemaSpec",
     "batch_index_dataset",
+    "cloudpathlib_is_available",
     "find_bids_datasets",
+    "format_bids_path",
     "get_arrow_schema",
     "get_column_names",
+    "index_dataset",
+    "load_bids_metadata",
     "parse_bids_entities",
     "validate_bids_entities",
-    "format_bids_path",
-    "load_bids_metadata",
-    "cloudpathlib_is_available",
-    "SchemaSpec",
 ]
 
 import importlib.util

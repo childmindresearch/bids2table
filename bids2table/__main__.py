@@ -1,3 +1,5 @@
+"""Main entry point of bids2table."""
+
 import argparse
 import concurrent.futures
 import glob
@@ -12,7 +14,8 @@ from bids2table._pathlib import as_path
 _logger = setup_logger(__package__)
 
 
-def main():
+def main() -> None:
+    """Main CLI entry point."""
     parser = argparse.ArgumentParser(description="Find and index BIDS datasets.")
     subparsers = parser.add_subparsers(dest="subcommand")
 
@@ -37,14 +40,16 @@ def main():
         "--workers",
         "-j",
         type=int,
-        help="Number of worker processes for dataset-level parallelism. Setting to -1 runs as many workers as there "
-        "are cores available. Setting to 0 runs in the main process. (default: 0)",
+        help="Number of worker processes for dataset-level parallelism. Setting to -1 "
+        "runs as many workers as there are cores available. Setting to 0 runs in the "
+        "main process. (default: %d)",
         default=0,
     )
     parser_index.add_argument(
         "--use-threads",
         action="store_true",
-        help="Use threads instead of processes when workers > 0 (dataset-level parallelism only).",
+        help="Use threads instead of processes when workers > 0 (dataset-level "
+        "parallelism only).",
     )
     parser_index.add_argument(
         "--no-progress", "-q", action="store_true", help="Disable the progress bar."
@@ -101,7 +106,7 @@ def main():
         parser.print_help()
 
 
-def _index_command(args: argparse.Namespace):
+def _index_command(args: argparse.Namespace) -> None:
     for path in args.root:
         _check_path(path)
 
@@ -148,7 +153,7 @@ def _index_command(args: argparse.Namespace):
                 writer.write_table(table)
 
 
-def _find_command(args: argparse.Namespace):
+def _find_command(args: argparse.Namespace) -> None:
     _check_path(args.root)
 
     for dataset in b2t2.find_bids_datasets(
@@ -156,10 +161,10 @@ def _find_command(args: argparse.Namespace):
         exclude=args.exclude_dirs,
         maxdepth=args.maxdepth,
     ):
-        print(dataset)
+        _logger.info(dataset)
 
 
-def _check_path(path: str):
+def _check_path(path: str) -> None:
     if path.startswith(("s3://", "gs://")) and not b2t2.cloudpathlib_is_available():
         _logger.error(
             "Cloudpathlib is required to use cloud paths. "

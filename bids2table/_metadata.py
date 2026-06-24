@@ -1,13 +1,14 @@
 import json
+from collections.abc import Generator
 from functools import lru_cache
-from typing import Any, Generator
+from typing import Any
 
 from ._entities import _cache_parse_bids_entities
 from ._indexing import _is_bids_dataset
 from ._pathlib import PathT, as_path
 
 
-def load_bids_metadata(path: str | PathT, inherit: bool = True) -> dict[str, Any]:
+def load_bids_metadata(path: str | PathT, *, inherit: bool = True) -> dict[str, Any]:
     """Load the full JSON sidecar metadata for a BIDS file.
 
     Sidecar files are loaded according to the inheritance principle in top-down order.
@@ -42,7 +43,7 @@ def load_bids_metadata(path: str | PathT, inherit: bool = True) -> dict[str, Any
 
 
 @lru_cache
-def _load_json(path: PathT) -> Any:
+def _load_json(path: PathT) -> Any:  # noqa: ANN401 - match return type of `json.loads`
     return json.loads(path.read_text())
 
 
@@ -83,7 +84,7 @@ def _find_bids_parents(
         parent = parent.parent
 
 
-@lru_cache()
+@lru_cache
 def _glob(path: PathT, pattern: str) -> list[PathT]:
     return list(path.glob(pattern))
 

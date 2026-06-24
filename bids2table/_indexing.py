@@ -9,10 +9,11 @@ import fnmatch
 import importlib.metadata
 import re
 import sys
+from collections.abc import Callable, Generator, Iterable, Iterator, Sequence
 from concurrent.futures import Executor, ProcessPoolExecutor
 from functools import lru_cache, partial
 from glob import glob
-from typing import Any, Callable, Generator, Iterable, Sequence
+from typing import Any
 
 import pyarrow as pa
 from tqdm import tqdm
@@ -122,7 +123,7 @@ def get_column_names(*, schema: SchemaSpec = None) -> enum.StrEnum:
         name = f.metadata[b"name"].decode()
         items.append((name, name))
 
-    BIDSColumn = enum.StrEnum("BIDSColumn", items)
+    BIDSColumn = enum.StrEnum("BIDSColumn", items)  # noqa: N806 - class type
     BIDSColumn.__doc__ = "Enum of BIDS index column names."
     return BIDSColumn
 
@@ -195,7 +196,6 @@ def find_bids_datasets(
 def index_dataset(
     root: str | PathT,
     include_subjects: str | list[str] | None = None,
-    show_progress: bool = False,
     *,
     schema: SchemaSpec = None,
 ) -> pa.Table:
@@ -205,7 +205,6 @@ def index_dataset(
         root: BIDS dataset root directory.
         include_subjects: Glob pattern or list of patterns for matching subjects to
             include in the index.
-        show_progress: Show progress bar.
         schema: BIDS schema specification to use. If ``None``, uses the bundled
             default schema.
 
@@ -233,16 +232,15 @@ def index_dataset(
         _, table = _index_bids_subject_dir(sub, schema=arrow_schema, dataset=dataset)
         tables.append(table)
         file_count += len(table)
-    table = pa.concat_tables(tables).combine_chunks()
-    return table
+    return pa.concat_tables(tables).combine_chunks()
 
 
 def batch_index_dataset(
     roots: list[str | PathT],
     max_workers: int | None = 0,
     executor_cls: type[Executor] = ProcessPoolExecutor,
-    show_progress: bool = False,
     *,
+    show_progress: bool = False,
     schema: SchemaSpec = None,
 ) -> Generator[pa.Table, None, None]:
     """Index a batch of BIDS datasets.
@@ -270,7 +268,7 @@ def batch_index_dataset(
         )
     ):
         file_count += len(table)
-        pbar.set_postfix(dict(ds=dataset, N=_hfmt(file_count)), refresh=False)
+        pbar.set_postfix({"ds": dataset, "N": _hfmt(file_count)}, refresh=False)
         yield table
 
 
@@ -282,7 +280,7 @@ def _batch_index_func(
     return dataset, table
 
 
-@lru_cache()
+@lru_cache
 def _get_bids_dataset(path: str | PathT) -> tuple[str | None, PathT | None]:
     """Get the BIDS dataset that the path belongs to, if any.
 
@@ -318,7 +316,7 @@ def _get_bids_dataset(path: str | PathT) -> tuple[str | None, PathT | None]:
     return dataset, root
 
 
-@lru_cache()
+@lru_cache
 def _is_bids_dataset(path: PathT) -> bool:
     """Test if path is a BIDS dataset root directory."""
     # Quick heuristic checks.
@@ -357,7 +355,7 @@ def _find_bids_subject_dirs(
 
     if include_subjects:
         filtered_names = _filter_include(
-            set(path.name for path in paths), include_subjects
+            {path.name for path in paths}, include_subjects
         )
         paths = [path for path in paths if path.name in filtered_names]
     return paths
@@ -395,7 +393,7 @@ def _index_bids_subject_dir(
         paths = map(as_path, path.rglob("sub-*", recurse_symlinks=True))
     else:
         # Fall back to glob.glob for <py3.13
-        paths = map(as_path, glob(f"{path}/**/sub-*", recursive=True))
+        paths = map(as_path, glob(f"{path}/**/sub-*", recursive=True))  # noqa: PTH207
 
     for p in paths:
         if _is_bids_file(p):
@@ -440,9 +438,7 @@ def _is_bids_file(path: PathT) -> bool:
     # very special case for directories that are treated as bids "files"
     # e.g. microscopy .ome.zarr directories or MEG .ds directories.
     # A little annoying that we have to do this.
-    if _is_bids_file(path.parent):
-        return False
-    return True
+    return not _is_bids_file(path.parent)
 
 
 def _is_bids_json_sidecar(path: PathT) -> bool:
@@ -466,9 +462,7 @@ def _is_bids_json_sidecar(path: PathT) -> bool:
     # All sidecars must contain a suffix.
     # Also check if suffix matches special cases of data files with json extension.
     suffix = entities.get("suffix")
-    if suffix is None or suffix in _BIDS_JSON_SIDECAR_EXCEPTION_SUFFIXES:
-        return False
-    return True
+    return not (suffix is None or suffix in _BIDS_JSON_SIDECAR_EXCEPTION_SUFFIXES)
 
 
 def _pmap(
@@ -477,7 +471,7 @@ def _pmap(
     max_workers: int | None = 0,
     chunksize: int = 1,
     executor_cls: type[Executor] = ProcessPoolExecutor,
-):
+) -> Iterator[Any]:
     if max_workers == 0:
         yield from map(func, iterable)
     else:

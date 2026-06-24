@@ -111,7 +111,7 @@ def _build_adapter_from_namespace(schema: Namespace) -> BIDSSchemaAdapter:
     )
 
 
-SchemaSpec: TypeAlias = Namespace | str | PathT | None
+SchemaSpec: TypeAlias = Namespace | str | PathT | None  # noqa: UP040 - req'd for py311
 
 
 @lru_cache
@@ -121,7 +121,7 @@ def _load_from_path(path: str | PathT | None) -> BIDSSchemaAdapter:
     return _build_adapter_from_namespace(schema)
 
 
-def load_bids_schema(spec: SchemaSpec = None) -> BIDSSchemaAdapter:
+def load_bids_schema(spec: SchemaSpec | None = None) -> BIDSSchemaAdapter:
     """Resolve a `SchemaSpec` to a `BIDSSchemaAdapter`.
 
     Hashable specs (`None`, `str`, `PathT`) hit a memoized loader.
@@ -131,7 +131,7 @@ def load_bids_schema(spec: SchemaSpec = None) -> BIDSSchemaAdapter:
     """
     if isinstance(spec, Namespace):
         return _build_adapter_from_namespace(spec)
-    if spec is None or isinstance(spec, (str, os.PathLike)):
+    if spec is None or isinstance(spec, str | os.PathLike):
         return _load_from_path(spec)
     raise TypeError(
         f"schema must be Namespace | str | PathT | None, got {type(spec).__name__}"

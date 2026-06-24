@@ -13,7 +13,7 @@ try:
         GSClient().set_as_default_client()
     # Using generalized Exception here, as DefaultCredentialsError is not available for
     # import if GSClient is not available
-    except Exception:
+    except Exception:  # noqa: S110 - catch-all for all GSC-related errors
         pass
 
 except Exception:

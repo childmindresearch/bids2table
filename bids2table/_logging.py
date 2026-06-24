@@ -4,11 +4,11 @@ import logging
 class RepetitiveFilter(logging.Filter):
     """Suppress similar log messages after a number of repeats."""
 
-    def __init__(self, max_repeats: int = 2):
+    def __init__(self, max_repeats: int = 2) -> None:
         self.max_repeats = max_repeats
         self._counts: dict[tuple[str, int, str], int] = {}
 
-    def filter(self, record: logging.LogRecord):
+    def filter(self, record: logging.LogRecord) -> bool:
         # Exact repeat of path, line, message.
         key = record.pathname, record.lineno, record.msg
         count = self._counts.get(key, 0) + 1
@@ -22,6 +22,7 @@ def setup_logger(
     name: str | None = None,
     level: int | str | None = None,
     max_repeats: int | None = 2,
+    *,
     overwrite: bool = False,
 ) -> logging.Logger:
     """Get logger with my preferred formatting and repetition filtering."""

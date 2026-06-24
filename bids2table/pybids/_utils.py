@@ -11,13 +11,12 @@ class Query:
     NONE = object()  # Match explicit null/missing
     ANY = object()  # Match any value (don't filter)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "Query"
 
 
-def listify(obj: Any) -> list:
-    """
-    Convert an object to a list if it isn't already one.
+def listify(obj: Any) -> list:  # noqa: ANN401 - passed object can be anything
+    """Convert an object to a list if it isn't already one.
 
     This is a PyBIDS utility function that niworkflows and other packages use.
 
@@ -26,14 +25,14 @@ def listify(obj: Any) -> list:
     obj : Any
         Object to convert to list
 
-    Returns
+    Returns:
     -------
     list
         If obj is None, returns empty list
         If obj is already a list/tuple, returns as list
         Otherwise returns [obj]
 
-    Examples
+    Examples:
     --------
     >>> listify(None)
     []
@@ -46,7 +45,6 @@ def listify(obj: Any) -> list:
     """
     if obj is None:
         return []
-    elif isinstance(obj, (list, tuple)):
+    if isinstance(obj, list | tuple):
         return list(obj)
-    else:
-        return [obj]
+    return [obj]
