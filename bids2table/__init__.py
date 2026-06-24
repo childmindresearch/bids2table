@@ -34,4 +34,4 @@ from bids2table._indexing import (
 from bids2table._metadata import load_bids_metadata
 from bids2table._pathlib import cloudpathlib_is_available
 from bids2table._schema import SchemaSpec
-from bids2table._version import *
+from bids2table._version import *  # noqa: F403 - import all of generated module

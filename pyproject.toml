@@ -116,7 +116,6 @@ convention = "google"
   "ANN202",  # return annotation in private function
   "S101"  # assert usage
 ]
-"__init__.py" = ["F401", "F403"]
 
 [tool.ty.src]
 include = [
