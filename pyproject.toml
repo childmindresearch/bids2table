@@ -16,13 +16,14 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT License" }
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Topic :: Scientific/Engineering",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "License :: OSI Approved :: MIT License",
     "Operating System :: POSIX",
     "Operating System :: Unix",
@@ -48,6 +49,7 @@ dev = [
     "pytest-benchmark>=5.2.3",
     "pytest-cov>=7.1.0",
     "ruff>=0.15.13",
+    "ty>=0.0.53",
 ]
 
 [project.urls]
@@ -66,8 +68,48 @@ version_file = "bids2table/_version.py"
 
 [tool.ruff]
 line-length = 88
+indent-width = 4
+src = ["bids2table"]
 target-version = "py312"
-lint.extend-select = ["I"]
+
+[tool.ruff.lint]
+select = [
+  "ANN",  # flake8-annotations
+  "ARG",  # flake8-unused-arguments
+  "B",  # flake8-bugbear
+  "C4",  # flake8-comprehensions
+  "C90",  # mccabe
+  "D",  # pydocstyle
+  "E",  # pycodestyle errors
+  "ERA",  # eradicate
+  "F",  # Pyflakes
+  "FA",  # flake8-future-annotations
+  "FBT",  # flake8-boolean-trap
+  "FURB",  # refurb
+  "I",  # isort
+  "N",  # pep8-naming
+  "NPY",  # NumPy-specific rules
+  "PD",  # pandas-vet
+  "PERF",  # Perflint
+  "PIE",  # flake8-pie
+  "PT",  # flake8-pytest-style
+  "PTH",  # flake8-use-pathlib
+  "Q",  # flake8-quotes
+  "RET",  # flake8-return
+  "RUF",  # Ruff-specific rules
+  "S",  # flake8-bandit
+  "SIM",  # flake8-simplify
+  "T20",  # flake8-print
+  "TID",  # flake8-tidy-imports
+  "TC",  # flake8-type-checking
+  "UP"  # pyupgrade
+]
+ignore = []
+fixable = ["ALL"]
+unfixable = []
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401", "F403"]
