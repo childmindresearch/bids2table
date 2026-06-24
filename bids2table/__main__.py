@@ -42,7 +42,7 @@ def main() -> None:
         type=int,
         help="Number of worker processes for dataset-level parallelism. Setting to -1 "
         "runs as many workers as there are cores available. Setting to 0 runs in the "
-        "main process. (default: %d)",
+        "main process. (default: %(default)d)",
         default=0,
     )
     parser_index.add_argument(
