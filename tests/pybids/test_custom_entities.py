@@ -20,17 +20,17 @@ def test_dataset():
 
 
 @pytest.fixture
-def layout(test_dataset):
+def layout(test_dataset: Path):
     """Create a BIDSLayout for testing."""
     with tempfile.TemporaryDirectory() as tmpdir:
         cache_path = Path(tmpdir) / "test_cache.parquet"
-        yield BIDSLayout(test_dataset, validate=False, cache_path=cache_path)
+        yield BIDSLayout(test_dataset, cache_path=cache_path)
 
 
 class TestCustomEntities:
     """Tests for adding and querying custom entities."""
 
-    def test_add_constant_value(self, layout):
+    def test_add_constant_value(self, layout: BIDSLayout):
         """Test adding a constant value to all rows."""
         layout.add_custom_entity("status", "pending")
 
@@ -41,14 +41,14 @@ class TestCustomEntities:
         files = layout.get(status="pending", return_type="filename")
         assert len(files) == len(layout.df)
 
-    def test_add_from_dict_subjects(self, layout):
+    def test_add_from_dict_subjects(self, layout: BIDSLayout):
         """Test adding entity from subject mapping."""
         subjects = layout.get_subjects()
         if not subjects:
             pytest.skip("No subjects in dataset")
 
         # Create mapping for first few subjects
-        qc_mapping = {subjects[0]: "pass", subjects[1]: "fail"}
+        qc_mapping: dict[str, str | int] = {subjects[0]: "pass", subjects[1]: "fail"}
         layout.add_custom_entity("qc_grade", qc_mapping)
 
         assert "qc_grade" in layout.df.columns
@@ -64,16 +64,15 @@ class TestCustomEntities:
         assert len(passed) > 0
         assert len(failed) > 0
 
-    def test_add_from_function(self, layout):
+    def test_add_from_function(self, layout: BIDSLayout):
         """Test adding entity computed from function."""
 
-        def categorize(row):
+        def categorize(row: pandas.Series):
             if row["suffix"] in ["T1w", "T2w", "inplaneT2"]:
                 return "anatomical"
-            elif row["suffix"] == "bold":
+            if row["suffix"] == "bold":
                 return "functional"
-            else:
-                return "other"
+            return "other"
 
         layout.add_custom_entity("modality_category", categorize)
 
@@ -86,11 +85,11 @@ class TestCustomEntities:
         assert len(anat) > 0
         assert len(func) > 0
 
-    def test_add_from_list(self, layout):
+    def test_add_from_list(self, layout: BIDSLayout):
         """Test adding entity from list of values."""
         # Create list matching number of files
         n_files = len(layout.df)
-        batch_ids = [i % 3 for i in range(n_files)]  # Batches 0, 1, 2
+        batch_ids: list[str | int] = [i % 3 for i in range(n_files)]  # Batches 0, 1, 2
 
         layout.add_custom_entity("batch_id", batch_ids)
 
@@ -100,7 +99,7 @@ class TestCustomEntities:
         batch0 = layout.get(batch_id=0, return_type="filename")
         assert len(batch0) > 0
 
-    def test_combine_standard_and_custom(self, layout):
+    def test_combine_standard_and_custom(self, layout: BIDSLayout):
         """Test querying with both standard and custom entities."""
         subjects = layout.get_subjects()
         if not subjects:
@@ -120,7 +119,7 @@ class TestCustomEntities:
 
         assert len(files) > 0
 
-    def test_overwrite_protection(self, layout):
+    def test_overwrite_protection(self, layout: BIDSLayout):
         """Test that overwrite protection works."""
         layout.add_custom_entity("my_entity", "value1")
 
@@ -132,7 +131,7 @@ class TestCustomEntities:
         layout.add_custom_entity("my_entity", "value2", overwrite=True)
         assert (layout.df["my_entity"] == "value2").all()
 
-    def test_direct_dataframe_manipulation(self, layout):
+    def test_direct_dataframe_manipulation(self, layout: BIDSLayout):
         """Test that direct df manipulation also works for querying."""
         # Add custom entity directly (without helper method)
         layout.df["direct_entity"] = "direct_value"
@@ -141,7 +140,7 @@ class TestCustomEntities:
         files = layout.get(direct_entity="direct_value", return_type="filename")
         assert len(files) == len(layout.df)
 
-    def test_modify_existing_entity(self, layout):
+    def test_modify_existing_entity(self, layout: BIDSLayout):
         """Test modifying an existing entity value."""
         # Modify a standard entity
         original_tasks = layout.df["task"].unique()
@@ -157,7 +156,7 @@ class TestCustomEntities:
         if "balloonanalogrisktask" in original_tasks:
             assert len(bart_files) > 0
 
-    def test_entity_with_subject_filter(self, layout):
+    def test_entity_with_subject_filter(self, layout: BIDSLayout):
         """Test custom entity combined with get_subjects filter."""
         # Add custom entity
         layout.df["experiment_phase"] = layout.df["run"].apply(
@@ -168,10 +167,10 @@ class TestCustomEntities:
         subjects = layout.get_subjects(experiment_phase="early")
         assert isinstance(subjects, list)
 
-    def test_none_values_in_custom_entity(self, layout):
+    def test_none_values_in_custom_entity(self, layout: BIDSLayout):
         """Test handling of None/NaN in custom entities."""
 
-        def sometimes_none(row):
+        def sometimes_none(row: pandas.Series):
             # Only set value for BOLD files
             return "has_value" if row["suffix"] == "bold" else None
 

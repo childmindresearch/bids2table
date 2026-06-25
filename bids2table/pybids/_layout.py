@@ -1,11 +1,11 @@
-"""
-BIDSLayout compatibility wrapper around bids2table.
+"""BIDSLayout compatibility wrapper around bids2table.
 
 Provides a PyBIDS-compatible interface for querying BIDS datasets
 while leveraging bids2table's superior performance.
 """
 
 import warnings
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -13,15 +13,14 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from .._indexing import index_dataset
-from .._metadata import load_bids_metadata
-from ._bidsfile import BIDSFile
-from ._utils import Query
+from bids2table._indexing import index_dataset
+from bids2table._metadata import load_bids_metadata
+from bids2table.pybids._bidsfile import BIDSFile
+from bids2table.pybids._utils import Query
 
 
 class BIDSLayout:
-    """
-    PyBIDS-compatible wrapper around bids2table.
+    """PyBIDS-compatible wrapper around bids2table.
 
     Provides a familiar BIDSLayout interface while using bids2table's
     fast indexing and efficient querying under the hood.
@@ -35,9 +34,11 @@ class BIDSLayout:
     Args:
         root: Path to BIDS dataset root
         derivatives: Path(s) to derivative datasets to include
-        cache_path: Path to parquet cache file (default: {root}/.bids2table_cache.parquet)
+        cache_path: Path to parquet cache file
+            (default: {root}/.bids2table_cache.parquet)
         database_path: Legacy parameter (ignored, use cache_path instead)
-        reset_database: If True, ignore cache and force re-indexing (useful for benchmarking)
+        reset_database: If True, ignore cache and force re-indexing
+            (useful for benchmarking)
         **kwargs: Additional arguments (currently ignored)
 
     Attributes:
@@ -51,9 +52,10 @@ class BIDSLayout:
         derivatives: str | Path | list[str | Path] | None = None,
         cache_path: Path | None = None,
         database_path: Path | None = None,
+        *,
         reset_database: bool = False,
-        **kwargs,
-    ):
+        **kwargs: Any,  # noqa: ANN401, ARG002 - additional kwargs (any type) can be passed
+    ) -> None:
         # Initialize BIDSLayout with dataset indexing.
         self.root = Path(root).absolute()
         self.reset_database = reset_database
@@ -124,13 +126,11 @@ class BIDSLayout:
         self._tab = self._tab.select(cols)
 
     def _load_or_create_index(self) -> pa.Table:
-        """
-        Load cached index or create new one.
+        """Load cached index or create new one.
 
         Returns:
             PyArrow table with indexed BIDS files
         """
-
         # If reset_database is True, skip cache and force re-index
         if not self.reset_database and self.cache_path.exists():
             # Check if cache is stale (optional - could be expensive)
@@ -162,9 +162,8 @@ class BIDSLayout:
 
         return tab
 
-    def _add_derivatives(self, derivatives: str | Path | list[str | Path]):
-        """
-        Add derivative datasets to the index.
+    def _add_derivatives(self, derivatives: str | Path | list[str | Path]) -> None:
+        """Add derivative datasets to the index.
 
         Args:
             derivatives: Path or list of paths to derivative datasets
@@ -190,84 +189,77 @@ class BIDSLayout:
 
         # Concatenate with main table
         if deriv_tabs:
-            self._tab = pa.concat_tables([self._tab] + deriv_tabs)
+            self._tab = pa.concat_tables([self._tab, *deriv_tabs])
 
-    def get(self, return_type: str = "file", **entities) -> list[str | BIDSFile]:
-        """
-        Query files by BIDS entities.
+    def get(
+        self,
+        return_type: str = "file",
+        **entities: Sequence[str | int] | str | int | Query,
+    ) -> list[str | BIDSFile]:
+        """Query files by BIDS entities.
 
         Args:
-            return_type: Type of return value:
-                - 'file': List of BIDSFile objects
-                - 'filename': List of path strings
-                - 'id': List of row indices
-                - 'dir': List of unique directories
+            return_type: 'file', 'filename', 'id', or 'dir'
             **entities: BIDS entity filters (e.g., subject='01', suffix='T1w')
 
         Returns:
             List of files matching query (type depends on return_type)
-
-        Example:
-            >>> files = layout.get(subject='01', suffix='T1w', return_type='filename')
-            >>> ['sub-01/anat/sub-01_T1w.nii.gz']
         """
-        # Start with full dataframe
-        result_df = self.df.copy()
+        result_df = self._filter_df(entities)
+        return self._format_results(result_df, return_type)
 
-        # Apply filters
+    def _filter_df(
+        self, entities: dict[str, Sequence[str | int] | str | int | Query]
+    ) -> pd.DataFrame:
+        """Apply entity filters to dataframe."""
+        result_df = self.df
         for key, value in entities.items():
-            # Map common PyBIDS names to b2t column names
-            # PyBIDS uses 'subject', 'session', 'extension'
-            # b2t uses 'sub', 'ses', 'ext'
-            # Fallback to the current key if it's not in the dict
             key = self._entity_map.get(key, key)
-
-            # Check if column exists
             if key not in result_df.columns:
-                # Unknown entity - could warn or ignore
                 warnings.warn(
                     f"Unknown entity '{key}' (not in dataset columns)",
                     UserWarning,
                     stacklevel=2,
                 )
                 continue
+            result_df = self._apply_filter(result_df, key, value)
+        return result_df
 
-            # Handle special Query values
-            if value is Query.OPTIONAL:
-                # Allow any value (including missing) - no filtering
-                continue
-            elif value is Query.NONE:
-                # Match explicit nulls
-                result_df = result_df[result_df[key].isna()]
-            elif value is Query.ANY:
-                # Match any value - don't filter
-                continue
-            elif isinstance(value, list):
-                # List of values - use isin()
-                result_df = result_df[result_df[key].isin(value)]
-            else:
-                # Single value - exact match
-                result_df = result_df[result_df[key] == value]
+    def _apply_filter(
+        self,
+        df: pd.DataFrame,
+        key: str,
+        value: Sequence[str | int] | str | int | Query,
+    ) -> pd.DataFrame:
+        """Apply single entity filter, handling Query sentinels."""
+        if value in (Query.OPTIONAL, Query.ANY):
+            return df
+        if value is Query.NONE:
+            return df[df[key].isna()]
+        if isinstance(value, list):
+            return df[df[key].isin(value)]
+        return df[df[key] == value]
 
-        # Return based on return_type
+    def _format_results(
+        self, df: pd.DataFrame, return_type: str
+    ) -> list[str | BIDSFile]:
         if return_type == "filename":
-            return result_df["path"].tolist()
-        elif return_type == "file":
-            return [BIDSFile(p) for p in result_df["path"].tolist()]
-        elif return_type == "id":
-            return result_df.index.tolist()
-        elif return_type == "dir":
-            dirs = result_df["path"].apply(lambda p: str(Path(p).parent))
-            return sorted(dirs.unique().tolist())
-        else:
-            raise ValueError(
-                f"Unknown return_type: {return_type}. "
-                "Valid options: 'file', 'filename', 'id', 'dir'"
+            return df["path"].tolist()
+        if return_type == "file":
+            return [BIDSFile(p) for p in df["path"].tolist()]
+        if return_type == "id":
+            return [str(x) for x in df.index.tolist()]
+        if return_type == "dir":
+            return sorted(
+                df["path"].apply(lambda p: str(Path(p).parent)).unique().tolist()
             )
+        raise ValueError(
+            f"Unknown return_type: {return_type}. "
+            "Valid options: 'file', 'filename', 'id', 'dir'"
+        )
 
-    def get_subjects(self, **filters) -> list[str]:
-        """
-        Get list of unique subject IDs.
+    def get_subjects(self, **filters: str | int) -> list[str]:
+        """Get list of unique subject IDs.
 
         Args:
             **filters: Optional entity filters to apply before extracting subjects
@@ -294,9 +286,10 @@ class BIDSLayout:
 
         return sorted(subjects.tolist())
 
-    def get_sessions(self, subject: str | None = None, **filters) -> list[str]:
-        """
-        Get list of unique session IDs.
+    def get_sessions(
+        self, subject: str | None = None, **filters: str | int
+    ) -> list[str]:
+        """Get list of unique session IDs.
 
         Args:
             subject: Optional subject ID to filter by
@@ -319,7 +312,7 @@ class BIDSLayout:
 
         # Apply additional filters
         for key, value in filters.items():
-            key = self._map_entity_key(key)
+            key = self._entity_map.get(key, key)
             if key in result_df.columns:
                 result_df = result_df[result_df[key] == value]
 
@@ -327,8 +320,7 @@ class BIDSLayout:
         return sorted(sessions.tolist())
 
     def get_metadata(self, path: str) -> dict[str, Any]:
-        """
-        Load metadata from JSON sidecar(s) for a given file.
+        """Load metadata from JSON sidecar(s) for a given file.
 
         Uses BIDS inheritance principle to merge metadata from
         dataset, subject, and session levels.
@@ -343,7 +335,7 @@ class BIDSLayout:
             >>> metadata = layout.get_metadata('sub-01/func/sub-01_task-rest_bold.nii.gz')
             >>> metadata['RepetitionTime']
             2.0
-        """
+        """  # noqa: E501
         # Convert to absolute path if relative
         if not Path(path).is_absolute():
             path = str(self.root / path)
@@ -351,8 +343,7 @@ class BIDSLayout:
         return load_bids_metadata(path)
 
     def get_file(self, path: str) -> BIDSFile:
-        """
-        Get BIDSFile object for a given path.
+        """Get BIDSFile object for a given path.
 
         Args:
             path: Path to file
@@ -366,9 +357,8 @@ class BIDSLayout:
         """
         return BIDSFile(path)
 
-    def get_entities(self, **filters) -> dict[str, list[str]]:
-        """
-        Get dictionary of all entities and their unique values.
+    def get_entities(self, **filters: str | int) -> dict[str, list[str]]:
+        """Get dictionary of all entities and their unique values.
 
         Args:
             **filters: Optional entity filters to apply before extracting entities
@@ -389,7 +379,7 @@ class BIDSLayout:
         if filters:
             filtered_df = self.df.copy()
             for key, value in filters.items():
-                key = self._map_entity_key(key)
+                key = self._entity_map.get(key, key)
                 if key in filtered_df.columns:
                     filtered_df = filtered_df[filtered_df[key] == value]
         else:
@@ -397,7 +387,7 @@ class BIDSLayout:
 
         # Extract unique values for each entity column
         entities = {}
-        for ekey, evalue in self._entity_map.items():
+        for evalue in self._entity_map.values():
             if evalue in filtered_df.columns:
                 unique_vals = filtered_df[evalue].dropna().unique().tolist()
                 if unique_vals:  # Only include if not empty
@@ -408,11 +398,11 @@ class BIDSLayout:
     def add_custom_entity(
         self,
         name: str,
-        values: list[Any] | dict[str, Any] | Any,
+        values: list[str | int] | dict[str, str | int] | str | int | Callable,
+        *,
         overwrite: bool = False,
-    ):
-        """
-        Add a custom entity column to the layout.
+    ) -> None:
+        """Add a custom entity column to the layout.
 
         This is a convenience method for adding custom metadata that can be
         queried like standard BIDS entities.
@@ -447,21 +437,19 @@ class BIDSLayout:
                 f"Entity '{name}' already exists. Use overwrite=True to replace."
             )
 
-        # Handle different value types
         if callable(values):
-            # Function: apply to each row
             self.df[name] = self.df.apply(values, axis=1)
         elif isinstance(values, dict):
-            # Dict: map from key (assume subject or file path)
-            # Try to detect if keys are subjects or paths
-            if values and list(values.keys())[0] in self.df["sub"].values:
-                # Keys are subjects
-                self.df[name] = self.df["sub"].map(values)
+            if values:
+                first_key = next(iter(values))
+                sub_col = self.df["sub"]
+                map_col = (
+                    sub_col if first_key in sub_col.to_numpy() else self.df["path"]
+                )
             else:
-                # Keys are file paths or other
-                self.df[name] = self.df["path"].map(values)
+                map_col = self.df["path"]
+            self.df[name] = map_col.map(values)
         else:
-            # Scalar or array-like: assign directly
             self.df[name] = values
 
         self._entity_map[name] = name

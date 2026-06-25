@@ -1,30 +1,63 @@
-exclude: 'build|third-party|.github'
+fail_fast: false
+exclude: build|third-party|.github
 
 default_language_version:
-    python: python3
+  python: python3
 
 repos:
--   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
-    hooks:
-    -   id: trailing-whitespace
-    -   id: check-ast
-    -   id: check-merge-conflict
-    -   id: end-of-file-fixer
-
 - repo: https://github.com/astral-sh/ruff-pre-commit
-  # Ruff version.
-  rev: v0.9.10
+  rev: v0.15.19
   hooks:
-    # Run the linter.
-    - id: ruff
-      args: [ --fix ]
-    # Run the formatter.
-    - id: ruff-format
+  - id: ruff-check
+  - id: ruff-format
+
+- repo: https://github.com/astral-sh/ty-pre-commit
+  rev: v0.0.53
+  hooks:
+  - id: ty
+
+- repo: https://github.com/macisamuele/language-formatters-pre-commit-hooks
+  rev: v2.16.0
+  hooks:
+  - id: pretty-format-yaml
+    args:
+    - --autofix
+    - --indent=2
+  - id: pretty-format-toml
+    exclude: ^uv.lock$
+    args:
+    - --autofix
+    - --indent=2
+    - --no-sort
+
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v6.0.0
+  hooks:
+  - id: check-case-conflict
+  - id: end-of-file-fixer
+  - id: trailing-whitespace
+  - id: pretty-format-json
+    args:
+    - --autofix
+    - --indent=4
+    - --no-sort-keys
+    exclude_types: [jupyter]
+  - id: check-merge-conflict
+  - id: check-yaml
+  - id: check-json
+  - id: check-toml
 
 - repo: https://github.com/codespell-project/codespell
   rev: v2.4.1
   hooks:
   - id: codespell
     additional_dependencies:
-      - tomli
+    - tomli
+
+- repo: local
+  hooks:
+  - id: yaml-file-extension
+    name: Prefer .yaml over .yml.
+    entry: YAML files must have .yaml extension.
+    language: fail
+    files: \.yml$

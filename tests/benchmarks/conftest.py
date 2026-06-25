@@ -1,3 +1,5 @@
+"""Pytest fixtures for benchmark tests."""
+
 import pytest
 
 

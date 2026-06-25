@@ -4,7 +4,7 @@ import pytest
 
 pytest.importorskip("pandas", reason="pandas not available")
 
-from bids2table.pybids import Query  # noqa: E402 - skip tests if pandas not avail
+from bids2table.pybids import Query
 
 
 def test_query_sentinels_are_unique():
@@ -23,6 +23,7 @@ def test_query_sentinels_are_singletons():
     assert Query.ANY is Query2.ANY
 
 
-def test_query_repr():
+@pytest.mark.parametrize(("query"), [Query.OPTIONAL, Query.NONE, Query.ANY])
+def test_query_repr(query: Query):
     """Test Query string representation."""
-    assert repr(Query()) == "Query"
+    assert repr(query) == "Query"

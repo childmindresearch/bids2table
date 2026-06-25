@@ -6,24 +6,25 @@ Returns a dataset index as an Arrow table.
 
 import enum
 import fnmatch
-import importlib.metadata
 import re
 import sys
-from concurrent.futures import Executor, ProcessPoolExecutor
+from collections.abc import Callable, Generator, Iterable, Iterator, Sequence
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from functools import lru_cache, partial
 from glob import glob
-from typing import Any, Callable, Generator, Iterable, Sequence
+from typing import Any
 
 import pyarrow as pa
 from tqdm import tqdm
 
-from ._entities import (
+from bids2table._entities import (
     _cache_parse_bids_entities,
     _pyarrow_validate_entities,
 )
-from ._logging import setup_logger
-from ._pathlib import CloudPath, PathT, as_path, cloudpathlib_is_available
-from ._schema import SchemaSpec, entity_arrow_schema, load_bids_schema
+from bids2table._logging import setup_logger
+from bids2table._pathlib import CloudPath, PathT, as_path, cloudpathlib_is_available
+from bids2table._schema import SchemaSpec, entity_arrow_schema, load_bids_schema
+from bids2table._version import version
 
 _BIDS_SUBJECT_DIR_PATTERN = re.compile(r"sub-[a-zA-Z0-9]+")
 
@@ -105,12 +106,12 @@ def get_arrow_schema(*, schema: SchemaSpec = None) -> pa.Schema:
     ]
     metadata = {
         **entity_schema.metadata,
-        b"bids2table_version": importlib.metadata.version(__package__).encode(),
+        b"bids2table_version": version.encode(),
     }
     return pa.schema(fields, metadata=metadata)
 
 
-def get_column_names(*, schema: SchemaSpec = None) -> enum.StrEnum:
+def get_column_names(*, schema: SchemaSpec = None) -> type[enum.StrEnum]:
     """Get an enum of the BIDS index columns."""
     # TODO: It might be nice if the column names were statically available. One option
     # would be to generate a static _schema.py module at install time (similar to how
@@ -122,7 +123,7 @@ def get_column_names(*, schema: SchemaSpec = None) -> enum.StrEnum:
         name = f.metadata[b"name"].decode()
         items.append((name, name))
 
-    BIDSColumn = enum.StrEnum("BIDSColumn", items)
+    BIDSColumn = enum.StrEnum("BIDSColumn", items)  # noqa: N806 - class type
     BIDSColumn.__doc__ = "Enum of BIDS index column names."
     return BIDSColumn
 
@@ -149,7 +150,7 @@ def find_bids_datasets(
         exclude = [exclude]
     elif exclude is None:
         exclude = []
-    exclude = [re.compile(fnmatch.translate(pat)) for pat in exclude]
+    exclude_patterns = [re.compile(fnmatch.translate(pat)) for pat in exclude]
 
     entry_count = 1
     ds_count = 0
@@ -170,7 +171,7 @@ def find_bids_datasets(
         for entry in top.iterdir():
             entry_count += 1
 
-            if any(re.fullmatch(pat, entry.name) for pat in exclude):
+            if any(re.fullmatch(pat, entry.name) for pat in exclude_patterns):
                 continue
 
             if _is_bids_dataset(entry):
@@ -195,7 +196,6 @@ def find_bids_datasets(
 def index_dataset(
     root: str | PathT,
     include_subjects: str | list[str] | None = None,
-    show_progress: bool = False,
     *,
     schema: SchemaSpec = None,
 ) -> pa.Table:
@@ -205,7 +205,6 @@ def index_dataset(
         root: BIDS dataset root directory.
         include_subjects: Glob pattern or list of patterns for matching subjects to
             include in the index.
-        show_progress: Show progress bar.
         schema: BIDS schema specification to use. If ``None``, uses the bundled
             default schema.
 
@@ -233,16 +232,15 @@ def index_dataset(
         _, table = _index_bids_subject_dir(sub, schema=arrow_schema, dataset=dataset)
         tables.append(table)
         file_count += len(table)
-    table = pa.concat_tables(tables).combine_chunks()
-    return table
+    return pa.concat_tables(tables).combine_chunks()
 
 
 def batch_index_dataset(
-    roots: list[str | PathT],
+    roots: Sequence[str | PathT],
     max_workers: int | None = 0,
-    executor_cls: type[Executor] = ProcessPoolExecutor,
-    show_progress: bool = False,
+    executor_cls: type[ProcessPoolExecutor | ThreadPoolExecutor] = ProcessPoolExecutor,
     *,
+    show_progress: bool = False,
     schema: SchemaSpec = None,
 ) -> Generator[pa.Table, None, None]:
     """Index a batch of BIDS datasets.
@@ -270,7 +268,7 @@ def batch_index_dataset(
         )
     ):
         file_count += len(table)
-        pbar.set_postfix(dict(ds=dataset, N=_hfmt(file_count)), refresh=False)
+        pbar.set_postfix({"ds": dataset, "N": _hfmt(file_count)}, refresh=False)
         yield table
 
 
@@ -278,11 +276,11 @@ def _batch_index_func(
     root: str | PathT, *, schema: SchemaSpec = None
 ) -> tuple[str | None, pa.Table]:
     dataset, _ = _get_bids_dataset(root)
-    table = index_dataset(root, show_progress=False, schema=schema)
+    table = index_dataset(root, schema=schema)
     return dataset, table
 
 
-@lru_cache()
+@lru_cache
 def _get_bids_dataset(path: str | PathT) -> tuple[str | None, PathT | None]:
     """Get the BIDS dataset that the path belongs to, if any.
 
@@ -318,7 +316,7 @@ def _get_bids_dataset(path: str | PathT) -> tuple[str | None, PathT | None]:
     return dataset, root
 
 
-@lru_cache()
+@lru_cache
 def _is_bids_dataset(path: PathT) -> bool:
     """Test if path is a BIDS dataset root directory."""
     # Quick heuristic checks.
@@ -357,7 +355,7 @@ def _find_bids_subject_dirs(
 
     if include_subjects:
         filtered_names = _filter_include(
-            set(path.name for path in paths), include_subjects
+            {path.name for path in paths}, include_subjects
         )
         paths = [path for path in paths if path.name in filtered_names]
     return paths
@@ -395,7 +393,7 @@ def _index_bids_subject_dir(
         paths = map(as_path, path.rglob("sub-*", recurse_symlinks=True))
     else:
         # Fall back to glob.glob for <py3.13
-        paths = map(as_path, glob(f"{path}/**/sub-*", recursive=True))
+        paths = map(as_path, glob(f"{path}/**/sub-*", recursive=True))  # noqa: PTH207
 
     for p in paths:
         if _is_bids_file(p):
@@ -408,7 +406,9 @@ def _index_bids_subject_dir(
                 **valid_entities,
                 "extra_entities": extra_entities,
                 "root": root_fmt,
-                "path": str(p.relative_to(root)),
+                "path": str(  # `.relatve_to` available to both CloudPath and Path
+                    p.relative_to(root)  # ty:ignore[invalid-argument-type]
+                ),
             }
             records.append(record)
 
@@ -440,9 +440,7 @@ def _is_bids_file(path: PathT) -> bool:
     # very special case for directories that are treated as bids "files"
     # e.g. microscopy .ome.zarr directories or MEG .ds directories.
     # A little annoying that we have to do this.
-    if _is_bids_file(path.parent):
-        return False
-    return True
+    return not _is_bids_file(path.parent)
 
 
 def _is_bids_json_sidecar(path: PathT) -> bool:
@@ -466,9 +464,7 @@ def _is_bids_json_sidecar(path: PathT) -> bool:
     # All sidecars must contain a suffix.
     # Also check if suffix matches special cases of data files with json extension.
     suffix = entities.get("suffix")
-    if suffix is None or suffix in _BIDS_JSON_SIDECAR_EXCEPTION_SUFFIXES:
-        return False
-    return True
+    return not (suffix is None or suffix in _BIDS_JSON_SIDECAR_EXCEPTION_SUFFIXES)
 
 
 def _pmap(
@@ -476,8 +472,8 @@ def _pmap(
     iterable: Iterable[Any],
     max_workers: int | None = 0,
     chunksize: int = 1,
-    executor_cls: type[Executor] = ProcessPoolExecutor,
-):
+    executor_cls: type[ProcessPoolExecutor | ThreadPoolExecutor] = ProcessPoolExecutor,
+) -> Iterator[Any]:
     if max_workers == 0:
         yield from map(func, iterable)
     else:
@@ -490,7 +486,7 @@ def _pmap(
 
 def _filter_include(
     names: Iterable[str],
-    patterns: str | list[str],
+    patterns: str | Iterable[str],
 ) -> set[str]:
     """Filter names including those that match a glob pattern or list of patterns."""
     names = set(names)
@@ -501,7 +497,7 @@ def _filter_include(
 
 def _filter_exclude(
     names: Iterable[str],
-    patterns: str | list[str],
+    patterns: str | Iterable[str],
 ) -> set[str]:
     """Filter names excluding those that match a glob pattern or list of patterns."""
     names = set(names)
@@ -510,7 +506,9 @@ def _filter_exclude(
     return names
 
 
-def _multi_pattern_filter(names: list[str], patterns: str | list[str]) -> set[str]:
+def _multi_pattern_filter(
+    names: Iterable[str], patterns: str | Iterable[str]
+) -> set[str]:
     """Filter names matching any of a list of patterns."""
     if isinstance(patterns, str):
         patterns = [patterns]

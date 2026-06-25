@@ -10,8 +10,8 @@ from typing import Any
 
 import pyarrow as pa
 
-from ._logging import setup_logger
-from ._schema import (
+from bids2table._logging import setup_logger
+from bids2table._schema import (
     SchemaSpec,
     decode_metadata,
     entity_arrow_schema,
@@ -72,9 +72,13 @@ def parse_bids_entities(path: str | Path) -> dict[str, str]:
             key, val = part.split("-", maxsplit=1)
             entities[key] = val
 
-    for k, v in zip(["datatype", "suffix", "ext"], [datatype, suffix, ext]):
-        if v is not None:
-            entities[k] = v
+    entities |= {
+        k: v
+        for k, v in zip(
+            ["datatype", "suffix", "ext"], [datatype, suffix, ext], strict=True
+        )
+        if v is not None
+    }
     return entities
 
 
@@ -90,8 +94,7 @@ def _parse_bids_datatype(path: Path) -> str | None:
     (optionally) session directories. Returns `None` if no match found.
     """
     match = re.search(_BIDS_DATATYPE_PATTERN, str(path))
-    datatype = match.group(1) if match is not None else None
-    return datatype
+    return match.group(1) if match is not None else None
 
 
 def validate_bids_entities(
@@ -136,7 +139,7 @@ def _pyarrow_validate_entities(
                 value = typ(value)
             except ValueError:
                 _logger.warning(
-                    f"Unable to coerce {repr(value)} to type {typ} for entity '{name}'.",
+                    f"Unable to coerce {value!r} to type {typ} for entity '{name}'.",
                 )
                 extra_entities[name] = value
                 continue
@@ -210,5 +213,4 @@ def format_bids_path(entities: dict[str, Any], int_format: str = "%d") -> Path:
         path = datatype / path
     if ses := entities.get("ses"):
         path = f"ses-{ses}" / path
-    path = f"sub-{entities['sub']}" / path
-    return path
+    return f"sub-{entities['sub']}" / path

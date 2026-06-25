@@ -1,14 +1,16 @@
+"""Tests for BIDS sidecar metadata loading and inheritance."""
+
 from pathlib import Path
 
 import pytest
-
 from bids2table._metadata import load_bids_metadata
 
 BIDS_EXAMPLES = Path(__file__).parents[1] / "bids-examples"
 
 
 @pytest.mark.parametrize("inherit", [True, False])
-def test_load_bids_metadata(inherit: bool):
+def test_load_bids_metadata(*, inherit: bool):
+    """Load sidecar metadata with/without BIDS inheritance and verify values."""
     path = (
         BIDS_EXAMPLES
         / "synthetic/derivatives/fmriprep/sub-01/ses-01/func"
@@ -25,6 +27,7 @@ def test_load_bids_metadata(inherit: bool):
 
 @pytest.mark.cloud
 def test_load_bids_metadata_s3():
+    """Load sidecar metadata for a file stored on S3."""
     path = (
         "s3://openneuro.org/ds000102/sub-01/func/sub-01_task-flanker_run-1_bold.nii.gz"
     )

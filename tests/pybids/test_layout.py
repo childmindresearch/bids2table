@@ -7,7 +7,7 @@ import pytest
 
 pytest.importorskip("pandas", reason="pandas not available")
 
-from bids2table.pybids import (  # noqa: E402 - skip tests if pandas not avail
+from bids2table.pybids import (
     BIDSFile,
     BIDSLayout,
     Query,
@@ -26,7 +26,7 @@ def test_dataset():
 
 
 @pytest.fixture
-def layout(test_dataset):
+def layout(test_dataset: Path):
     """Create a BIDSLayout for testing."""
     # Use temporary cache to avoid polluting test dataset
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -37,7 +37,7 @@ def layout(test_dataset):
 class TestBIDSLayoutInit:
     """Tests for BIDSLayout initialization."""
 
-    def test_init_basic(self, test_dataset):
+    def test_init_basic(self, test_dataset: Path):
         """Test basic initialization."""
         with tempfile.TemporaryDirectory() as tmpdir:
             cache_path = Path(tmpdir) / "cache.parquet"
@@ -47,7 +47,7 @@ class TestBIDSLayoutInit:
             assert layout.df is not None
             assert len(layout.df) > 0
 
-    def test_init_with_cache(self, test_dataset):
+    def test_init_with_cache(self, test_dataset: Path):
         """Test that cache is created and reused."""
         with tempfile.TemporaryDirectory() as tmpdir:
             cache_path = Path(tmpdir) / "cache.parquet"
@@ -63,7 +63,7 @@ class TestBIDSLayoutInit:
 
             assert n_files_1 == n_files_2
 
-    def test_repr(self, layout):
+    def test_repr(self, layout: BIDSLayout):
         """Test string representation."""
         repr_str = repr(layout)
         assert "BIDSLayout" in repr_str
@@ -74,14 +74,14 @@ class TestBIDSLayoutInit:
 class TestBIDSLayoutGet:
     """Tests for BIDSLayout.get() method."""
 
-    def test_get_basic(self, layout):
+    def test_get_basic(self, layout: BIDSLayout):
         """Test basic file query."""
         files = layout.get(return_type="filename")
         assert isinstance(files, list)
         assert len(files) > 0
         assert all(isinstance(f, str) for f in files)
 
-    def test_get_by_subject(self, layout):
+    def test_get_by_subject(self, layout: BIDSLayout):
         """Test filtering by subject."""
         subjects = layout.get_subjects()
         if not subjects:
@@ -94,7 +94,7 @@ class TestBIDSLayoutGet:
         # Check that all files contain subject ID
         assert all(f"sub-{subject}" in f for f in files)
 
-    def test_get_by_suffix(self, layout):
+    def test_get_by_suffix(self, layout: BIDSLayout):
         """Test filtering by suffix."""
         # Try common suffixes
         for suffix in ["T1w", "bold", "events"]:
@@ -106,7 +106,7 @@ class TestBIDSLayoutGet:
         else:
             pytest.skip("No files with common suffixes found")
 
-    def test_get_multiple_filters(self, layout):
+    def test_get_multiple_filters(self, layout: BIDSLayout):
         """Test filtering by multiple entities."""
         subjects = layout.get_subjects()
         if not subjects:
@@ -119,28 +119,28 @@ class TestBIDSLayoutGet:
         # (May be empty if subject doesn't have anat data)
         assert isinstance(files, list)
 
-    def test_get_return_type_file(self, layout):
+    def test_get_return_type_file(self, layout: BIDSLayout):
         """Test return_type='file' returns BIDSFile objects."""
         files = layout.get(return_type="file")
 
         assert len(files) > 0
         assert all(isinstance(f, BIDSFile) for f in files)
 
-    def test_get_return_type_filename(self, layout):
+    def test_get_return_type_filename(self, layout: BIDSLayout):
         """Test return_type='filename' returns strings."""
         files = layout.get(return_type="filename")
 
         assert len(files) > 0
         assert all(isinstance(f, str) for f in files)
 
-    def test_get_return_type_id(self, layout):
+    def test_get_return_type_id(self, layout: BIDSLayout):
         """Test return_type='id' returns indices."""
         ids = layout.get(return_type="id")
 
         assert len(ids) > 0
-        assert all(isinstance(i, (int, type(ids[0]))) for i in ids)
+        assert all(isinstance(i, (int | type(ids[0]))) for i in ids)
 
-    def test_get_return_type_dir(self, layout):
+    def test_get_return_type_dir(self, layout: BIDSLayout):
         """Test return_type='dir' returns unique directories."""
         dirs = layout.get(return_type="dir")
 
@@ -149,7 +149,7 @@ class TestBIDSLayoutGet:
         # Should be unique
         assert len(dirs) == len(set(dirs))
 
-    def test_get_with_list_values(self, layout):
+    def test_get_with_list_values(self, layout: BIDSLayout):
         """Test filtering with list of values."""
         subjects = layout.get_subjects()
         if len(subjects) < 2:
@@ -159,21 +159,21 @@ class TestBIDSLayoutGet:
 
         assert len(files) > 0
 
-    def test_get_with_query_optional(self, layout):
+    def test_get_with_query_optional(self, layout: BIDSLayout):
         """Test Query.OPTIONAL allows missing entities."""
         files = layout.get(session=Query.OPTIONAL, return_type="filename")
 
         # Should return all files regardless of session
         assert len(files) > 0
 
-    def test_get_with_query_any(self, layout):
+    def test_get_with_query_any(self, layout: BIDSLayout):
         """Test Query.ANY matches any value."""
         files = layout.get(suffix=Query.ANY, return_type="filename")
 
         # Should return all files (no filtering on suffix)
         assert len(files) > 0
 
-    def test_get_invalid_return_type(self, layout):
+    def test_get_invalid_return_type(self, layout: BIDSLayout):
         """Test that invalid return_type raises error."""
         with pytest.raises(ValueError, match="Unknown return_type"):
             layout.get(return_type="invalid")
@@ -182,7 +182,7 @@ class TestBIDSLayoutGet:
 class TestBIDSLayoutEntities:
     """Tests for entity extraction methods."""
 
-    def test_get_subjects(self, layout):
+    def test_get_subjects(self, layout: BIDSLayout):
         """Test getting subject list."""
         subjects = layout.get_subjects()
 
@@ -193,7 +193,7 @@ class TestBIDSLayoutEntities:
         # Should not have 'sub-' prefix
         assert all(not s.startswith("sub-") for s in subjects)
 
-    def test_get_subjects_with_filter(self, layout):
+    def test_get_subjects_with_filter(self, layout: BIDSLayout):
         """Test filtering subjects by other entities."""
         all_subjects = layout.get_subjects()
         filtered_subjects = layout.get_subjects(datatype="anat")
@@ -201,7 +201,7 @@ class TestBIDSLayoutEntities:
         # Filtered should be subset (or equal)
         assert set(filtered_subjects).issubset(set(all_subjects))
 
-    def test_get_sessions(self, layout):
+    def test_get_sessions(self, layout: BIDSLayout):
         """Test getting session list."""
         sessions = layout.get_sessions()
 
@@ -211,7 +211,7 @@ class TestBIDSLayoutEntities:
             assert sessions == sorted(sessions)
             assert all(not s.startswith("ses-") for s in sessions)
 
-    def test_get_sessions_by_subject(self, layout):
+    def test_get_sessions_by_subject(self, layout: BIDSLayout):
         """Test getting sessions for specific subject."""
         subjects = layout.get_subjects()
         if not subjects:
@@ -229,26 +229,28 @@ class TestBIDSLayoutEntities:
 class TestBIDSLayoutMetadata:
     """Tests for metadata access."""
 
-    def test_get_metadata(self, layout):
+    def test_get_metadata(self, layout: BIDSLayout):
         """Test loading metadata for a file."""
         files = layout.get(suffix="bold", return_type="filename")
         if not files:
             pytest.skip("No BOLD files in dataset")
 
         file_path = files[0]
+        assert isinstance(file_path, str)
         metadata = layout.get_metadata(file_path)
 
         assert isinstance(metadata, dict)
         # BOLD files typically have RepetitionTime
         # (but not guaranteed in all test datasets)
 
-    def test_get_file(self, layout):
+    def test_get_file(self, layout: BIDSLayout):
         """Test getting BIDSFile object."""
         files = layout.get(return_type="filename")
         if not files:
             pytest.skip("No files in dataset")
 
         file_path = files[0]
+        assert isinstance(file_path, str)
         bids_file = layout.get_file(file_path)
 
         assert isinstance(bids_file, BIDSFile)
@@ -262,7 +264,7 @@ class TestBIDSLayoutMetadata:
 class TestBIDSLayoutEntityMapping:
     """Tests for PyBIDS entity name mapping."""
 
-    def test_subject_mapping(self, layout):
+    def test_subject_mapping(self, layout: BIDSLayout):
         """Test that 'subject' maps to 'sub'."""
         subjects = layout.get_subjects()
         if not subjects:
@@ -274,7 +276,7 @@ class TestBIDSLayoutEntityMapping:
 
         assert set(files1) == set(files2)
 
-    def test_session_mapping(self, layout):
+    def test_session_mapping(self, layout: BIDSLayout):
         """Test that 'session' maps to 'ses'."""
         sessions = layout.get_sessions()
         if not sessions:
@@ -286,7 +288,7 @@ class TestBIDSLayoutEntityMapping:
 
         assert set(files1) == set(files2)
 
-    def test_extension_mapping(self, layout):
+    def test_extension_mapping(self, layout: BIDSLayout):
         """Test that 'extension' maps to 'ext'."""
         # Both should work
         files1 = layout.get(extension=".nii.gz", return_type="filename")
