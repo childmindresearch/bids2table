@@ -173,7 +173,7 @@ def parse_file(path: Path) -> dict[str, BenchmarkResult]:
     """
     data = json.loads(path.read_text())
     results = {}
-    for benchmark in data["benchmarks"]:
+    for benchmark in data.get("benchmarks", []):
         fullname: str = benchmark["fullname"]
         data_trimmed = benchmark["stats"]["data"][1:]
         median = statistics.median(data_trimmed)
@@ -266,31 +266,53 @@ def _label(result: BenchmarkResult) -> str:
     return f"{result.locality.capitalize()} index ({result.workers} workers)"
 
 
+def _label_for(key: str, *lookups: dict[str, BenchmarkResult]) -> str:
+    """Produce a human-readable label for a benchmark from the first source that has it.
+
+    Args:
+        key: Benchmark fullname to look up.
+        lookups: Result dicts to search in order.
+
+    Returns:
+        Human-readable label for the benchmark.
+
+    Raises:
+        KeyError: If the benchmark is not found in any lookup.
+    """
+    for lookup in lookups:
+        if key in lookup:
+            return _label(lookup[key])
+    raise KeyError(key)
+
+
 def build_table(
     threshold: float,
     branch_name: str,
-    branch: dict[str, BenchmarkResult],
-    main: dict[str, BenchmarkResult],
-    tag: dict[str, BenchmarkResult] | None = None,
+    parsed: dict[str, dict[str, BenchmarkResult]],
 ) -> str:
     """Build a Markdown table comparing benchmark results across branches.
 
     Args:
         threshold: Fractional threshold below which a ratio is considered unchanged.
         branch_name: Human-readable name of the feature branch.
-        branch: Parsed benchmark results for the feature branch.
-        main: Parsed benchmark results for ``main``.
-        tag: Optional parsed benchmark results for the last tag.
+        parsed: Mapping from ref name (branch, ``main``, or tag) to parsed
+            benchmark results.
 
     Returns:
         A Markdown string containing the comparison table.
     """
-    tag = tag or {}
+    branch = parsed[branch_name]
+    main = parsed["main"]
+    tag_name = next(
+        (name for name in parsed if name not in (branch_name, "main")), None
+    )
+    tag_results = parsed.get(tag_name, {})
+
     all_keys = sorted(
-        set(branch) | set(main) | set(tag),
+        set(branch) | set(main) | set(tag_results),
         key=lambda x: (0 if "index" in x else 1 if "query" in x else 2, x),
     )
-    labels = [_label(branch.get(k) or main.get(k) or tag.get(k)) for k in all_keys]  # ty: ignore[invalid-argument-type] - temporary until tag benchmark
+    labels = [_label_for(k, branch, main, tag_results) for k in all_keys]
 
     col_sep = " | "
     header = "| |" + col_sep.join(f" **{label}** " for label in labels) + " |"
@@ -307,20 +329,30 @@ def build_table(
         ]
         return "| *" + label + "* |" + col_sep.join(f" {c} " for c in cells) + " |"
 
-    lines = [
+    lines: list[str] = [
         "## Benchmark Results",
         "",
         header,
         divider,
         row(branch_name, branch),
         row("main", main),
-        divider.replace("-", ""),
-        ratio_row(f"{branch_name} vs main ratio", main),
-        "",
-        "> `median (mean ± std)`",
-        "> ",
-        f"> 🔴 Slower &nbsp; ⚪ No change (<{threshold * 100:.0f} %) &nbsp; 🟢 Faster",
     ]
+    if tag_results:
+        lines.append(row(tag_name, tag_results))
+    lines.append(divider.replace("-", ""))
+    lines.append(ratio_row(f"{branch_name} vs main ratio", main))
+    if tag_results:
+        lines.append(ratio_row(f"{branch_name} vs {tag_name} ratio", tag_results))
+    threshold_pct = threshold * 100
+    lines.extend(
+        [
+            "",
+            "> `median (mean ± std)`",
+            "> ",
+            f"> 🔴 Slower &nbsp; ⚪ No change (<{threshold_pct:.0f} %) "
+            "&nbsp; 🟢 Faster",
+        ]
+    )
     return "\n".join(lines)
 
 
@@ -378,13 +410,10 @@ def run_benchmark(
         filter_expr: Optional ``pytest -k`` expression to limit which benchmarks run.
     """
     tag = git.last_tag()
-    targets = {branch: branch, "main": "main", tag: None}
+    targets = {branch: branch, "main": "main", tag: tag}
 
     with _suppress_log_exceptions():
         for name, ref in targets.items():
-            # Skip if the reference is not provided
-            if ref is None:
-                continue
             git.checkout(ref)
             _reset_logger()
             _logger.info("Running benchmarks for '%s'", name)
@@ -451,7 +480,10 @@ def generate_report(
                 pass  # keep as tag name
             elif key != "main":
                 key = branch
-            parsed[key] = parse_file(f)
+            try:
+                parsed[key] = parse_file(f)
+            except (json.JSONDecodeError, KeyError, TypeError) as exc:
+                _logger.warning("Could not parse benchmark file %s: %s", f, exc)
 
         if tag not in parsed:
             _logger.warning("Tag '%s' not found in benchmark files.", tag)
@@ -459,9 +491,7 @@ def generate_report(
         report_contents = build_table(
             threshold,
             branch,
-            parsed[branch],
-            parsed["main"],
-            None,  # parsed.get(tag)
+            parsed,
         )
         if out_fname is None:
             dt = datetime.now(UTC).strftime("%Y%m%dT%H%M")
