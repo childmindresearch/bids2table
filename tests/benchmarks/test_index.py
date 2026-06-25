@@ -2,14 +2,14 @@
 
 import os
 import shutil
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
+from typing import Any
 
+import bids2table as b2t2
 import pyarrow.parquet as pq
 import pytest
 from pytest_benchmark.fixture import BenchmarkFixture
-
-import bids2table as b2t2
 
 
 def du(path: Path) -> float:
@@ -35,8 +35,8 @@ def _run_benchmark(
     index_fpath: Path,
     version: str,
     workers: int = 1,
-    *args,
-    **kwargs,
+    *args: Any,  # noqa: ANN401 - args to pass to benchmark.pedantic
+    **kwargs: Any,  # noqa: ANN401 - kwargs to pass to benchmark.pedantic
 ) -> None:
     sizes = []
 
@@ -98,7 +98,7 @@ def test_local(benchmark: BenchmarkFixture, tmp_path: Path) -> None:
     data_dir = Path("bids-examples/ds000117")
 
     def index() -> None:
-        table = b2t2.index_dataset(data_dir, show_progress=False)
+        table = b2t2.index_dataset(data_dir)
         pq.write_table(table, index_fpath)
 
     _run_benchmark(

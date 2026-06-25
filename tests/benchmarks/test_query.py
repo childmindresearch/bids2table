@@ -1,14 +1,14 @@
 """Querying benchmarks."""
 
 import datetime
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
+from typing import Any
 
+import bids2table as b2t2
 import polars as pl
 import pytest
 from pytest_benchmark.fixture import BenchmarkFixture
-
-import bids2table as b2t2
 
 SUBJECTS = ["01", "10"]
 NUM_VOLS = 184
@@ -20,8 +20,8 @@ def _run_benchmark(
     benchmark: BenchmarkFixture,
     func: Callable,
     version: str,
-    *args,
-    **kwargs,
+    *args: Any,  # noqa: ANN401 - args to pass to benchmark.pedantic
+    **kwargs: Any,  # noqa: ANN401 - kwargs to pass to benchmark.pedantic
 ) -> None:
     benchmark.pedantic(func, args=args, kwargs=kwargs, iterations=1, rounds=11)
     benchmark.extra_info.update({"version": version or "Unknown"})
@@ -35,8 +35,9 @@ class TestB2TQuery:
     def index(self) -> tuple:
         """Index dataset with b2t."""
         data_dir = Path("bids-examples/ds000117")
-        table = b2t2.index_dataset(data_dir, show_progress=False)
+        table = b2t2.index_dataset(data_dir)
         df = pl.from_arrow(table)
+        assert isinstance(df, pl.DataFrame)
         df = df.with_columns(
             pl.format("{}/{}", pl.col("root"), pl.col("path")).alias("fpath")
         )
