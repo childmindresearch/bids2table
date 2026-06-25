@@ -48,7 +48,7 @@ class TestCustomEntities:
             pytest.skip("No subjects in dataset")
 
         # Create mapping for first few subjects
-        qc_mapping = {subjects[0]: "pass", subjects[1]: "fail"}
+        qc_mapping: dict[str, str | int] = {subjects[0]: "pass", subjects[1]: "fail"}
         layout.add_custom_entity("qc_grade", qc_mapping)
 
         assert "qc_grade" in layout.df.columns
@@ -89,7 +89,7 @@ class TestCustomEntities:
         """Test adding entity from list of values."""
         # Create list matching number of files
         n_files = len(layout.df)
-        batch_ids = [i % 3 for i in range(n_files)]  # Batches 0, 1, 2
+        batch_ids: list[str | int] = [i % 3 for i in range(n_files)]  # Batches 0, 1, 2
 
         layout.add_custom_entity("batch_id", batch_ids)
 

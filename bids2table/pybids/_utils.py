@@ -1,15 +1,16 @@
 """Utility functions for PyBIDS compatibility."""
 
+from enum import Enum, auto
 from typing import Any
 
 
-class Query:
+class Query(Enum):
     """Special query values for entity filtering."""
 
     # Sentinel objects for special filtering behavior
-    OPTIONAL = object()  # Allow missing or any value
-    NONE = object()  # Match explicit null/missing
-    ANY = object()  # Match any value (don't filter)
+    OPTIONAL = auto()  # Allow missing or any value
+    NONE = auto()  # Match explicit null/missing
+    ANY = auto()  # Match any value (don't filter)
 
     def __repr__(self) -> str:
         return "Query"

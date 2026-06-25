@@ -5,6 +5,7 @@ while leveraging bids2table's superior performance.
 """
 
 import warnings
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -193,7 +194,7 @@ class BIDSLayout:
     def get(
         self,
         return_type: str = "file",
-        **entities: str | int,
+        **entities: Sequence[str | int] | str | int | Query,
     ) -> list[str | BIDSFile]:
         """Query files by BIDS entities.
 
@@ -207,7 +208,9 @@ class BIDSLayout:
         result_df = self._filter_df(entities)
         return self._format_results(result_df, return_type)
 
-    def _filter_df(self, entities: dict[str, str | int]) -> pd.DataFrame:
+    def _filter_df(
+        self, entities: dict[str, Sequence[str | int] | str | int | Query]
+    ) -> pd.DataFrame:
         """Apply entity filters to dataframe."""
         result_df = self.df
         for key, value in entities.items():
@@ -226,7 +229,7 @@ class BIDSLayout:
         self,
         df: pd.DataFrame,
         key: str,
-        value: Query | list[str | int] | str | int,
+        value: Sequence[str | int] | str | int | Query,
     ) -> pd.DataFrame:
         """Apply single entity filter, handling Query sentinels."""
         if value in (Query.OPTIONAL, Query.ANY):
@@ -395,7 +398,7 @@ class BIDSLayout:
     def add_custom_entity(
         self,
         name: str,
-        values: list[str | int] | dict[str, str | int] | str | int,
+        values: list[str | int] | dict[str, str | int] | str | int | Callable,
         *,
         overwrite: bool = False,
     ) -> None:
