@@ -5,6 +5,7 @@ __pycache__/
 *.py[cod]
 
 # Vim
+.notes/
 *.swp
 
 # Distribution / packaging
