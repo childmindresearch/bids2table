@@ -57,18 +57,16 @@ def decode_metadata(metadata: dict[bytes, bytes]) -> dict[str, Any]:
 
 @dataclass(frozen=True)
 class BIDSSchemaAdapter:
-    """Internal value object holding the BIDS schema components bids2table uses.
+    """BIDS schema components used by bids2table.
 
-    ``entity_schema`` and ``rules`` are excluded from ``__hash__`` (their dict
-    values are unhashable) but included in ``__eq__``.  This means two adapters
-    with the same ``(bids_version, schema_version)`` hash identically;
-    structural equality falls through to compare the payload fields.
-    ``lru_cache`` therefore treats same-version-different-content adapters as
-    distinct entries.
+    Hashed only on ``(bids_version, schema_version)`` — ``lru_cache`` treats
+    same-version adapters as identical.  Dict fields are ``hash=False`` but
+    included in ``__eq__``, so same-version-different-content adapters are
+    still distinct cache entries.
 
-    ``rules`` stores ``schema.rules.to_dict()`` so that downstream helpers
-    can query directories/files without re-loading the schema.  Because the
-    ``Namespace`` has circular references it cannot be pickled directly.
+    ``format_patterns`` holds only entity-relevant patterns (``"label"``,
+    ``"index"``) extracted from ``schema.objects.formats``.  More can be
+    adopted if the schema adds them.
 
     Not part of the public API.
     """
@@ -77,6 +75,7 @@ class BIDSSchemaAdapter:
     schema_version: str
     entity_schema: dict[str, dict[str, Any]] = field(hash=False)
     rules: dict[str, Any] = field(default_factory=dict, hash=False)
+    format_patterns: dict[str, str] = field(default_factory=dict, hash=False)
 
 
 _BIDS_SPECIAL_ENTITY_SCHEMA: dict[str, dict[str, Any]] = {
@@ -111,11 +110,17 @@ def _build_adapter_from_namespace(schema: Namespace) -> BIDSSchemaAdapter:
         for entity in schema.rules.entities
     }
     entity_schema.update(_BIDS_SPECIAL_ENTITY_SCHEMA)
+
+    # Extract only entity-relevant format patterns.
+    format_patterns = {k: schema.objects.formats[k].pattern for k in ("label", "index")}
+    format_patterns["special"] = ".+"
+
     return BIDSSchemaAdapter(
         bids_version=schema["bids_version"],
         schema_version=schema["schema_version"],
         entity_schema=entity_schema,
         rules=schema["rules"].to_dict(),
+        format_patterns=format_patterns,
     )
 
 

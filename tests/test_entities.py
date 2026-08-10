@@ -155,6 +155,13 @@ def test_get_entity_glob_pattern_returns_none_for_unknown(adapter: BIDSSchemaAda
     assert result is None
 
 
+def test_get_entity_regex_label_supports_plus(adapter: BIDSSchemaAdapter):
+    """Label format supports plus (+) characters as per BIDS schema."""
+    pattern = get_entity_regex("subject", adapter)
+    assert pattern is not None
+    assert pattern.fullmatch("sub-6p+s2") is not None
+
+
 @pytest.mark.parametrize(
     ("entity_type", "value"),
     [

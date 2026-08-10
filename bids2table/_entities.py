@@ -218,15 +218,6 @@ def format_bids_path(entities: dict[str, Any], int_format: str = "%d") -> Path:
     return f"sub-{entities['sub']}" / path
 
 
-# Mapping from BIDS entity format strings to regex character classes used
-# when building entity-matching patterns. Undefined formats fall back to ``.+``.
-_FORMAT_RE: dict[str, str] = {
-    "label": "[a-zA-Z0-9]+",
-    "index": "[0-9]+",
-    "special": ".+",
-}
-
-
 def get_entity_name(entity_type: str, adapter: BIDSSchemaAdapter) -> str | None:
     """Return the BIDS short name for an entity type.
 
@@ -252,9 +243,9 @@ def get_entity_regex(
 ) -> re.Pattern[str] | None:
     """Return a compiled regex that matches ``prefix-value`` for an entity.
 
-    The pattern is built from the entity's short name and format:
-    ``label`` → ``[a-zA-Z0-9]+``, ``index`` → ``[0-9]+``,
-    ``special`` → ``.+`` (greedy, no groups).  No groups.
+    The pattern is built from the entity's short name and format pattern.
+    Format patterns come from ``adapter.format_patterns`` (derived from the
+    BIDS schema), so they stay in sync with schema version changes.
 
     Args:
         entity_type: Full entity name (e.g., ``"subject"``).
@@ -268,7 +259,9 @@ def get_entity_regex(
     if name is None:
         return None
     cfg = adapter.entity_schema.get(entity_type, {})
-    char_class = _FORMAT_RE.get(cfg.get("format", ""), ".+")
+    char_class = adapter.format_patterns.get(
+        cfg.get("format", ""), adapter.format_patterns["special"]
+    )
     return re.compile(f"{name}-{char_class}")
 
 
