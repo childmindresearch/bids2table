@@ -4,12 +4,19 @@ from pathlib import Path
 
 import pytest
 from bids2table._pathlib import cloudpathlib_is_available
+from bids2table._schema import BIDSSchemaAdapter, load_bids_schema
 
 
 def pytest_runtest_setup(item: pytest.Item) -> None:
     """Skip cloud-marked tests when cloudpathlib is unavailable."""
     if "cloud" in item.keywords and not cloudpathlib_is_available():
         pytest.skip("cloudpathlib is not available or not fully functional")
+
+
+@pytest.fixture(scope="module")
+def adapter() -> BIDSSchemaAdapter:
+    """Return the default BIDS schema adapter (module-scoped, loaded once)."""
+    return load_bids_schema()
 
 
 @pytest.fixture
