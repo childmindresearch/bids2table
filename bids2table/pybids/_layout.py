@@ -14,9 +14,12 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from bids2table._indexing import index_dataset
+from bids2table._logging import setup_logger
 from bids2table._metadata import load_bids_metadata
 from bids2table.pybids._bidsfile import BIDSFile
 from bids2table.pybids._utils import Query
+
+_logger = setup_logger(__package__)
 
 
 class BIDSLayout:
@@ -138,10 +141,9 @@ class BIDSLayout:
             try:
                 return pq.read_table(self.cache_path)
             except Exception as e:
-                warnings.warn(
+                _logger.warning(
                     f"Failed to load cache from {self.cache_path}: {e}. "
                     "Re-indexing dataset.",
-                    UserWarning,
                     stacklevel=3,
                 )
 
@@ -154,9 +156,8 @@ class BIDSLayout:
                 self.cache_path.parent.mkdir(parents=True, exist_ok=True)
                 pq.write_table(tab, self.cache_path)
             except Exception as e:
-                warnings.warn(
+                _logger.warning(
                     f"Failed to save cache to {self.cache_path}: {e}",
-                    UserWarning,
                     stacklevel=3,
                 )
 
@@ -177,9 +178,8 @@ class BIDSLayout:
         for deriv_path in derivatives:
             deriv_path = Path(deriv_path)
             if not deriv_path.exists():
-                warnings.warn(
+                _logger.warning(
                     f"Derivative path does not exist: {deriv_path}",
-                    UserWarning,
                     stacklevel=3,
                 )
                 continue
