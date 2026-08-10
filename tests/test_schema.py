@@ -269,6 +269,15 @@ def test_adapter_rules_are_populated():
     assert "entities" in adapter.rules
 
 
+def test_format_patterns_contains_entity_formats():
+    """``format_patterns`` holds label, index, and special patterns."""
+    adapter = load_bids_schema()
+    assert "label" in adapter.format_patterns
+    assert "+" in adapter.format_patterns["label"]
+    assert adapter.format_patterns["index"] == "[0-9]+"
+    assert adapter.format_patterns["special"] == ".+"
+
+
 def test_get_dataset_types():
     """``get_dataset_types`` returns the dataset type keys from the schema."""
     adapter = load_bids_schema()
