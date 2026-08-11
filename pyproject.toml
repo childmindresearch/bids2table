@@ -117,6 +117,7 @@ convention = "google"
 "tests/**/*.py" = [
   "ANN201",  # return annotation in public function
   "ANN202",  # return annotation in private function
+  "FBT001",  # boolean-typed positional argument in function
   "S101"  # assert usage
 ]
 

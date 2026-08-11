@@ -1,6 +1,7 @@
 """Tests for BIDS dataset indexing and related internals."""
 
 import logging
+import warnings
 from copy import deepcopy
 from itertools import islice
 from pathlib import Path
@@ -296,3 +297,197 @@ def test_batch_index_dataset_accepts_schema_kwarg(tmp_path: Path):
     assert len(tables) == 1
     assert tables[0].num_rows == 1
     assert tables[0].schema.field("sub").metadata[b"description"] == b"And again"
+
+
+class TestFilters:
+    """Tests pertaining to filtering."""
+
+    @pytest.mark.parametrize(
+        ("args", "expected"),
+        [
+            ([], {}),
+            (["task=rest"], {"task": ["rest"]}),
+            (["task=rest", "task=movie"], {"task": ["rest", "movie"]}),
+            (["task=rest", "run=1"], {"task": ["rest"], "run": ["1"]}),
+            (["no_equals"], {}),  # malformed, skipped
+            (["task=rest", "bad", "run=2"], {"task": ["rest"], "run": ["2"]}),
+        ],
+    )
+    def test_parse_filters(self, args: list[str], expected: dict[str, list[str]]):
+        """Parse filter arguments into key → [patterns] dict."""
+        from bids2table.__main__ import _parse_filters
+
+        result = _parse_filters(args)
+        assert result == expected
+
+    @pytest.mark.parametrize(
+        ("filters", "expected"),
+        [
+            ({"task": ["rest"]}, {"task": "rest"}),
+            ({"task": ["rest", "movie"]}, {"task": ["rest", "movie"]}),
+            (
+                {"task": ["rest"], "run": ["1", "2"]},
+                {"task": "rest", "run": ["1", "2"]},
+            ),
+            ({}, {}),
+        ],
+    )
+    def test_normalize_filters(self, filters: dict[str, list[str]], expected: dict):
+        """Normalize single-item lists to bare strings."""
+        from bids2table.__main__ import _normalize_filters
+
+        assert _normalize_filters(filters) == expected
+
+    @pytest.mark.parametrize(
+        ("value", "key", "pattern", "expected"),
+        [
+            ("A01", "sub", "A01", True),
+            ("01", "sub", "sub-01", True),  # compound match
+            ("A01", "sub", "B*", False),
+            (1, "run", "1", True),  # int value
+            (2, "run", "1", False),
+        ],
+    )
+    def test_match_single(
+        self, value: str | int, key: str, pattern: str, expected: bool
+    ):
+        """Match a single entity value against a glob pattern."""
+        assert indexing._match_single(value, key, pattern) == expected
+
+    @pytest.mark.parametrize(
+        ("entities", "filters", "expected"),
+        [
+            ({"task": "rest", "run": 1}, {"task": "rest"}, True),
+            ({"task": "rest", "run": 1}, {"task": "rest", "run": "1"}, True),
+            ({"task": "rest", "run": 1}, {"task": "movie"}, False),  # value mismatch
+            ({"task": "rest"}, {"task": "rest", "run": "1"}, False),  # missing key
+            ({"task": "rest", "run": 1}, {"task": ["rest", "movie"]}, True),  # list
+            ({"task": "rest"}, {}, True),  # empty filters
+        ],
+    )
+    def test_match_filters(self, entities: dict, filters: dict, expected: bool):
+        """Check if an entities dict matches all filters."""
+        assert indexing._match_filters(entities, filters) == expected
+
+
+def _make_minimal_ds(tmp_path: Path, name: str = "ds") -> Path:
+    """Create a minimal BIDS dataset for testing."""
+    ds = tmp_path / name
+    (ds / "sub-A01" / "anat").mkdir(parents=True)
+    (ds / "sub-A02" / "anat").mkdir(parents=True)
+    (ds / "dataset_description.json").write_text(
+        '{"Name": "TestDS", "BIDSVersion": "1.8.0"}'
+    )
+    (ds / "sub-A01" / "anat" / "sub-A01_T1w.nii.gz").touch()
+    (ds / "sub-A01" / "anat" / "sub-A01_task-rest_bold.nii.gz").touch()
+    (ds / "sub-A02" / "anat" / "sub-A02_T1w.nii.gz").touch()
+    return ds
+
+
+def test_index_dataset_filters_task(tmp_path: Path):
+    """Filter by task entity reduces results."""
+    ds = _make_minimal_ds(tmp_path)
+    # Without filter: 3 files, with filter: 1 file
+    assert len(indexing.index_dataset(ds)) == 3
+    table = indexing.index_dataset(ds, filters={"task": "rest"})
+    assert len(table) == 1
+
+
+def test_index_dataset_filters_subject(tmp_path: Path):
+    """Filter by subject entity reduces results."""
+    ds = _make_minimal_ds(tmp_path)
+    table = indexing.index_dataset(ds, filters={"sub": "A01"})
+    assert len(table) == 2
+
+
+def test_index_dataset_filters_compound_pattern(tmp_path: Path):
+    """Filter with compound prefix pattern works via _match_single."""
+    ds = _make_minimal_ds(tmp_path)
+    table = indexing.index_dataset(ds, filters={"sub": "sub-A01"})
+    assert len(table) == 2
+
+
+def test_index_dataset_no_match_filters(tmp_path: Path):
+    """Filter with no matching files returns empty table."""
+    ds = _make_minimal_ds(tmp_path)
+    table = indexing.index_dataset(ds, filters={"task": "nofile"})
+    assert len(table) == 0
+
+
+def test_index_dataset_include_subjects_deprecated(tmp_path: Path):
+    """Using include_subjects emits DeprecationWarning."""
+    ds = _make_minimal_ds(tmp_path)
+    with warnings.catch_warnings(record=True) as warns:
+        warnings.simplefilter("always")
+        indexing.index_dataset(ds, include_subjects="A01")
+    dep_warnings = [w for w in warns if issubclass(w.category, DeprecationWarning)]
+    assert len(dep_warnings) == 1
+    assert "filters" in str(dep_warnings[0].message)
+
+
+def test_index_dataset_new_columns(tmp_path: Path):
+    """New columns populated from dataset_description.json."""
+    ds = _make_minimal_ds(tmp_path)
+    table = indexing.index_dataset(ds)
+    assert "dataset_name" in table.column_names
+    assert "dataset_type" in table.column_names
+    assert "bids_version" in table.column_names
+    assert table["dataset_name"][0].as_py() == "TestDS"
+    assert table["bids_version"][0].as_py() == "1.8.0"
+
+
+def test_index_dataset_new_columns_missing(tmp_path: Path):
+    """New columns are null when dataset_description.json is absent."""
+    ds = tmp_path / "ds"
+    (ds / "sub-A01" / "anat").mkdir(parents=True)
+    (ds / "sub-A01" / "anat" / "sub-A01_T1w.nii.gz").touch()
+    table = indexing.index_dataset(ds)
+    assert "dataset_name" in table.column_names
+    # No dataset_description.json → values should be null
+    assert table["dataset_name"][0].as_py() is None
+
+
+# --- clear_schema_caches ---
+
+
+def test_clear_schema_caches():
+    """Calling clear_schema_caches clears the relevant caches."""
+    indexing._get_bids_dataset.cache_clear()
+    indexing._is_bids_dataset.cache_clear()
+    # Warm the caches.
+    indexing._get_bids_dataset(BIDS_EXAMPLES / "ds102")
+    indexing._is_bids_dataset(BIDS_EXAMPLES / "ds102")
+    # Verify caches are populated.
+    assert indexing._get_bids_dataset.__wrapped__ is not None
+    indexing.clear_schema_caches()
+
+
+def test_read_dataset_description(tmp_path: Path):
+    """Read dataset_description.json and return as dict."""
+    ds = tmp_path / "ds"
+    ds.mkdir()
+    (ds / "dataset_description.json").write_text(
+        '{"Name": "TestDS", "BIDSVersion": "1.8.0"}'
+    )
+    desc = indexing._read_dataset_description(ds)
+    assert desc["Name"] == "TestDS"
+    assert desc["BIDSVersion"] == "1.8.0"
+
+
+def test_read_dataset_description_missing(tmp_path: Path):
+    """Return empty dict when dataset_description.json is absent."""
+    desc = indexing._read_dataset_description(tmp_path)
+    assert desc == {}
+
+
+def test_batch_index_dataset_with_filters(tmp_path: Path):
+    """Batch-index with filters parameter reduces results."""
+    ds1 = _make_minimal_ds(tmp_path, "ds1")
+    ds2 = _make_minimal_ds(tmp_path, "ds2")
+    tables = list(
+        indexing.batch_index_dataset(
+            [ds1, ds2], filters={"task": "rest"}, show_progress=False
+        )
+    )
+    # Each dataset has 1 file matching task=rest.
+    assert all(len(t) == 1 for t in tables)
