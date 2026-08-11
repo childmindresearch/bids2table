@@ -54,7 +54,7 @@ def main() -> None:
         metavar="SCHEMA",
         type=str,
         default=None,
-        help="Path to custom BIDS schema or schema version string. "
+        help="Path to a directory containing BIDS schema YAML files or a YAML file. "
         "If not provided, uses the bundled default schema.",
     )
     parser_index.add_argument(

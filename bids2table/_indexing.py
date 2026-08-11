@@ -436,9 +436,14 @@ def _find_bids_subject_dirs(
     paths = [path for path in root.glob("sub-*") if _is_bids_subject_dir(path)]
 
     if include_subjects:
-        filtered_names = _filter_include(
-            {path.name for path in paths}, include_subjects
-        )
+        if isinstance(include_subjects, str):
+            include_subjects = [include_subjects]
+        subject_names = {path.name for path in paths}
+        filtered_names = {
+            name
+            for name in subject_names
+            if any(_match_single(name[4:], "sub", pat) for pat in include_subjects)
+        }
         paths = [path for path in paths if path.name in filtered_names]
     return paths
 
