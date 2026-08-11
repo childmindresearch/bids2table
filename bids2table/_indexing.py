@@ -6,11 +6,13 @@ Returns a dataset index as an Arrow table.
 
 import enum
 import fnmatch
+import json
 import re
 import sys
+import warnings
 from collections.abc import Callable, Generator, Iterable, Iterator, Sequence
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-from functools import lru_cache, partial
+from functools import cache, lru_cache, partial
 from glob import glob
 from typing import Any
 
@@ -46,7 +48,36 @@ _BIDS_JSON_SIDECAR_EXCEPTION_SUFFIXES = {
 }
 
 # Configs for index arrow fields to add to the entity schema (defined elsewhere).
+_DESC_FIELD_MAP: dict[str, str] = {
+    "dataset_name": "Name",
+    "dataset_type": "DatasetType",
+    "bids_version": "BIDSVersion",
+}
 _INDEX_ARROW_FIELDS = {
+    "dataset_name": {
+        "dtype": pa.string(),
+        "metadata": {
+            "name": "dataset_name",
+            "display_name": "Dataset name",
+            "description": "Name of the BIDS dataset from dataset_description.json.",
+        },
+    },
+    "dataset_type": {
+        "dtype": pa.string(),
+        "metadata": {
+            "name": "dataset_type",
+            "display_name": "Dataset type",
+            "description": "Dataset type (e.g. 'raw', 'derivative', 'study').",
+        },
+    },
+    "bids_version": {
+        "dtype": pa.string(),
+        "metadata": {
+            "name": "bids_version",
+            "display_name": "BIDS version",
+            "description": "BIDS version from dataset_description.json.",
+        },
+    },
     "dataset": {
         "dtype": pa.string(),
         "metadata": {
@@ -89,6 +120,16 @@ _INDEX_ARROW_FIELDS = {
 _logger = setup_logger(__package__)
 
 
+def clear_schema_caches() -> None:
+    """Clear LRU caches that depend on the BIDS schema.
+
+    Call after :func:`bids2table.set_bids_schema` to avoid stale results from
+    previously cached schema-dependent function calls.
+    """
+    _get_bids_dataset.cache_clear()
+    _is_bids_dataset.cache_clear()
+
+
 def get_arrow_schema(*, schema: SchemaSpec = None) -> pa.Schema:
     """Get Arrow schema of the BIDS dataset index."""
     adapter = load_bids_schema(schema)
@@ -101,6 +142,9 @@ def get_arrow_schema(*, schema: SchemaSpec = None) -> pa.Schema:
         index_fields["dataset"],
         *entity_schema,
         index_fields["extra_entities"],
+        index_fields["dataset_name"],
+        index_fields["dataset_type"],
+        index_fields["bids_version"],
         index_fields["root"],
         index_fields["path"],
     ]
@@ -197,6 +241,7 @@ def index_dataset(
     root: str | PathT,
     include_subjects: str | list[str] | None = None,
     *,
+    filters: dict[str, str | list[str]] | None = None,
     schema: SchemaSpec = None,
 ) -> pa.Table:
     """Index a BIDS dataset.
@@ -204,7 +249,8 @@ def index_dataset(
     Args:
         root: BIDS dataset root directory.
         include_subjects: Glob pattern or list of patterns for matching subjects to
-            include in the index.
+            include in the index. .. deprecated:: Use ``filters={'sub': ...}`` instead.
+        filters: Dict mapping entity keys to glob patterns or lists of patterns.
         schema: BIDS schema specification to use. If ``None``, uses the bundled
             default schema.
 
@@ -213,6 +259,16 @@ def index_dataset(
     """
     root = as_path(root)
 
+    if include_subjects is not None:
+        warnings.warn(
+            "include_subjects is deprecated; use filters={'sub': ...} instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if filters is None:
+            filters = {}
+        filters["sub"] = include_subjects
+
     arrow_schema = get_arrow_schema(schema=schema)
 
     dataset, _ = _get_bids_dataset(root)
@@ -220,7 +276,9 @@ def index_dataset(
         _logger.warning(f"Path {root} is not a valid BIDS dataset directory.")
         return pa.Table.from_pylist([], schema=arrow_schema)
 
-    subject_dirs = _find_bids_subject_dirs(root, include_subjects)
+    subject_dirs = _find_bids_subject_dirs(
+        root, filters.get("sub") if filters else None
+    )
     subject_dirs = sorted(subject_dirs, key=lambda p: p.name)
     if len(subject_dirs) == 0:
         _logger.warning(f"Path {root} contains no matching subject dirs.")
@@ -229,7 +287,9 @@ def index_dataset(
     tables = []
     file_count = 0
     for sub in subject_dirs:
-        _, table = _index_bids_subject_dir(sub, schema=arrow_schema, dataset=dataset)
+        _, table = _index_bids_subject_dir(
+            sub, schema=arrow_schema, dataset=dataset, filters=filters
+        )
         tables.append(table)
         file_count += len(table)
     return pa.concat_tables(tables).combine_chunks()
@@ -240,6 +300,7 @@ def batch_index_dataset(
     max_workers: int | None = 0,
     executor_cls: type[ProcessPoolExecutor | ThreadPoolExecutor] = ProcessPoolExecutor,
     *,
+    filters: dict[str, str | list[str]] | None = None,
     show_progress: bool = False,
     schema: SchemaSpec = None,
 ) -> Generator[pa.Table, None, None]:
@@ -252,13 +313,14 @@ def batch_index_dataset(
             `max_workers=None` starts as many workers as there are available CPUs. See
             `concurrent.futures.ProcessPoolExecutor` for details.
         executor_cls: Executor class to use for parallel indexing.
+        filters: Dict mapping entity keys to glob patterns or lists of patterns.
         show_progress: Show progress bar.
         schema: Optional `SchemaSpec`. `None` uses the default BIDS schema.
 
     Yields:
         An Arrow table index for each BIDS dataset.
     """
-    func = partial(_batch_index_func, schema=schema)
+    func = partial(_batch_index_func, filters=filters, schema=schema)
     file_count = 0
     for dataset, table in (
         pbar := tqdm(
@@ -273,10 +335,13 @@ def batch_index_dataset(
 
 
 def _batch_index_func(
-    root: str | PathT, *, schema: SchemaSpec = None
+    root: str | PathT,
+    *,
+    filters: dict[str, str | list[str]] | None = None,
+    schema: SchemaSpec = None,
 ) -> tuple[str | None, pa.Table]:
     dataset, _ = _get_bids_dataset(root)
-    table = index_dataset(root, schema=schema)
+    table = index_dataset(root, filters=filters, schema=schema)
     return dataset, table
 
 
@@ -314,6 +379,23 @@ def _get_bids_dataset(path: str | PathT) -> tuple[str | None, PathT | None]:
     parts = parts[: top_idx + 1]
     dataset = "/".join(reversed(parts))
     return dataset, root
+
+
+@cache
+def _read_dataset_description(path: PathT) -> dict[str, Any]:
+    """Read and parse ``dataset_description.json`` from a dataset root.
+
+    Returns an empty dict if the file does not exist or cannot be parsed.
+    Cached keyed by the absolute path.
+    """
+    desc_path = as_path(path).absolute() / "dataset_description.json"
+    if desc_path.exists():
+        try:
+            with desc_path.open() as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            pass
+    return {}
 
 
 @lru_cache
@@ -374,6 +456,7 @@ def _index_bids_subject_dir(
     path: PathT,
     schema: pa.Schema | None = None,
     dataset: str | None = None,
+    filters: dict[str, str | list[str]] | None = None,
 ) -> tuple[str, pa.Table]:
     """Index a BIDS subject directory and return an Arrow table."""
     root = path.parent
@@ -384,6 +467,12 @@ def _index_bids_subject_dir(
         schema = get_arrow_schema()
 
     _, subject = path.name.split("-", maxsplit=1)
+
+    # Read dataset description for new index columns.
+    desc = _read_dataset_description(root)
+
+    # Build filter dict excluding "sub" (handled at directory level).
+    file_filters = {k: v for k, v in (filters or {}).items() if k != "sub"}
 
     records = []
     # Use built-in rglob methods for CloudPath and py3.13+
@@ -401,8 +490,12 @@ def _index_bids_subject_dir(
             valid_entities, extra_entities = _pyarrow_validate_entities(
                 entities, pa_schema=schema
             )
+            # Skip files that don't match filters.
+            if file_filters and not _match_filters(valid_entities, file_filters):
+                continue
             record = {
                 "dataset": dataset,
+                **{k: desc[v] for k, v in _DESC_FIELD_MAP.items() if v in desc},
                 **valid_entities,
                 "extra_entities": extra_entities,
                 "root": root_fmt,
@@ -516,6 +609,40 @@ def _multi_pattern_filter(
     for pat in patterns:
         matching_names.update(fnmatch.filter(names, pat))
     return matching_names
+
+
+def _match_single(value: str | int, key: str, pattern: str) -> bool:
+    """Match a single entity value against a glob pattern.
+
+    Tries both the bare value (e.g. ``"01"``) and the compound form
+    (e.g. ``"sub-01"``) against the pattern so that users can specify
+    either style in ``--filter``.
+    """
+    str_value = str(value)
+    return fnmatch.fnmatch(str_value, pattern) or fnmatch.fnmatch(
+        f"{key}-{str_value}", pattern
+    )
+
+
+def _match_filters(
+    entities: dict[str, str | int], filters: dict[str, str | list[str]]
+) -> bool:
+    """Check if an entities dict matches all filters.
+
+    Returns ``True`` if every filter key has a matching value in
+    ``entities``. A filter value can be a single glob pattern or a list
+    of patterns — matching any one is sufficient per key. Missing keys
+    in ``entities`` cause the filter to fail.
+    """
+    for key, patterns in filters.items():
+        if key not in entities:
+            return False
+        value = entities[key]
+        if isinstance(patterns, str):
+            patterns = [patterns]
+        if not any(_match_single(value, key, p) for p in patterns):
+            return False
+    return True
 
 
 def _hfmt(n: int) -> str:
