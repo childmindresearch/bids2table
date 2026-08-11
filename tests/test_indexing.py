@@ -17,7 +17,7 @@ def test_get_arrow_schema():
     """The arrow schema contains the expected number of fields."""
     schema = indexing.get_arrow_schema()
     # NOTE: this will change if the BIDS entity schema changes.
-    assert len(schema) == 42
+    assert len(schema) == 45
 
 
 def test_get_column_names():

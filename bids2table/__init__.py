@@ -3,6 +3,7 @@
 __all__ = [
     "SchemaSpec",
     "batch_index_dataset",
+    "clear_schema_caches",
     "cloudpathlib_is_available",
     "find_bids_datasets",
     "format_bids_path",
@@ -26,6 +27,7 @@ from bids2table._entities import (
 )
 from bids2table._indexing import (
     batch_index_dataset,
+    clear_schema_caches,
     find_bids_datasets,
     get_arrow_schema,
     get_column_names,
