@@ -22,13 +22,17 @@ from tqdm import tqdm
 from bids2table._entities import (
     _cache_parse_bids_entities,
     _pyarrow_validate_entities,
+    get_root_entity_types,
 )
 from bids2table._logging import setup_logger
 from bids2table._pathlib import CloudPath, PathT, as_path, cloudpathlib_is_available
-from bids2table._schema import SchemaSpec, entity_arrow_schema, load_bids_schema
+from bids2table._schema import (
+    SchemaSpec,
+    entity_arrow_schema,
+    get_json_data_suffixes,
+    load_bids_schema,
+)
 from bids2table._version import version
-
-_BIDS_SUBJECT_DIR_PATTERN = re.compile(r"sub-[a-zA-Z0-9]+")
 
 # Path names of BIDS dataset sub-directories that may contain nested BIDS datasets.
 # Other candidates to consider including:
@@ -39,13 +43,9 @@ _BIDS_NESTED_PARENT_DIRNAMES = {
 }
 
 # Typically json files are reserved for sidecar metadata only. However there are some
-# exceptions. One way to test whether a json file is sidecar or data is to check for any
-# matching non-json files at the same level. But that is a lot of work to do for a few
-# special cases. Rather, we just list the special case suffixes here. (Honestly, using
-# plain json extension for data files should be discouraged.)
-_BIDS_JSON_SIDECAR_EXCEPTION_SUFFIXES = {
-    "coordsystem",
-}
+# exceptions. We derive the exception list from the BIDS schema rather than hardcoding.
+# See `get_json_data_suffixes` in _schema.py for the derivation logic.
+_BIDS_JSON_SIDECAR_EXCEPTION_SUFFIXES = get_json_data_suffixes(load_bids_schema())
 
 # Configs for index arrow fields to add to the entity schema (defined elsewhere).
 _DESC_FIELD_MAP: dict[str, str] = {
@@ -396,6 +396,31 @@ def _read_dataset_description(path: PathT) -> dict[str, Any]:
         except (json.JSONDecodeError, OSError):
             pass
     return {}
+
+
+def _get_dataset_type(root: PathT) -> str:
+    """Determine the dataset type for a root directory.
+
+    Reads ``DatasetType`` from ``dataset_description.json`` if present.
+    Falls back to ``"derivative"`` if the root sits inside a nested parent
+    directory (e.g. ``derivatives/``). Defaults to ``"raw"``.
+
+    Args:
+        root: BIDS dataset root directory.
+
+    Returns:
+        A dataset type string (``"raw"``, ``"derivative"``, ``"study"``, etc.).
+    """
+    desc = _read_dataset_description(root)
+    if "DatasetType" in desc:
+        return desc["DatasetType"]
+
+    # Check if inside a nested parent directory.
+    for ancestor in root.parents:
+        if ancestor.name in _BIDS_NESTED_PARENT_DIRNAMES:
+            return "derivative"
+
+    return "raw"
 
 
 @lru_cache
