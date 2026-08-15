@@ -10,6 +10,8 @@ import bids2table._indexing as indexing
 import bidsschematools.schema
 import pyarrow as pa
 import pytest
+from bids2table._entities import get_root_entity_types
+from bids2table._schema import BIDSSchemaAdapter
 
 BIDS_EXAMPLES = Path(__file__).parents[1] / "bids-examples"
 
@@ -106,8 +108,8 @@ def test_index_dataset_parallel():
     [
         # Not a bids dataset.
         ("tools", "not a valid BIDS"),
-        # Has dataset_description.json but no valid subject dirs.
-        ("ieeg_epilepsy/derivatives/brainvisa", "no matching subject"),
+        # Has dataset_description.json but no valid entity dirs.
+        ("ieeg_epilepsy/derivatives/brainvisa", "no matching entity"),
     ],
 )
 def test_index_dataset_warns(path: str, msg: str, caplog: pytest.LogCaptureFixture):
@@ -126,7 +128,9 @@ def test_batch_index_dataset(max_workers: int):
         datasets, max_workers=max_workers, show_progress=False
     )
     table = pa.concat_tables(tables)
-    assert len(table) == 9727
+    # NOTE: count may change as BIDS schema evolves and entity-generic
+    # discovery finds more entity types (tpl, cohort, sample, etc.)
+    assert len(table) == 10052
 
 
 @pytest.mark.parametrize("ds_name", ["dataset", "dataset2", "dataset3"])
@@ -147,12 +151,14 @@ def test_indexing_on_symlinks(symlink_dataset: Path, ds_name: str):
         ("synthetic/derivatives/fmriprep/sub-02", "synthetic/derivatives/fmriprep"),
     ],
 )
-def test_get_bids_dataset(path: str, expected_name: str):
+def test_get_bids_dataset(path: str, expected_name: str, adapter: BIDSSchemaAdapter):
     """Resolve the BIDS dataset name and root for nested/flat paths."""
     name, dataset_path = indexing._get_bids_dataset(BIDS_EXAMPLES / path)
     assert name == expected_name
     assert dataset_path is not None
-    assert indexing._contains_bids_subject_dirs(dataset_path)
+    root_prefixes = get_root_entity_types(adapter)
+    pattern = indexing._compile_entity_dir_pattern(root_prefixes, adapter)
+    assert indexing._contains_bids_entity_dirs(dataset_path, root_prefixes, pattern)
 
 
 @pytest.mark.parametrize(
@@ -164,14 +170,22 @@ def test_get_bids_dataset(path: str, expected_name: str):
         ("ds102", ["sub-01", "sub-02", "sub-05"], 3),
     ],
 )
-def test_find_bids_subject_dirs(
-    path: str, include_subjects: str | list[str] | None, expected_count: int
+def test_find_bids_entity_dirs(
+    path: str,
+    include_subjects: str | list[str] | None,
+    expected_count: int,
+    adapter: BIDSSchemaAdapter,
 ):
-    """Find subject directories with optional inclusion filters."""
-    subject_dirs = indexing._find_bids_subject_dirs(
-        BIDS_EXAMPLES / path, include_subjects
+    """Find entity directories with optional inclusion filters."""
+    root_prefixes = get_root_entity_types(adapter)
+    pattern = indexing._compile_entity_dir_pattern(root_prefixes, adapter)
+    entity_dirs = indexing._find_bids_entity_dirs(
+        BIDS_EXAMPLES / path,
+        root_prefixes,
+        pattern,
+        include_subjects,
     )
-    assert len(subject_dirs) == expected_count
+    assert len(entity_dirs) == expected_count
 
 
 @pytest.mark.parametrize(
@@ -182,9 +196,11 @@ def test_find_bids_subject_dirs(
         ("eeg_face13/sub-010", 5),
     ],
 )
-def test_index_subject_dir(path: str, expected_count: int):
-    """Index a single subject directory and assert the expected file count."""
-    _, table = indexing._index_bids_subject_dir(BIDS_EXAMPLES / path)
+def test_index_entity_dir(path: str, expected_count: int, adapter: BIDSSchemaAdapter):
+    """Index a single entity directory and assert the expected file count."""
+    _, table = indexing._index_bids_entity_dir(
+        BIDS_EXAMPLES / path, entity_prefix="sub", adapter=adapter
+    )
     assert len(table) == expected_count
 
 
@@ -192,11 +208,15 @@ def test_index_subject_dir(path: str, expected_count: int):
     ("path", "expected"),
     [
         ("ieeg_epilepsyNWB/derivatives/brainvisa/sub-01_ses-pre", False),
+        ("ds102/sub-03", True),
+        ("ds102/func", False),
     ],
 )
-def test_is_bids_subject_dir(path: str, *, expected: bool):
-    """Classify paths as BIDS subject directories (or not)."""
-    assert indexing._is_bids_subject_dir(BIDS_EXAMPLES / path) == expected
+def test_is_bids_entity_dir(path: str, *, expected: bool, adapter: BIDSSchemaAdapter):
+    """Classify paths as BIDS entity directories (or not)."""
+    root_prefixes = get_root_entity_types(adapter)
+    pattern = indexing._compile_entity_dir_pattern(root_prefixes, adapter)
+    assert indexing._is_bids_entity_dir(BIDS_EXAMPLES / path, pattern) == expected
 
 
 @pytest.mark.parametrize(
@@ -234,9 +254,9 @@ def test_is_bids_subject_dir(path: str, *, expected: bool):
         ),
     ],
 )
-def test_is_bids_file(path: str, *, expected: bool):
+def test_is_bids_file(path: str, *, expected: bool, adapter: BIDSSchemaAdapter):
     """Classify paths as BIDS data files (or sidecars/directories)."""
-    assert indexing._is_bids_file(Path(path)) == expected
+    assert indexing._is_bids_file(Path(path), adapter) == expected
 
 
 def test_filter_include_exclude():
