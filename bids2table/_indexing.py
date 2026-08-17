@@ -22,6 +22,7 @@ from tqdm import tqdm
 from bids2table._entities import (
     _build_datatype_pattern,
     _cache_parse_bids_entities,
+    _lookups_from_arrow,
     _pyarrow_validate_entities,
     get_file_entity_prefixes,
     get_root_entity_types,
@@ -31,6 +32,7 @@ from bids2table._pathlib import CloudPath, PathT, as_path, cloudpathlib_is_avail
 from bids2table._schema import (
     BIDSSchemaAdapter,
     SchemaSpec,
+    _load_from_path,
     entity_arrow_schema,
     get_entity_directory_order,
     get_json_data_suffixes,
@@ -145,15 +147,18 @@ _logger = setup_logger(__package__)
 
 
 def clear_schema_caches() -> None:
-    """Clear LRU caches that depend on the BIDS schema.
+    """Clear the LRU caches of the schema-dependent lookup functions.
 
-    Call after :func:`bids2table.set_bids_schema` to avoid stale results from
-    previously cached schema-dependent function calls.
+    Call to force recomputation when cached inputs change, or to release
+    memory after a large indexing run.
     """
-    _get_bids_dataset.cache_clear()
-    _is_bids_dataset.cache_clear()
+    _load_from_path.cache_clear()
+    entity_arrow_schema.cache_clear()
+    _lookups_from_arrow.cache_clear()
     _build_datatype_pattern.cache_clear()
     _cache_parse_bids_entities.cache_clear()
+    _is_bids_dataset.cache_clear()
+    _get_bids_dataset.cache_clear()
 
 
 def get_arrow_schema(*, schema: SchemaSpec | BIDSSchemaAdapter = None) -> pa.Schema:
@@ -816,40 +821,6 @@ def _pmap(
             initializer=partial(setup_logger, name=__package__, level=_logger.level),
         ) as executor:
             yield from executor.map(func, iterable, chunksize=chunksize)
-
-
-def _filter_include(
-    names: Iterable[str],
-    patterns: str | Iterable[str],
-) -> set[str]:
-    """Filter names including those that match a glob pattern or list of patterns."""
-    names = set(names)
-    matching_names = _multi_pattern_filter(names, patterns)
-    names.intersection_update(matching_names)
-    return names
-
-
-def _filter_exclude(
-    names: Iterable[str],
-    patterns: str | Iterable[str],
-) -> set[str]:
-    """Filter names excluding those that match a glob pattern or list of patterns."""
-    names = set(names)
-    matching_names = _multi_pattern_filter(names, patterns)
-    names.difference_update(matching_names)
-    return names
-
-
-def _multi_pattern_filter(
-    names: Iterable[str], patterns: str | Iterable[str]
-) -> set[str]:
-    """Filter names matching any of a list of patterns."""
-    if isinstance(patterns, str):
-        patterns = [patterns]
-    matching_names = set()
-    for pat in patterns:
-        matching_names.update(fnmatch.filter(names, pat))
-    return matching_names
 
 
 def _match_single(value: str | int, key: str, pattern: str) -> bool:
