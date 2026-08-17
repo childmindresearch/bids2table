@@ -20,6 +20,7 @@ import pyarrow as pa
 from tqdm import tqdm
 
 from bids2table._entities import (
+    _build_datatype_pattern,
     _cache_parse_bids_entities,
     _pyarrow_validate_entities,
     get_file_entity_prefixes,
@@ -154,6 +155,8 @@ def clear_schema_caches() -> None:
     """
     _get_bids_dataset.cache_clear()
     _is_bids_dataset.cache_clear()
+    _build_datatype_pattern.cache_clear()
+    _cache_parse_bids_entities.cache_clear()
 
 
 def get_arrow_schema(*, schema: SchemaSpec | BIDSSchemaAdapter = None) -> pa.Schema:
@@ -675,25 +678,26 @@ def _index_bids_entity_dir(
         )
 
     for p in paths:
-        if _is_bids_file(p, adapter=adapter):
-            entities = _cache_parse_bids_entities(p)
-            valid_entities, extra_entities = _pyarrow_validate_entities(
-                entities, pa_schema=schema
-            )
-            # Skip files that don't match filters.
-            if file_filters and not _match_filters(valid_entities, file_filters):
-                continue
-            record = {
-                "dataset": dataset,
-                **{k: desc[v] for k, v in _DESC_FIELD_MAP.items() if v in desc},
-                **valid_entities,
-                "extra_entities": extra_entities,
-                "root": root_fmt,
-                "path": str(
-                    p.relative_to(root)  # ty:ignore[invalid-argument-type]
-                ),
-            }
-            records.append(record)
+        if not _is_bids_file(p, adapter=adapter):
+            continue
+        entities = _cache_parse_bids_entities(p, adapter)
+        valid_entities, extra_entities = _pyarrow_validate_entities(
+            entities, pa_schema=schema
+        )
+        # Skip files that don't match filters.
+        if file_filters and not _match_filters(valid_entities, file_filters):
+            continue
+        record = {
+            "dataset": dataset,
+            **{k: desc[v] for k, v in _DESC_FIELD_MAP.items() if v in desc},
+            **valid_entities,
+            "extra_entities": extra_entities,
+            "root": root_fmt,
+            "path": str(
+                p.relative_to(root)  # ty:ignore[invalid-argument-type]
+            ),
+        }
+        records.append(record)
 
     table = pa.Table.from_pylist(records, schema=schema)
     return entity_value, table
@@ -708,9 +712,6 @@ def _is_bids_file(path: PathT, adapter: BIDSSchemaAdapter) -> bool:
 
     Not very exact, but hopefully good enough.
     """
-    # TODO: other checks?
-    #   - skip files matching patterns in .bidsignore?
-
     # Initial fast checks.
     if path.suffix == "":
         return False
@@ -723,7 +724,7 @@ def _is_bids_file(path: PathT, adapter: BIDSSchemaAdapter) -> bool:
     if not path.name.startswith(tuple(f"{p}-" for p in prefixes)):
         return False
 
-    entities = _cache_parse_bids_entities(path)
+    entities = _cache_parse_bids_entities(path, adapter)
     # If we want to exclude metadata files like *_scans.tsv, we can also check for
     # datatype.
     if not (entities.get("suffix") and entities.get("ext")):
@@ -749,7 +750,7 @@ def _is_bids_json_sidecar(path: PathT, adapter: BIDSSchemaAdapter) -> bool:
         return False
 
     # Other checks require entities.
-    entities = _cache_parse_bids_entities(path)
+    entities = _cache_parse_bids_entities(path, adapter)
 
     # Second pass using full compound extension, in case of data files that use a
     # compound extension ending in .json.

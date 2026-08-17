@@ -129,7 +129,7 @@ def test_batch_index_dataset(max_workers: int):
     )
     table = pa.concat_tables(tables)
     # NOTE: count may change as BIDS schema evolves and entity-generic
-    # discovery finds more entity types (tpl, cohort, sample, etc.)
+    # discovery finds more entity types (tpl, cohort, sample, etc.).
     assert len(table) == 10052
 
 
