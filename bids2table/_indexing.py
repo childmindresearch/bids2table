@@ -39,9 +39,6 @@ from bids2table._schema import (
 from bids2table._version import version
 
 # Path names of BIDS dataset sub-directories that may contain nested BIDS datasets.
-# Other candidates to consider including:
-#   - sourcedata
-#   - code
 _BIDS_NESTED_PARENT_DIRNAMES = {
     "derivatives",
 }
@@ -74,12 +71,12 @@ def _compile_entity_dir_pattern(
     return re.compile("|".join(f"({a})" for a in alternates))
 
 
-# Configs for index arrow fields to add to the entity schema (defined elsewhere).
 _DESC_FIELD_MAP: dict[str, str] = {
     "dataset_name": "Name",
     "dataset_type": "DatasetType",
     "bids_version": "BIDSVersion",
 }
+# Configs for index arrow fields to add to the entity schema (defined elsewhere).
 _INDEX_ARROW_FIELDS = {
     "dataset_name": {
         "dtype": pa.string(),
@@ -160,7 +157,15 @@ def clear_schema_caches() -> None:
 
 
 def get_arrow_schema(*, schema: SchemaSpec | BIDSSchemaAdapter = None) -> pa.Schema:
-    """Get Arrow schema of the BIDS dataset index."""
+    """Get Arrow schema of the BIDS dataset index.
+
+    Args:
+        schema: BIDS schema specification to use. If ``None``, uses the bundled
+            default schema.
+
+    Returns:
+        The PyArrow schema of the BIDS dataset index.
+    """
     adapter = (
         schema if isinstance(schema, BIDSSchemaAdapter) else load_bids_schema(schema)
     )
@@ -187,11 +192,15 @@ def get_arrow_schema(*, schema: SchemaSpec | BIDSSchemaAdapter = None) -> pa.Sch
 
 
 def get_column_names(*, schema: SchemaSpec = None) -> type[enum.StrEnum]:
-    """Get an enum of the BIDS index columns."""
-    # TODO: It might be nice if the column names were statically available. One option
-    # would be to generate a static _schema.py module at install time (similar to how
-    # _version.py is generated) which defines the static default schema and column
-    # names.
+    """Get an enum of the BIDS index columns.
+
+    Args:
+        schema: BIDS schema specification to use. If ``None``, uses the bundled
+            default schema.
+
+    Returns:
+        A ``str`` enum class whose members are the index column names.
+    """
     arrow_schema = get_arrow_schema(schema=schema)
     items = []
     for f in arrow_schema:
@@ -257,8 +266,7 @@ def find_bids_datasets(
                 ds_count += 1
                 yield entry
 
-            # Checks if we should descend into this directory.
-            # Check not reached final depth.
+            # Checks if we should descend into this directory (not reach final depth).
             descend = maxdepth is None or depth < maxdepth
             # Heuristic checks whether the filename looks like a (visible) directory.
             descend = descend and not (entry.suffix or entry.name.startswith("."))
@@ -266,8 +274,7 @@ def find_bids_datasets(
             descend = descend and (
                 not inside_bids or entry.name in _BIDS_NESTED_PARENT_DIRNAMES
             )
-            # Finally, check if actually a directory (which is slow so we want to
-            # short-circuit as much as possible).
+            # Check if actually a directory (slow, so short-circuit if possible).
             if descend and entry.is_dir():
                 stack.append((entry, depth))
 
@@ -385,8 +392,7 @@ def _get_bids_dataset(path: str | PathT) -> tuple[str | None, PathT | None]:
     """Get the BIDS dataset that the path belongs to, if any.
 
     Return the dataset directory name and the full dataset path. For nested derivatives
-    datasets, a composite name of the form ``"ds000001/derivatives/fmriprep"`` is
-    returned.
+    datasets, a composite name of the form is returned.
 
     Note that the name is extracted from the path, not the dataset description JSON.
     """
@@ -465,12 +471,7 @@ def _is_bids_dataset(path: PathT, schema: SchemaSpec = None) -> bool:
     Args:
         path: Path to check.
         schema: Optional schema specification. Defaults to the bundled schema.
-
-    Uses the default BIDS schema for heuristic detection when ``schema=None``.
-    ``load_bids_schema()`` is ``@lru_cache``'d so the cost is negligible after
-    the first call.
     """
-    # Quick heuristic checks.
     # BIDS datasets should not contain a file extension.
     if path.suffix:
         return False
@@ -579,7 +580,6 @@ def _resolve_entity_dirs(
         | frozenset(get_file_entity_prefixes(adapter))
     )
     pattern = _compile_entity_dir_pattern(root_prefixes, adapter)
-
     # Extract include pattern for the primary entity key from filters.
     include_pattern = None
     if filters:
@@ -587,12 +587,10 @@ def _resolve_entity_dirs(
             if prefix in filters:
                 include_pattern = filters[prefix]
                 break
-
     # Try primary root entity prefixes.
     dirs = _find_bids_entity_dirs(root, root_prefixes, pattern, include_pattern)
     if dirs:
         return dirs
-
     # Fallback: try all known entity prefixes.
     return _find_bids_entity_dirs(root, entity_prefixes, pattern, include_pattern)
 
@@ -684,7 +682,6 @@ def _index_bids_entity_dir(
         valid_entities, extra_entities = _pyarrow_validate_entities(
             entities, pa_schema=schema
         )
-        # Skip files that don't match filters.
         if file_filters and not _match_filters(valid_entities, file_filters):
             continue
         record = {
@@ -732,9 +729,7 @@ def _load_bidsignore_patterns(root: str) -> tuple[str, ...]:
 def _is_bidsignored(path: PathT, root: PathT) -> bool:
     """Check if a path matches any ``.bidsignore`` pattern.
 
-    Patterns are matched against both the full relative path and the bare
-    filename, so patterns like ``sub-A01_*bold*`` work even when the file
-    is nested in a datatype directory.
+    Patterns are matched against the full relative path and the bare filename.
 
     Args:
         path: File path to check.
@@ -763,11 +758,9 @@ def _is_bids_file(path: PathT, adapter: BIDSSchemaAdapter) -> bool:
 
     Not very exact, but hopefully good enough.
     """
-    # Initial fast checks.
     if path.suffix == "":
         return False
 
-    # File name must start with a known BIDS entity prefix.
     prefixes = tuple(
         frozenset(get_entity_directory_order(adapter))
         | frozenset(get_file_entity_prefixes(adapter))
@@ -776,16 +769,13 @@ def _is_bids_file(path: PathT, adapter: BIDSSchemaAdapter) -> bool:
         return False
 
     entities = _cache_parse_bids_entities(path, adapter)
-    # If we want to exclude metadata files like *_scans.tsv, we can also check for
-    # datatype.
     if not (entities.get("suffix") and entities.get("ext")):
         return False
 
     if _is_bids_json_sidecar(path, adapter):
         return False
 
-    # Very special case for directories treated as BIDS "files"
-    # (e.g. .ds or .ome.zarr).
+    # Very special case for directories treated as BIDS "files" (e.g. .ds or .ome.zarr).
     return not _is_bids_file(path.parent, adapter)
 
 
@@ -796,24 +786,16 @@ def _is_bids_json_sidecar(path: PathT, adapter: BIDSSchemaAdapter) -> bool:
         path: File path to check.
         adapter: BIDS schema adapter for exception suffix validation.
     """
-    # Quick check if path suffix is not json.
     if path.suffix != ".json":
         return False
-
     # Other checks require entities.
     entities = _cache_parse_bids_entities(path, adapter)
-
-    # Second pass using full compound extension, in case of data files that use a
-    # compound extension ending in .json.
+    # Second pass using full compound extension
     if entities.get("ext") != ".json":
         return False
-
-    # Assume all JSON above the lowest level of hierarchy are sidecars.
     if entities.get("datatype") is None:
         return True
-
-    # All sidecars must contain a suffix.
-    # Also check if suffix matches special cases of data files with json extension.
+    # All sidecars must contain a suffix, which may match special cases with json ext.
     suffix = entities.get("suffix")
     exception_suffixes = get_json_data_suffixes(adapter)
     return not (suffix is None or suffix in exception_suffixes)
