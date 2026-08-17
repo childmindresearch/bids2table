@@ -16,6 +16,7 @@ from functools import cache, lru_cache, partial
 from glob import glob
 from typing import Any
 
+import bidsschematools.schema
 import pyarrow as pa
 from tqdm import tqdm
 
@@ -151,7 +152,13 @@ def clear_schema_caches() -> None:
 
     Call to force recomputation when cached inputs change, or to release
     memory after a large indexing run.
+
+    This also clears ``bidsschematools.schema.load_schema``'s own cache,
+    since a path-based schema is ultimately resolved through it; without that,
+    a changed schema file would be served from that cache even after the
+    bids2table caches above are cleared.
     """
+    bidsschematools.schema.load_schema.cache_clear()
     _load_from_path.cache_clear()
     entity_arrow_schema.cache_clear()
     _lookups_from_arrow.cache_clear()

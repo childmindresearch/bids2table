@@ -1,5 +1,6 @@
 """Tests for BIDS dataset indexing and related internals."""
 
+import json
 import logging
 import warnings
 from copy import deepcopy
@@ -467,6 +468,58 @@ def test_clear_schema_caches():
     # Verify caches are populated.
     assert indexing._get_bids_dataset.__wrapped__ is not None
     indexing.clear_schema_caches()
+
+
+def test_index_derivative_without_description(tmp_path: Path):
+    """Derivative under derivatives/ without a description is detected and indexed."""
+    deriv = tmp_path / "ds" / "derivatives" / "fmriprep"
+    (deriv / "sub-A01" / "anat").mkdir(parents=True)
+    (deriv / "sub-A01" / "anat" / "sub-A01_T1w.nii.gz").touch()
+
+    # Detected as a dataset despite lacking a description file.
+    assert indexing._is_bids_dataset(deriv)
+    # Typed as a derivative via the nested-parent heuristic.
+    assert indexing._get_dataset_type(deriv) == "derivative"
+
+    table = indexing.index_dataset(deriv)
+    assert table.num_rows == 1
+    assert table.column("sub").to_pylist() == ["A01"]
+    assert table.column("dataset").to_pylist() == ["fmriprep"]
+
+
+def test_schema_switch_mid_session_uses_new_schema(tmp_path: Path):
+    """A changed schema file is re-read only after clear_schema_caches()."""
+    import bidsschematools
+
+    ds = tmp_path / "ds"
+    (ds / "sub-A01" / "anat").mkdir(parents=True)
+    (ds / "sub-A01" / "anat" / "sub-A01_T1w.nii.gz").touch()
+    (ds / "dataset_description.json").write_text('{"Name": "ds"}')
+
+    default_schema = Path(bidsschematools.__file__).parent / "data" / "schema.json"
+
+    def write_schema(marker: str) -> None:
+        schema = json.loads(default_schema.read_text())
+        schema["objects"]["entities"]["subject"]["description"] = marker
+        schema_path.write_text(json.dumps(schema))
+
+    schema_path = tmp_path / "schema.json"
+    m1, m2 = "first schema", "second schema"
+    write_schema(m1)
+
+    # Warm the path-based schema cache with the first schema.
+    t1 = indexing.index_dataset(ds, schema=schema_path)
+    assert t1.schema.field("sub").metadata[b"description"] == m1.encode()
+
+    # Switch the schema file in place; the lru cache now serves a stale adapter.
+    write_schema(m2)
+    stale = indexing.index_dataset(ds, schema=schema_path)
+    assert stale.schema.field("sub").metadata[b"description"] == m1.encode()
+
+    # clear_schema_caches() forces a reload of the changed file.
+    indexing.clear_schema_caches()
+    t2 = indexing.index_dataset(ds, schema=schema_path)
+    assert t2.schema.field("sub").metadata[b"description"] == m2.encode()
 
 
 def test_read_dataset_description(tmp_path: Path):
