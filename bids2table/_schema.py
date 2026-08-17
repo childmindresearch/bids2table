@@ -229,7 +229,6 @@ def get_json_data_suffixes(adapter: BIDSSchemaAdapter) -> frozenset[str]:
     _collect(adapter.rules.get("files"))
     _collect(adapter.rules.get("tabular_data"))
 
-    # JSON data files: extensions subset of {.json, .tsv}.
     _text_exts: frozenset[str] = frozenset({".json", ".tsv"})
     return frozenset(
         suffix

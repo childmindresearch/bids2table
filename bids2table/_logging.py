@@ -5,10 +5,12 @@ class RepetitiveFilter(logging.Filter):
     """Suppress similar log messages after a number of repeats."""
 
     def __init__(self, max_repeats: int = 2) -> None:
+        """Set the maximum number of identical repeats before suppression."""
         self.max_repeats = max_repeats
         self._counts: dict[tuple[str, int, str], int] = {}
 
     def filter(self, record: logging.LogRecord) -> bool:
+        """Suppress a log record once it has repeated ``max_repeats`` times."""
         # Exact repeat of path, line, message.
         key = record.pathname, record.lineno, record.msg
         count = self._counts.get(key, 0) + 1
@@ -25,7 +27,7 @@ def setup_logger(
     *,
     overwrite: bool = False,
 ) -> logging.Logger:
-    """Get logger with my preferred formatting and repetition filtering."""
+    """Get a logger with default formatting and repetition-suppression filtering."""
     logger = logging.getLogger(name)
     if level is not None:
         logger.setLevel(level)
@@ -33,7 +35,6 @@ def setup_logger(
     if logger.handlers and not overwrite:
         return logger
 
-    # clean up any pre-existing filters and handlers
     for f in logger.filters:
         logger.removeFilter(f)
     for h in logger.handlers:

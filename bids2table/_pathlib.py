@@ -35,5 +35,9 @@ def as_path(path: str | PathT) -> PathT:
 
 
 def cloudpathlib_is_available() -> bool:
-    """Check if cloudpathlib is available."""
+    """Check if cloudpathlib is available.
+
+    Returns:
+        ``True`` if the ``cloud`` extra (cloudpathlib) is installed, else ``False``.
+    """
     return _CLOUDPATHLIB_AVAILABLE

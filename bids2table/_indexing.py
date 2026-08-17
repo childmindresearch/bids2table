@@ -51,15 +51,7 @@ _BIDS_NESTED_PARENT_DIRNAMES = {
 def _compile_entity_dir_pattern(
     prefixes: tuple[str, ...], adapter: BIDSSchemaAdapter
 ) -> re.Pattern[str]:
-    """Compile a regex matching any entity directory name in the given prefixes.
-
-    Args:
-        prefixes: Entity prefix strings (e.g., ``("sub", "tpl")``).
-        adapter: A ``BIDSSchemaAdapter`` with format patterns.
-
-    Returns:
-        A compiled regex matching ``prefix-value`` for any of the prefixes.
-    """
+    """Compile a regex matching ``prefix-value`` for the given entity-dir prefixes."""
     alternates = []
     for prefix in prefixes:
         for cfg in adapter.entity_schema.values():
@@ -390,6 +382,7 @@ def _batch_index_func(
     filters: dict[str, str | list[str]] | None = None,
     schema: SchemaSpec = None,
 ) -> tuple[str | None, pa.Table]:
+    """Index a single dataset root; returns its name and Arrow index table."""
     dataset, _ = _get_bids_dataset(root)
     table = index_dataset(root, filters=filters, schema=schema)
     return dataset, table
@@ -399,8 +392,9 @@ def _batch_index_func(
 def _get_bids_dataset(path: str | PathT) -> tuple[str | None, PathT | None]:
     """Get the BIDS dataset that the path belongs to, if any.
 
-    Return the dataset directory name and the full dataset path. For nested derivatives
-    datasets, a composite name of the form is returned.
+    Return the dataset directory name and the full dataset path. For nested
+    derivatives datasets, a composite name of the form
+    ``ds000001/derivatives/fmriprep`` is returned.
 
     Note that the name is extracted from the path, not the dataset description JSON.
     """
@@ -448,18 +442,10 @@ def _read_dataset_description(path: PathT) -> dict[str, Any]:
 
 
 def _get_dataset_type(root: PathT, desc: dict[str, Any]) -> str:
-    """Determine the dataset type for a root directory.
+    """Determine a dataset root's type.
 
-    Uses ``DatasetType`` from the description if present; otherwise falls
-    back to ``"derivative"`` when the root sits inside a nested parent
-    directory (e.g. ``derivatives/``), else ``"raw"``.
-
-    Args:
-        root: BIDS dataset root directory (used for the nested-parent check).
-        desc: Parsed ``dataset_description.json`` (may be empty).
-
-    Returns:
-        A dataset type string (``"raw"``, ``"derivative"``, ``"study"``, etc.).
+    Uses ``DatasetType`` from the description if present; else ``"derivative"``
+    when the root sits under a nested parent (e.g. ``derivatives/``), else ``"raw"``.
     """
     if "DatasetType" in desc:
         return desc["DatasetType"]
@@ -474,12 +460,7 @@ def _get_dataset_type(root: PathT, desc: dict[str, Any]) -> str:
 
 @lru_cache
 def _is_bids_dataset(path: PathT, schema: SchemaSpec = None) -> bool:
-    """Test if path is a BIDS dataset root directory.
-
-    Args:
-        path: Path to check.
-        schema: Optional schema specification. Defaults to the bundled schema.
-    """
+    """Test if a path is a BIDS dataset root directory."""
     # BIDS datasets should not contain a file extension.
     if path.suffix:
         return False
@@ -487,7 +468,6 @@ def _is_bids_dataset(path: PathT, schema: SchemaSpec = None) -> bool:
     if path.name.startswith("."):
         return False
 
-    # Derive entity info from the schema.
     adapter = load_bids_schema(schema)
     root_prefixes = get_root_entity_types(adapter)
     pattern = _compile_entity_dir_pattern(root_prefixes, adapter)
@@ -496,7 +476,6 @@ def _is_bids_dataset(path: PathT, schema: SchemaSpec = None) -> bool:
     if pattern.fullmatch(path.name):
         return False
 
-    # Check for dataset_description.json or any entity directories.
     description_exists = (path / "dataset_description.json").exists()
     return description_exists or _contains_bids_entity_dirs(
         path, root_prefixes, pattern
@@ -508,16 +487,7 @@ def _contains_bids_entity_dirs(
     prefixes: tuple[str, ...],
     pattern: re.Pattern[str],
 ) -> bool:
-    """Check if a path contains one or more BIDS entity dirs.
-
-    Args:
-        root: Directory to check.
-        prefixes: Entity prefixes to look for (e.g., ``("sub", "tpl")``).
-        pattern: Compiled regex to validate directory names.
-
-    Returns:
-        ``True`` if any matching entity directory is found.
-    """
+    """Check whether ``root`` has any BIDS entity dir matching ``pattern``."""
     for prefix in prefixes:
         for path in root.glob(f"{prefix}-*"):
             if pattern.fullmatch(path.name):
@@ -531,16 +501,9 @@ def _find_bids_entity_dirs(
     pattern: re.Pattern[str],
     include_pattern: str | list[str] | None = None,
 ) -> list[PathT]:
-    """Find all BIDS entity dirs contained in a root directory.
+    """Find all BIDS entity dirs in ``root`` whose names match ``pattern``.
 
-    Args:
-        root: Dataset root directory.
-        prefixes: Entity prefixes to search for (e.g., ``("sub", "tpl")``).
-        pattern: Compiled regex to validate directory names.
-        include_pattern: Glob pattern or list of patterns to filter results by.
-
-    Returns:
-        List of matching entity directory paths.
+    When ``include_pattern`` is given, only dirs matching it are returned.
     """
     paths = [
         path
@@ -567,20 +530,11 @@ def _resolve_entity_dirs(
     adapter: BIDSSchemaAdapter,
     filters: dict[str, str | list[str]] | None = None,
 ) -> list[PathT]:
-    """Resolve entity directories for a BIDS dataset root.
+    """Resolve the entity dirs for a dataset root.
 
-    Tries the primary root entity prefixes first (e.g., ``"sub"``, ``"tpl"``).
-    If none are found, falls back to searching all known entity prefixes.
-
-    Args:
-        root: Dataset root directory.
-        adapter: BIDS schema adapter to derive entity prefixes and patterns from.
-        filters: Optional entity filter dict.
-
-    Returns:
-        List of matching entity directory paths.
+    Tries the primary root prefixes (e.g. ``sub``, ``tpl``) first, falling back
+    to all known entity prefixes if none match.
     """
-    # Derive entity prefixes and pattern from the adapter.
     root_prefixes = get_root_entity_types(adapter)
     entity_prefixes = tuple(
         frozenset(get_entity_directory_order(adapter))
@@ -610,19 +564,7 @@ def _index_bids_entity_dir(
     dataset: str | None = None,
     filters: dict[str, str | list[str]] | None = None,
 ) -> tuple[str, pa.Table]:
-    """Index a BIDS entity directory and return an Arrow table.
-
-    Args:
-        path: Entity directory path (e.g., ``sub-01`` or ``tpl-MNI152``).
-        entity_prefix: The entity prefix (e.g., ``"sub"``).
-        adapter: BIDS schema adapter for entity prefix validation.
-        schema: Arrow schema for the index table.
-        dataset: Dataset name string.
-        filters: Dict mapping entity keys to glob patterns.
-
-    Returns:
-        Tuple of (entity value, Arrow table).
-    """
+    """Index the files under an entity directory; returns ``(entity_value, table)``."""
     root = path.parent
     root_fmt = str(root.absolute())
     if dataset is None:
@@ -680,17 +622,9 @@ def _index_bids_entity_dir(
 
 @lru_cache
 def _load_bidsignore_patterns(root: str) -> tuple[str, ...]:
-    """Load glob patterns from ``.bidsignore`` at the dataset root.
+    """Load glob patterns from the root-level ``.bidsignore`` (nested ones not read).
 
-    Note:
-        Only the root-level ``.bidsignore`` is read; nested ``.bidsignore``
-        files in subdirectories are not searched for.
-
-    Args:
-        root: Dataset root directory (as a string for cache-key stability).
-
-    Returns:
-        A tuple of glob patterns. Empty tuple if ``.bidsignore`` is absent.
+    ``root`` is a string for ``lru_cache`` key stability.
     """
     bidsignore = as_path(root) / ".bidsignore"
     if not bidsignore.is_file():
@@ -707,14 +641,7 @@ def _load_bidsignore_patterns(root: str) -> tuple[str, ...]:
 def _is_bidsignored(path: PathT, root: PathT) -> bool:
     """Check if a path matches any ``.bidsignore`` pattern.
 
-    Patterns are matched against the full relative path and the bare filename.
-
-    Args:
-        path: File path to check.
-        root: Dataset root directory.
-
-    Returns:
-        True if the path should be ignored, False otherwise.
+    Matched against both the full relative path and the bare filename.
     """
     patterns = _load_bidsignore_patterns(str(root))
     if not patterns:
@@ -728,14 +655,7 @@ def _is_bidsignored(path: PathT, root: PathT) -> bool:
 
 
 def _is_bids_file(path: PathT, adapter: BIDSSchemaAdapter) -> bool:
-    """Check if file is a BIDS file.
-
-    Args:
-        path: File path to check.
-        adapter: BIDS schema adapter for entity prefix and sidecar validation.
-
-    Not very exact, but hopefully good enough.
-    """
+    """Check if a path is a BIDS data file (heuristic — not fully exact)."""
     if path.suffix == "":
         return False
 
@@ -758,17 +678,11 @@ def _is_bids_file(path: PathT, adapter: BIDSSchemaAdapter) -> bool:
 
 
 def _is_bids_json_sidecar(path: PathT, adapter: BIDSSchemaAdapter) -> bool:
-    """Quick check if a file is a JSON sidecar.
-
-    Args:
-        path: File path to check.
-        adapter: BIDS schema adapter for exception suffix validation.
-    """
+    """Quick check if a file is a JSON sidecar (not a JSON *data* file)."""
     if path.suffix != ".json":
         return False
     # Other checks require entities.
     entities = _cache_parse_bids_entities(path, adapter)
-    # Second pass using full compound extension
     if entities.get("ext") != ".json":
         return False
     if entities.get("datatype") is None:
@@ -786,6 +700,7 @@ def _pmap(
     chunksize: int = 1,
     executor_cls: type[ProcessPoolExecutor | ThreadPoolExecutor] = ProcessPoolExecutor,
 ) -> Iterator[Any]:
+    """Map ``func`` over ``iterable``, sequentially or across a worker pool."""
     if max_workers == 0:
         yield from map(func, iterable)
     else:
@@ -831,6 +746,7 @@ def _match_filters(
 
 
 def _hfmt(n: int) -> str:
+    """Format an integer as a human-readable count (e.g. ``1.2K``, ``3.4M``)."""
     if n < 10_000:
         n_fmt = str(n)
     elif n < 1_000_000:

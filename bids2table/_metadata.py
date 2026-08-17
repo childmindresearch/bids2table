@@ -44,6 +44,7 @@ def load_bids_metadata(path: str | PathT, *, inherit: bool = True) -> dict[str, 
 
 @lru_cache
 def _load_json(path: PathT) -> Any:  # noqa: ANN401 - match return type of `json.loads`
+    """Parse a JSON file into a Python object."""
     return json.loads(path.read_text())
 
 
@@ -51,15 +52,10 @@ def _find_bids_parents(
     start: PathT,
     query: dict[str, str],
 ) -> Generator[PathT, None, None]:
-    """Find all BIDS files satisfying the inheritance principle for `query`.
+    """Find BIDS parent files satisfying the inheritance principle for ``query``.
 
-    Args:
-        start: Starting directory to begin the bottom up search.
-        query: Dictionary of key-value entity pairs. The entities for valid parent files
-            are sub-dictionaries of the query.
-
-    Yields:
-        Matching paths in bottom-up order.
+    A parent's entities must be a subset of ``query`` with matching values;
+    results are yielded bottom-up.
     """
     suffix = query.get("suffix")
     ext = query.get("ext")
@@ -86,6 +82,7 @@ def _find_bids_parents(
 
 @lru_cache
 def _glob(path: PathT, pattern: str) -> list[PathT]:
+    """Return paths under ``path`` matching ``pattern`` as a list (cached)."""
     return list(path.glob(pattern))
 
 
