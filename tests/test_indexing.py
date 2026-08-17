@@ -468,9 +468,6 @@ def test_index_dataset_new_columns_missing(tmp_path: Path):
     assert table["dataset_name"][0].as_py() is None
 
 
-# --- clear_schema_caches ---
-
-
 def test_clear_schema_caches():
     """Calling clear_schema_caches clears the relevant caches."""
     indexing._get_bids_dataset.cache_clear()
