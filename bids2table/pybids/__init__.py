@@ -1,4 +1,4 @@
-"""PyBIDS compatability-layer module."""
+"""PyBIDS compatibility-layer module."""
 
 __all__ = ["BIDSFile", "BIDSLayout", "Query", "listify"]
 
