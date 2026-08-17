@@ -117,8 +117,7 @@ _INDEX_ARROW_FIELDS = {
         },
     },
     "root": {
-        # NOTE: Trying out dictionary type to save memory on these repeated long
-        # strings. Only question is compatibility with other libraries like pandas.
+        # NOTE: Only question is dict compatibility with other libraries like pandas.
         "dtype": pa.dictionary(pa.int32(), pa.string()),
         "metadata": {
             "name": "root",
@@ -259,7 +258,6 @@ def find_bids_datasets(
         ds_count += 1
         yield root
 
-    # Tuple of path, depth
     stack = [(root, 0)]
 
     while stack:
@@ -451,20 +449,20 @@ def _read_dataset_description(path: PathT) -> dict[str, Any]:
     return {}
 
 
-def _get_dataset_type(root: PathT) -> str:
+def _get_dataset_type(root: PathT, desc: dict[str, Any]) -> str:
     """Determine the dataset type for a root directory.
 
-    Reads ``DatasetType`` from ``dataset_description.json`` if present.
-    Falls back to ``"derivative"`` if the root sits inside a nested parent
-    directory (e.g. ``derivatives/``). Defaults to ``"raw"``.
+    Uses ``DatasetType`` from the description if present; otherwise falls
+    back to ``"derivative"`` when the root sits inside a nested parent
+    directory (e.g. ``derivatives/``), else ``"raw"``.
 
     Args:
-        root: BIDS dataset root directory.
+        root: BIDS dataset root directory (used for the nested-parent check).
+        desc: Parsed ``dataset_description.json`` (may be empty).
 
     Returns:
         A dataset type string (``"raw"``, ``"derivative"``, ``"study"``, etc.).
     """
-    desc = _read_dataset_description(root)
     if "DatasetType" in desc:
         return desc["DatasetType"]
 
@@ -624,20 +622,6 @@ def _match_entity_name(name: str, pattern: str) -> bool:
     return fnmatch.fnmatch(value, pattern) or fnmatch.fnmatch(name, pattern)
 
 
-def _is_bids_entity_dir(path: PathT, pattern: re.Pattern[str]) -> bool:
-    """Check if a path is a BIDS entity directory.
-
-    Args:
-        path: Path to check.
-        pattern: Compiled regex to validate directory names.
-
-    Returns:
-        ``True`` if the path name matches the entity directory pattern.
-    """
-    # Fast: only check the name, not whether it's actually a directory.
-    return bool(pattern.fullmatch(path.name))
-
-
 def _index_bids_entity_dir(
     path: PathT,
     entity_prefix: str,
@@ -668,8 +652,10 @@ def _index_bids_entity_dir(
 
     _, entity_value = path.name.split("-", maxsplit=1)
 
-    # Read dataset description for new index columns.
+    # Read the dataset description once; synthesize DatasetType via the
+    # nested-parent heuristic when the description does not declare it.
     desc = _read_dataset_description(root)
+    desc = {**desc, "DatasetType": _get_dataset_type(root, desc)}
 
     # Build filter dict excluding the directory entity (handled at directory level).
     file_filters = {k: v for k, v in (filters or {}).items() if k != entity_prefix}

@@ -219,21 +219,6 @@ def test_index_entity_dir(path: str, expected_count: int, adapter: BIDSSchemaAda
 @pytest.mark.parametrize(
     ("path", "expected"),
     [
-        ("ieeg_epilepsyNWB/derivatives/brainvisa/sub-01_ses-pre", False),
-        ("ds102/sub-03", True),
-        ("ds102/func", False),
-    ],
-)
-def test_is_bids_entity_dir(path: str, *, expected: bool, adapter: BIDSSchemaAdapter):
-    """Classify paths as BIDS entity directories (or not)."""
-    root_prefixes = get_root_entity_types(adapter)
-    pattern = indexing._compile_entity_dir_pattern(root_prefixes, adapter)
-    assert indexing._is_bids_entity_dir(BIDS_EXAMPLES / path, pattern) == expected
-
-
-@pytest.mark.parametrize(
-    ("path", "expected"),
-    [
         (
             # Basic case.
             "ds102/sub-01/func/sub-01_task-flankertask_run-01_bold.nii.gz",
@@ -489,12 +474,13 @@ def test_index_derivative_without_description(tmp_path: Path):
     # Detected as a dataset despite lacking a description file.
     assert indexing._is_bids_dataset(deriv)
     # Typed as a derivative via the nested-parent heuristic.
-    assert indexing._get_dataset_type(deriv) == "derivative"
+    assert indexing._get_dataset_type(deriv, {}) == "derivative"
 
     table = indexing.index_dataset(deriv)
     assert table.num_rows == 1
     assert table.column("sub").to_pylist() == ["A01"]
     assert table.column("dataset").to_pylist() == ["fmriprep"]
+    assert table.column("dataset_type").to_pylist() == ["derivative"]
 
 
 def test_schema_switch_mid_session_uses_new_schema(tmp_path: Path):
