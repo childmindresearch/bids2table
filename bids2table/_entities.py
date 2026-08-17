@@ -14,6 +14,7 @@ from bids2table._logging import setup_logger
 from bids2table._schema import (
     BIDSSchemaAdapter,
     SchemaSpec,
+    _char_class_for,
     decode_metadata,
     entity_arrow_schema,
     get_entity_directory_order,
@@ -61,10 +62,7 @@ def _build_datatype_pattern(adapter: BIDSSchemaAdapter) -> re.Pattern[str]:
         name = cfg.get("name", entity)
         if name not in dir_names:
             continue
-        fmt = cfg.get("format", "special")
-        char_class = adapter.format_patterns.get(
-            fmt, adapter.format_patterns["special"]
-        )
+        char_class = _char_class_for(adapter, cfg.get("format", "special"))
         alts.append(rf"{name}-{char_class}[/\\]")
     if not alts:
         raise ValueError("No directory entities found in BIDS schema")

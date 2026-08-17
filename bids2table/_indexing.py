@@ -33,6 +33,7 @@ from bids2table._pathlib import CloudPath, PathT, as_path, cloudpathlib_is_avail
 from bids2table._schema import (
     BIDSSchemaAdapter,
     SchemaSpec,
+    _char_class_for,
     _load_from_path,
     entity_arrow_schema,
     get_entity_directory_order,
@@ -63,10 +64,7 @@ def _compile_entity_dir_pattern(
     for prefix in prefixes:
         for cfg in adapter.entity_schema.values():
             if cfg.get("name") == prefix:
-                fmt = cfg.get("format", "special")
-                char_class = adapter.format_patterns.get(
-                    fmt, adapter.format_patterns["special"]
-                )
+                char_class = _char_class_for(adapter, cfg.get("format", "special"))
                 alternates.append(f"{prefix}-{char_class}")
                 break
         else:
@@ -554,13 +552,12 @@ def _find_bids_entity_dirs(
     if include_pattern:
         if isinstance(include_pattern, str):
             include_pattern = [include_pattern]
-        entity_names = {path.name for path in paths}
-        filtered_names = {
-            name
-            for name in entity_names
-            if any(_match_entity_name(name, pat) for pat in include_pattern)
-        }
-        paths = [path for path in paths if path.name in filtered_names]
+        kept = []
+        for path in paths:
+            key, _, value = path.name.partition("-")
+            if any(_match_single(value, key, pat) for pat in include_pattern):
+                kept.append(path)
+        paths = kept
     return paths
 
 
@@ -603,23 +600,6 @@ def _resolve_entity_dirs(
         return dirs
     # Fallback: try all known entity prefixes.
     return _find_bids_entity_dirs(root, entity_prefixes, pattern, include_pattern)
-
-
-def _match_entity_name(name: str, pattern: str) -> bool:
-    """Match an entity directory name against a glob pattern.
-
-    Tries both the bare value (e.g. ``"01"``) and the compound form
-    (e.g. ``"sub-01"``) so that users can specify either style.
-
-    Args:
-        name: Entity directory name (e.g., ``"sub-01"``).
-        pattern: Glob pattern to match against.
-
-    Returns:
-        ``True`` if the name matches the pattern.
-    """
-    _, _, value = name.partition("-")
-    return fnmatch.fnmatch(value, pattern) or fnmatch.fnmatch(name, pattern)
 
 
 def _index_bids_entity_dir(

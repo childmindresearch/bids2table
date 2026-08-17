@@ -181,6 +181,11 @@ def entity_arrow_schema(adapter: BIDSSchemaAdapter) -> pa.Schema:
     return pa.schema(fields, metadata=schema_metadata)
 
 
+def _char_class_for(adapter: BIDSSchemaAdapter, fmt: str) -> str:
+    """Return the character class for a BIDS format name, defaulting to `special`."""
+    return adapter.format_patterns.get(fmt, adapter.format_patterns["special"])
+
+
 def get_dataset_types(adapter: BIDSSchemaAdapter) -> tuple[str, ...]:
     """Return the dataset types defined by the BIDS schema.
 
