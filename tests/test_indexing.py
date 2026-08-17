@@ -514,38 +514,27 @@ def test_batch_index_dataset_with_filters(tmp_path: Path):
     assert all(len(t) == 1 for t in tables)
 
 
-def test_bidsignore_excludes_matching_files(tmp_path: Path):
+def test_bidsignore_excludes_matching_files(bidsignore_dataset: Path):
     """Files matching .bidsignore patterns are excluded from the index."""
-    ds = tmp_path / "ds"
-    (ds / "sub-A01" / "anat").mkdir(parents=True)
-    (ds / "dataset_description.json").write_text('{"Name": "ds"}')
-    (ds / "sub-A01" / "anat" / "sub-A01_T1w.nii.gz").touch()
-    (ds / "sub-A01" / "anat" / "sub-A01_bold.nii.gz").touch()
-    (ds / ".bidsignore").write_text("# ignore bold files\nsub-A01_*bold*\n")
-    table = indexing.index_dataset(ds)
+    (bidsignore_dataset / ".bidsignore").write_text(
+        "# ignore bold files\nsub-A01_*bold*\n"
+    )
+    table = indexing.index_dataset(bidsignore_dataset)
     assert len(table) == 1
     assert table["path"][0].as_py() == "sub-A01/anat/sub-A01_T1w.nii.gz"
 
 
-def test_bidsignore_ignores_comments_and_blanks(tmp_path: Path):
+def test_bidsignore_ignores_comments_and_blanks(bidsignore_dataset: Path):
     """Comments and blank lines in .bidsignore are skipped."""
-    ds = tmp_path / "ds"
-    (ds / "sub-A01" / "anat").mkdir(parents=True)
-    (ds / "dataset_description.json").write_text('{"Name": "ds"}')
-    (ds / "sub-A01" / "anat" / "sub-A01_T1w.nii.gz").touch()
-    (ds / ".bidsignore").write_text("# comment only\n\n   \n")
-    table = indexing.index_dataset(ds)
-    assert len(table) == 1
+    (bidsignore_dataset / ".bidsignore").write_text("# comment only\n\n   \n")
+    table = indexing.index_dataset(bidsignore_dataset)
+    # Both files indexed: a comments/blanks-only .bidsignore excludes nothing.
+    assert len(table) == 2
 
 
-def test_bidsignore_absent_files_included(tmp_path: Path):
+def test_bidsignore_absent_files_included(bidsignore_dataset: Path):
     """All files are indexed when .bidsignore is absent."""
-    ds = tmp_path / "ds"
-    (ds / "sub-A01" / "anat").mkdir(parents=True)
-    (ds / "dataset_description.json").write_text('{"Name": "ds"}')
-    (ds / "sub-A01" / "anat" / "sub-A01_T1w.nii.gz").touch()
-    (ds / "sub-A01" / "anat" / "sub-A01_bold.nii.gz").touch()
-    table = indexing.index_dataset(ds)
+    table = indexing.index_dataset(bidsignore_dataset)
     assert len(table) == 2
 
 
@@ -562,10 +551,9 @@ def test_load_bidsignore_patterns_missing(tmp_path: Path):
     assert patterns == ()
 
 
-def test_is_bidsignored(tmp_path: Path):
+def test_is_bidsignored(bidsignore_dataset: Path):
     """_is_bidsignored matches relative paths against patterns."""
-    ds = tmp_path / "ds"
-    (ds / "sub-A01" / "anat").mkdir(parents=True)
+    ds = bidsignore_dataset
     (ds / ".bidsignore").write_text("sub-A01/*\n")
     assert indexing._is_bidsignored(ds / "sub-A01" / "anat" / "sub-A01_T1w.nii.gz", ds)
     assert not indexing._is_bidsignored(
@@ -573,10 +561,9 @@ def test_is_bidsignored(tmp_path: Path):
     )
 
 
-def test_is_bidsignored_matches_filename(tmp_path: Path):
+def test_is_bidsignored_matches_filename(bidsignore_dataset: Path):
     """Pattern matching the filename works even when the full path doesn't."""
-    ds = tmp_path / "ds"
-    (ds / "sub-A01" / "func").mkdir(parents=True)
+    ds = bidsignore_dataset
     (ds / ".bidsignore").write_text("sub-A01_*bold*\n")
     # Full path is sub-A01/func/sub-A01_bold.nii.gz — pattern matches filename only.
     assert indexing._is_bidsignored(ds / "sub-A01" / "func" / "sub-A01_bold.nii.gz", ds)
