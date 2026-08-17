@@ -248,40 +248,62 @@ def _lookups_from_arrow(
     return name_entity_map, entity_schema
 
 
-def format_bids_path(entities: dict[str, Any], int_format: str = "%d") -> Path:
-    """Construct a formatted BIDS path from entities dict.
+def format_bids_path(
+    entities: dict[str, Any], int_format: str = "%d", schema: SchemaSpec = None
+) -> Path:
+    """Construct a formatted BIDS path from an entities dict.
+
+    Directory entities (e.g. ``sub``, ``ses``, ``tpl``) become path
+    directories and are also repeated in the file name, per the BIDS
+    convention. The special entities are handled by their role: ``datatype``
+    is the innermost directory, while ``suffix`` and ``ext`` are appended to
+    the file name. All other entities are formatted into the file name.
 
     Args:
-        entities: dict mapping BIDS keys to values.
+        entities: dict mapping BIDS entity names to values.
         int_format: format string for integer (index) BIDS values.
+        schema: optional BIDS schema. If ``None``, uses the default schema.
 
     Returns:
         A formatted `Path` instance.
     """
-    special = {"datatype", "suffix", "ext"}
+    adapter = load_bids_schema(schema)
+    return _format_bids_path(entities, int_format, adapter)
 
-    # Formatted key-value entities.
-    entities_fmt = []
+
+def _format_bids_path(
+    entities: dict[str, Any], int_format: str, adapter: BIDSSchemaAdapter
+) -> Path:
+    """Build a BIDS path from entities using a resolved `BIDSSchemaAdapter`."""
+    dir_order = get_entity_directory_order(adapter)
+    special = {
+        cfg.get("name", entity)
+        for entity, cfg in adapter.entity_schema.items()
+        if cfg.get("format") == "special"
+    }
+
+    # File name: all non-special entities ordered per BIDS convention
+    name_parts = []
     for name, value in entities.items():
         if name not in special:
             if isinstance(value, int):
                 value = int_format % value
-            entities_fmt.append(f"{name}-{value}")
-    name = "_".join(entities_fmt)
+            name_parts.append(f"{name}-{value}")
+    name = "_".join(name_parts)
 
-    # Append suffix and extension.
     if suffix := entities.get("suffix"):
         name += f"_{suffix}"
     if ext := entities.get("ext"):
         name += ext
 
-    # Prepend parent directories.
+    # Prepend parent directories, innermost to outermost.
     path = Path(name)
     if datatype := entities.get("datatype"):
-        path = datatype / path
-    if ses := entities.get("ses"):
-        path = f"ses-{ses}" / path
-    return f"sub-{entities['sub']}" / path
+        path = Path(datatype) / path
+    for dir_entity in reversed(dir_order):
+        if dir_entity in entities:
+            path = Path(f"{dir_entity}-{entities[dir_entity]}") / path
+    return path
 
 
 def get_entity_name(entity_type: str, adapter: BIDSSchemaAdapter) -> str | None:
