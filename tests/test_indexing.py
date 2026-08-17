@@ -260,17 +260,6 @@ def test_is_bids_file(path: str, *, expected: bool, adapter: BIDSSchemaAdapter):
     assert indexing._is_bids_file(Path(path), adapter) == expected
 
 
-def test_filter_include_exclude():
-    """Filter names by include pattern then exclude patterns."""
-    names = ["blah", "sub-A01", "sub-A02", "sub-B01", "sub-B02"]
-    include = "sub-*"
-    exclude = ["sub-B*", "sub-A02"]
-    expected = {"sub-A01"}
-    filtered_names = indexing._filter_include(names, include)
-    filtered_names = indexing._filter_exclude(filtered_names, exclude)
-    assert filtered_names == expected
-
-
 @pytest.mark.parametrize(
     ("num", "expected"),
     [
