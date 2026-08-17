@@ -20,6 +20,24 @@ def adapter() -> BIDSSchemaAdapter:
 
 
 @pytest.fixture
+def bidsignore_dataset(tmp_path: Path) -> Path:
+    """Create a minimal BIDS dataset for ``.bidsignore`` filtering tests.
+
+    Contains one subject (``sub-A01``) with two anatomical files:
+    ``sub-A01_T1w.nii.gz`` and ``sub-A01_bold.nii.gz``.
+
+    Returns:
+        The dataset root directory.
+    """
+    ds = tmp_path / "ds"
+    (ds / "sub-A01" / "anat").mkdir(parents=True)
+    (ds / "dataset_description.json").write_text('{"Name": "ds"}')
+    (ds / "sub-A01" / "anat" / "sub-A01_T1w.nii.gz").touch()
+    (ds / "sub-A01" / "anat" / "sub-A01_bold.nii.gz").touch()
+    return ds
+
+
+@pytest.fixture
 def symlink_dataset(tmp_path: Path) -> Path:
     """Create a temporary BIDS dataset with symlinked files and sub-datasets.
 
