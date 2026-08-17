@@ -97,6 +97,16 @@ def test_index_dataset_s3():
     assert len(table) == expected_count
 
 
+@pytest.mark.cloud
+def test_index_dataset_s3_filter():
+    """An entity filter applies when indexing a BIDS dataset stored on S3."""
+    root = "s3://openneuro.org/ds000102"
+    # Full index is 130 files (see test_index_dataset_s3); sub-01 has 5.
+    table = indexing.index_dataset(root, filters={"sub": "01"})
+    assert len(table) == 5
+    assert set(table.column("sub").to_pylist()) == {"01"}
+
+
 def test_index_dataset_parallel():
     """Index a dataset and verify row count (parallel path exercised by test runner)."""
     root, expected_count = "ds102", 130
