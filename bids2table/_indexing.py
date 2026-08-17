@@ -678,7 +678,7 @@ def _index_bids_entity_dir(
         )
 
     for p in paths:
-        if not _is_bids_file(p, adapter=adapter):
+        if not _is_bids_file(p, adapter=adapter) or _is_bidsignored(p, root):
             continue
         entities = _cache_parse_bids_entities(p, adapter)
         valid_entities, extra_entities = _pyarrow_validate_entities(
@@ -701,6 +701,57 @@ def _index_bids_entity_dir(
 
     table = pa.Table.from_pylist(records, schema=schema)
     return entity_value, table
+
+
+@lru_cache
+def _load_bidsignore_patterns(root: str) -> tuple[str, ...]:
+    """Load glob patterns from ``.bidsignore`` at the dataset root.
+
+    Note:
+        Only the root-level ``.bidsignore`` is read; nested ``.bidsignore``
+        files in subdirectories are not searched for.
+
+    Args:
+        root: Dataset root directory (as a string for cache-key stability).
+
+    Returns:
+        A tuple of glob patterns. Empty tuple if ``.bidsignore`` is absent.
+    """
+    bidsignore = as_path(root) / ".bidsignore"
+    if not bidsignore.is_file():
+        return ()
+    patterns = []
+    for line in bidsignore.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        patterns.append(line)
+    return tuple(patterns)
+
+
+def _is_bidsignored(path: PathT, root: PathT) -> bool:
+    """Check if a path matches any ``.bidsignore`` pattern.
+
+    Patterns are matched against both the full relative path and the bare
+    filename, so patterns like ``sub-A01_*bold*`` work even when the file
+    is nested in a datatype directory.
+
+    Args:
+        path: File path to check.
+        root: Dataset root directory.
+
+    Returns:
+        True if the path should be ignored, False otherwise.
+    """
+    patterns = _load_bidsignore_patterns(str(root))
+    if not patterns:
+        return False
+    rel_path = str(path.relative_to(root))  # ty:ignore[invalid-argument-type]
+    filename = path.name
+    return any(
+        fnmatch.fnmatch(rel_path, pattern) or fnmatch.fnmatch(filename, pattern)
+        for pattern in patterns
+    )
 
 
 def _is_bids_file(path: PathT, adapter: BIDSSchemaAdapter) -> bool:
