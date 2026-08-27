@@ -18,11 +18,7 @@ try:
 
 except Exception:
     # Assignment of cloudpath classes if cloudpathlib is unavailable
-    class CloudPath(Path):
-        pass
-
-    class AnyPath(Path):
-        pass
+    AnyPath = CloudPath = Path  # ty:ignore[invalid-assignment] # needed for py311
 
     _CLOUDPATHLIB_AVAILABLE = False
 
