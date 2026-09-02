@@ -28,16 +28,74 @@ _BIDS_FORMAT_PY_TYPE_MAP = {
     "special": str,
 }
 
-# Matches sub-directory after subject ('sub-abc') and (optionally) session ('ses-01')
-# directories. Must be all lowercase.
-_BIDS_DATATYPE_PATTERN = re.compile(
-    r"sub-[a-zA-Z0-9]+(?:[/\\]ses-[a-zA-Z0-9]+)?[/\\]([a-z]+)[/\\]"
-)
-
 _logger = setup_logger(__package__)
 
 
-def parse_bids_entities(path: str | Path) -> dict[str, str]:
+@lru_cache
+def _build_datatype_pattern(adapter: BIDSSchemaAdapter) -> re.Pattern[str]:
+    """Build a regex matching entity directories followed by a datatype directory.
+
+    The datatype is the first non-entity directory in a BIDS path. This pattern
+    matches one or more entity directories (e.g. sub-A01, ses-B02) followed by
+    a datatype directory (e.g. func, anat), capturing the datatype name.
+
+    Note:
+        Directory entities are identified via `get_entity_directory_order`; their
+        value classes come from `adapter.format_patterns`. Only entities that
+        appear in the directory order are included as alternatives.
+
+    Args:
+        adapter: A ``BIDSSchemaAdapter`` with entity and format definitions.
+
+    Returns:
+        A compiled regex that captures the datatype name from a BIDS path.
+
+    Raises:
+        ValueError: If the schema contains no directory entities.
+    """
+    dir_names = set(get_entity_directory_order(adapter))
+    alts = []
+    for entity, cfg in adapter.entity_schema.items():
+        if entity in ("datatype", "suffix", "extension"):
+            continue
+        name = cfg.get("name", entity)
+        if name not in dir_names:
+            continue
+        fmt = cfg.get("format", "special")
+        char_class = adapter.format_patterns.get(
+            fmt, adapter.format_patterns["special"]
+        )
+        alts.append(rf"{name}-{char_class}[/\\]")
+    if not alts:
+        raise ValueError("No directory entities found in BIDS schema")
+    return re.compile(rf"(?:{'|'.join(alts)})+([a-z]+)[/\\]")
+
+
+def _parse_bids_datatype(path: Path, adapter: BIDSSchemaAdapter) -> str | None:
+    """Parse BIDS datatype from file path.
+
+    Uses `re.search`, so the entity-directory + datatype pattern can appear
+    anywhere in the path (e.g. after a dataset name prefix).
+
+    Args:
+        path: BIDS file path.
+        adapter: A ``BIDSSchemaAdapter`` for building the datatype pattern.
+
+    Returns:
+        The datatype name, or ``None`` if not found.
+
+    Raises:
+        ValueError: If the schema contains no directory entities (propagated
+            from `_build_datatype_pattern`).
+    """
+    pattern = _build_datatype_pattern(adapter)
+    match = pattern.search(str(path))
+    return match.group(1) if match is not None else None
+
+
+def parse_bids_entities(
+    path: str | Path, *, schema: SchemaSpec = None
+) -> dict[str, str]:
     """Parse entities from BIDS file path.
 
     Parses all BIDS filename `"{key}-{value}"` entities as well as special entities:
@@ -45,18 +103,45 @@ def parse_bids_entities(path: str | Path) -> dict[str, str]:
 
     Args:
         path: BIDS path to parse.
+        schema: Optional BIDS schema. If ``None``, uses the default schema.
 
     Returns:
         A dict mapping BIDS entity keys to values.
+
+    Raises:
+        TypeError: If `schema` is not a valid `SchemaSpec`.
+        ValueError: If the schema contains no directory entities.
     """
     if isinstance(path, str):
         path = Path(path)
-    entities = {}
+    adapter = load_bids_schema(schema)
+    return _cache_parse_bids_entities(path, adapter)
+
+
+@lru_cache
+def _cache_parse_bids_entities(
+    path: Path, adapter: BIDSSchemaAdapter | None = None
+) -> dict[str, str]:
+    """Cached entity parsing.
+
+    Args:
+        path: BIDS file path.
+        adapter: Optional ``BIDSSchemaAdapter``. If ``None``, uses the default schema.
+
+    Returns:
+        A dict mapping BIDS entity keys to values.
+
+    Raises:
+        ValueError: If the schema contains no directory entities.
+    """
+    if adapter is None:
+        adapter = load_bids_schema()
+    entities: dict[str, str] = {}
 
     filename = path.name
     parts = filename.split("_")
 
-    datatype = _parse_bids_datatype(path)
+    datatype = _parse_bids_datatype(path, adapter)
 
     # Get suffix and extension.
     suffix_ext = parts.pop()
@@ -84,25 +169,8 @@ def parse_bids_entities(path: str | Path) -> dict[str, str]:
     return entities
 
 
-# Version with caching to use internally. Decorating the public function loses the
-# docstring.
-_cache_parse_bids_entities = lru_cache(parse_bids_entities)
-
-
-def _parse_bids_datatype(path: Path) -> str | None:
-    """Parse BIDS datatype from file path.
-
-    Datatype is assumed to be the name of the sub-directory after the subject and
-    (optionally) session directories. Returns `None` if no match found.
-    """
-    match = re.search(_BIDS_DATATYPE_PATTERN, str(path))
-    return match.group(1) if match is not None else None
-
-
 def validate_bids_entities(
-    entities: dict[str, Any],
-    *,
-    schema: SchemaSpec = None,
+    entities: dict[str, Any], *, schema: SchemaSpec = None
 ) -> tuple[dict[str, BIDSValue], dict[str, Any]]:
     """Validate BIDS entities against a BIDS schema.
 
@@ -122,9 +190,7 @@ def validate_bids_entities(
 
 
 def _pyarrow_validate_entities(
-    entities: dict[str, Any],
-    *,
-    pa_schema: pa.Schema,
+    entities: dict[str, Any], *, pa_schema: pa.Schema
 ) -> tuple[dict[str, BIDSValue], dict[str, Any]]:
     """Pyarrow-tier validation. Workers call this directly with a `pa.Schema`."""
     name_to_entity, entity_cfg = _lookups_from_arrow(pa_schema)

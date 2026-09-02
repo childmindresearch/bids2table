@@ -10,6 +10,8 @@ import bids2table._indexing as indexing
 import bidsschematools.schema
 import pyarrow as pa
 import pytest
+from bids2table._entities import get_root_entity_types
+from bids2table._schema import BIDSSchemaAdapter
 
 BIDS_EXAMPLES = Path(__file__).parents[1] / "bids-examples"
 
@@ -106,8 +108,8 @@ def test_index_dataset_parallel():
     [
         # Not a bids dataset.
         ("tools", "not a valid BIDS"),
-        # Has dataset_description.json but no valid subject dirs.
-        ("ieeg_epilepsy/derivatives/brainvisa", "no matching subject"),
+        # Has dataset_description.json but no valid entity dirs.
+        ("ieeg_epilepsy/derivatives/brainvisa", "no matching entity"),
     ],
 )
 def test_index_dataset_warns(path: str, msg: str, caplog: pytest.LogCaptureFixture):
@@ -126,7 +128,10 @@ def test_batch_index_dataset(max_workers: int):
         datasets, max_workers=max_workers, show_progress=False
     )
     table = pa.concat_tables(tables)
-    assert len(table) == 9727
+    # NOTE: count may change as BIDS schema evolves and entity-generic
+    # discovery finds more entity types (tpl, cohort, sample, etc.).
+    # Also reflects .bidsignore filtering (5 datasets have .bidsignore files).
+    assert len(table) == 9616
 
 
 @pytest.mark.parametrize("ds_name", ["dataset", "dataset2", "dataset3"])
@@ -147,12 +152,14 @@ def test_indexing_on_symlinks(symlink_dataset: Path, ds_name: str):
         ("synthetic/derivatives/fmriprep/sub-02", "synthetic/derivatives/fmriprep"),
     ],
 )
-def test_get_bids_dataset(path: str, expected_name: str):
+def test_get_bids_dataset(path: str, expected_name: str, adapter: BIDSSchemaAdapter):
     """Resolve the BIDS dataset name and root for nested/flat paths."""
     name, dataset_path = indexing._get_bids_dataset(BIDS_EXAMPLES / path)
     assert name == expected_name
     assert dataset_path is not None
-    assert indexing._contains_bids_subject_dirs(dataset_path)
+    root_prefixes = get_root_entity_types(adapter)
+    pattern = indexing._compile_entity_dir_pattern(root_prefixes, adapter)
+    assert indexing._contains_bids_entity_dirs(dataset_path, root_prefixes, pattern)
 
 
 @pytest.mark.parametrize(
@@ -164,14 +171,22 @@ def test_get_bids_dataset(path: str, expected_name: str):
         ("ds102", ["sub-01", "sub-02", "sub-05"], 3),
     ],
 )
-def test_find_bids_subject_dirs(
-    path: str, include_subjects: str | list[str] | None, expected_count: int
+def test_find_bids_entity_dirs(
+    path: str,
+    include_subjects: str | list[str] | None,
+    expected_count: int,
+    adapter: BIDSSchemaAdapter,
 ):
-    """Find subject directories with optional inclusion filters."""
-    subject_dirs = indexing._find_bids_subject_dirs(
-        BIDS_EXAMPLES / path, include_subjects
+    """Find entity directories with optional inclusion filters."""
+    root_prefixes = get_root_entity_types(adapter)
+    pattern = indexing._compile_entity_dir_pattern(root_prefixes, adapter)
+    entity_dirs = indexing._find_bids_entity_dirs(
+        BIDS_EXAMPLES / path,
+        root_prefixes,
+        pattern,
+        include_subjects,
     )
-    assert len(subject_dirs) == expected_count
+    assert len(entity_dirs) == expected_count
 
 
 @pytest.mark.parametrize(
@@ -182,9 +197,11 @@ def test_find_bids_subject_dirs(
         ("eeg_face13/sub-010", 5),
     ],
 )
-def test_index_subject_dir(path: str, expected_count: int):
-    """Index a single subject directory and assert the expected file count."""
-    _, table = indexing._index_bids_subject_dir(BIDS_EXAMPLES / path)
+def test_index_entity_dir(path: str, expected_count: int, adapter: BIDSSchemaAdapter):
+    """Index a single entity directory and assert the expected file count."""
+    _, table = indexing._index_bids_entity_dir(
+        BIDS_EXAMPLES / path, entity_prefix="sub", adapter=adapter
+    )
     assert len(table) == expected_count
 
 
@@ -192,11 +209,15 @@ def test_index_subject_dir(path: str, expected_count: int):
     ("path", "expected"),
     [
         ("ieeg_epilepsyNWB/derivatives/brainvisa/sub-01_ses-pre", False),
+        ("ds102/sub-03", True),
+        ("ds102/func", False),
     ],
 )
-def test_is_bids_subject_dir(path: str, *, expected: bool):
-    """Classify paths as BIDS subject directories (or not)."""
-    assert indexing._is_bids_subject_dir(BIDS_EXAMPLES / path) == expected
+def test_is_bids_entity_dir(path: str, *, expected: bool, adapter: BIDSSchemaAdapter):
+    """Classify paths as BIDS entity directories (or not)."""
+    root_prefixes = get_root_entity_types(adapter)
+    pattern = indexing._compile_entity_dir_pattern(root_prefixes, adapter)
+    assert indexing._is_bids_entity_dir(BIDS_EXAMPLES / path, pattern) == expected
 
 
 @pytest.mark.parametrize(
@@ -234,9 +255,9 @@ def test_is_bids_subject_dir(path: str, *, expected: bool):
         ),
     ],
 )
-def test_is_bids_file(path: str, *, expected: bool):
+def test_is_bids_file(path: str, *, expected: bool, adapter: BIDSSchemaAdapter):
     """Classify paths as BIDS data files (or sidecars/directories)."""
-    assert indexing._is_bids_file(Path(path)) == expected
+    assert indexing._is_bids_file(Path(path), adapter) == expected
 
 
 def test_filter_include_exclude():
@@ -447,9 +468,6 @@ def test_index_dataset_new_columns_missing(tmp_path: Path):
     assert table["dataset_name"][0].as_py() is None
 
 
-# --- clear_schema_caches ---
-
-
 def test_clear_schema_caches():
     """Calling clear_schema_caches clears the relevant caches."""
     indexing._get_bids_dataset.cache_clear()
@@ -491,3 +509,61 @@ def test_batch_index_dataset_with_filters(tmp_path: Path):
     )
     # Each dataset has 1 file matching task=rest.
     assert all(len(t) == 1 for t in tables)
+
+
+def test_bidsignore_excludes_matching_files(bidsignore_dataset: Path):
+    """Files matching .bidsignore patterns are excluded from the index."""
+    (bidsignore_dataset / ".bidsignore").write_text(
+        "# ignore bold files\nsub-A01_*bold*\n"
+    )
+    table = indexing.index_dataset(bidsignore_dataset)
+    assert len(table) == 1
+    assert table["path"][0].as_py() == "sub-A01/anat/sub-A01_T1w.nii.gz"
+
+
+def test_bidsignore_ignores_comments_and_blanks(bidsignore_dataset: Path):
+    """Comments and blank lines in .bidsignore are skipped."""
+    (bidsignore_dataset / ".bidsignore").write_text("# comment only\n\n   \n")
+    table = indexing.index_dataset(bidsignore_dataset)
+    # Both files indexed: a comments/blanks-only .bidsignore excludes nothing.
+    assert len(table) == 2
+
+
+def test_bidsignore_absent_files_included(bidsignore_dataset: Path):
+    """All files are indexed when .bidsignore is absent."""
+    table = indexing.index_dataset(bidsignore_dataset)
+    assert len(table) == 2
+
+
+def test_load_bidsignore_patterns(tmp_path: Path):
+    """_load_bidsignore_patterns returns patterns, skipping blanks and comments."""
+    (tmp_path / ".bidsignore").write_text("# comment\n\nsub-01/*\n*.html\n")
+    patterns = indexing._load_bidsignore_patterns(str(tmp_path))
+    assert patterns == ("sub-01/*", "*.html")
+
+
+def test_load_bidsignore_patterns_missing(tmp_path: Path):
+    """_load_bidsignore_patterns returns empty tuple when .bidsignore is absent."""
+    patterns = indexing._load_bidsignore_patterns(str(tmp_path))
+    assert patterns == ()
+
+
+def test_is_bidsignored(bidsignore_dataset: Path):
+    """_is_bidsignored matches relative paths against patterns."""
+    ds = bidsignore_dataset
+    (ds / ".bidsignore").write_text("sub-A01/*\n")
+    assert indexing._is_bidsignored(ds / "sub-A01" / "anat" / "sub-A01_T1w.nii.gz", ds)
+    assert not indexing._is_bidsignored(
+        ds / "sub-A02" / "anat" / "sub-A02_T1w.nii.gz", ds
+    )
+
+
+def test_is_bidsignored_matches_filename(bidsignore_dataset: Path):
+    """Pattern matching the filename works even when the full path doesn't."""
+    ds = bidsignore_dataset
+    (ds / ".bidsignore").write_text("sub-A01_*bold*\n")
+    # Full path is sub-A01/func/sub-A01_bold.nii.gz — pattern matches filename only.
+    assert indexing._is_bidsignored(ds / "sub-A01" / "func" / "sub-A01_bold.nii.gz", ds)
+    assert not indexing._is_bidsignored(
+        ds / "sub-A01" / "func" / "sub-A01_T1w.nii.gz", ds
+    )
