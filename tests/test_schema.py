@@ -13,6 +13,9 @@ from bids2table._schema import (
     decode_metadata,
     encode_metadata,
     entity_arrow_schema,
+    get_dataset_types,
+    get_entity_directory_order,
+    get_json_data_suffixes,
     load_bids_schema,
 )
 
@@ -256,3 +259,95 @@ def test_get_column_names_accepts_schema_kwarg():
     ns = bidsschematools.schema.load_schema()
     cols = get_column_names(schema=ns)
     assert any(c.value == "sub" for c in cols)
+
+
+def test_adapter_rules_are_populated():
+    """The adapter ``rules`` field contains ``schema.rules.to_dict()``."""
+    adapter = load_bids_schema()
+    assert "directories" in adapter.rules
+    assert "files" in adapter.rules
+    assert "entities" in adapter.rules
+
+
+def test_format_patterns_contains_entity_formats():
+    """``format_patterns`` holds label, index, and special patterns."""
+    adapter = load_bids_schema()
+    assert "label" in adapter.format_patterns
+    assert "+" in adapter.format_patterns["label"]
+    assert adapter.format_patterns["index"] == "[0-9]+"
+    assert adapter.format_patterns["special"] == ".+"
+
+
+def test_get_dataset_types():
+    """``get_dataset_types`` returns the dataset type keys from the schema."""
+    adapter = load_bids_schema()
+    types = get_dataset_types(adapter)
+    assert isinstance(types, tuple)
+    assert set(types) == {"study", "raw", "derivative"}
+
+
+@pytest.mark.parametrize(
+    "suffix",
+    [
+        # Originally hardcoded — must still be present.
+        "coordsystem",
+        # Text-only suffixes (only .json/.tsv extensions).
+        "scans",
+        "sessions",
+        "events",
+        "beh",
+    ],
+)
+def test_get_json_data_suffixes_includes(suffix: str):
+    """Included suffixes (JSON data files, not sidecars)."""
+    adapter = load_bids_schema()
+    suffixes = get_json_data_suffixes(adapter)
+    assert suffix in suffixes
+
+
+@pytest.mark.parametrize(
+    "suffix",
+    [
+        # Imaging suffixes (.nii.gz alongside .json → sidecars, not data).
+        "bold",
+        "T1w",
+        "dwi",
+        "func",
+    ],
+)
+def test_get_json_data_suffixes_excludes(suffix: str):
+    """Excluded suffixes (paired with binary extensions)."""
+    adapter = load_bids_schema()
+    suffixes = get_json_data_suffixes(adapter)
+    assert suffix not in suffixes
+
+
+def test_get_entity_directory_order_returns_deque():
+    """``get_entity_directory_order`` returns a ``collections.deque``."""
+    from collections import deque
+
+    adapter = load_bids_schema()
+    order = get_entity_directory_order(adapter)
+    assert isinstance(order, deque)
+
+
+def test_get_entity_directory_order_includes_subject_first():
+    """Subject (``sub``) is the outermost directory entity."""
+    adapter = load_bids_schema()
+    order = get_entity_directory_order(adapter)
+    assert order[0] == "sub"
+
+
+@pytest.mark.parametrize("prefix", ["sub", "ses", "tpl", "cohort"])
+def test_get_entity_directory_order_contains_expected_entities(prefix: str):
+    """Directory entity prefixes appear in the BFS order."""
+    adapter = load_bids_schema()
+    order = get_entity_directory_order(adapter)
+    assert prefix in order
+
+
+def test_get_entity_directory_order_subject_before_session():
+    """Subject appears before session in the nesting order."""
+    adapter = load_bids_schema()
+    order = get_entity_directory_order(adapter)
+    assert list(order).index("sub") < list(order).index("ses")
