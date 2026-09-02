@@ -4,6 +4,7 @@ import argparse
 import concurrent.futures
 import glob
 import sys
+import warnings
 
 import pyarrow.parquet as pq
 
@@ -34,7 +35,27 @@ def main() -> None:
         nargs="+",
         default=None,
         help="List of subject names or glob patterns to only include in the index.  "
-        "Only applies when indexing a single dataset.",
+        "Only applies when indexing a single dataset.  "
+        "(Deprecated — use --filter sub=... instead.)",
+    )
+    parser_index.add_argument(
+        "--filter",
+        "-f",
+        metavar="ENTITY=PATTERN",
+        type=str,
+        action="append",
+        default=[],
+        help="Filter files by entity key and value pattern. "
+        "Syntax: ENTITY=PATTERN (e.g. --filter task=rest, --filter run=01). "
+        "Repeat for multiple filters.",
+    )
+    parser_index.add_argument(
+        "--schema",
+        metavar="SCHEMA",
+        type=str,
+        default=None,
+        help="Path to a directory containing BIDS schema YAML files or a YAML file. "
+        "If not provided, uses the bundled default schema.",
     )
     parser_index.add_argument(
         "--workers",
@@ -106,12 +127,45 @@ def main() -> None:
         parser.print_help()
 
 
+def _parse_filters(filter_args: list[str]) -> dict[str, list[str]]:
+    """Parse ``--filter`` arguments into a dict of key → [patterns].
+
+    Each argument must be of the form ``KEY=PATTERN``. Malformed arguments
+    are logged and skipped.
+    """
+    filters: dict[str, list[str]] = {}
+    for arg in filter_args:
+        if "=" not in arg:
+            _logger.warning(
+                "Skipping malformed filter argument: %r (expected ENTITY=PATTERN).", arg
+            )
+            continue
+        key, _, pattern = arg.partition("=")
+        filters.setdefault(key, []).append(pattern)
+    return filters
+
+
+def _normalize_filters(
+    filters: dict[str, list[str]],
+) -> dict[str, str | list[str]]:
+    """Normalize a filter dict: single-item lists become bare strings."""
+    return {k: v[0] if len(v) == 1 else v for k, v in filters.items()}
+
+
 def _index_command(args: argparse.Namespace) -> None:
-    for path in args.root:
-        _check_path(path)
+    filters = _parse_filters(args.filter)
+
+    if args.subjects is not None:
+        warnings.warn(
+            "The --subjects flag is deprecated; use --filter sub=... instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        filters.setdefault("sub", []).extend(args.subjects)
 
     root = []
     for path in args.root:
+        _check_path(path)
         if glob.has_magic(path):
             path = as_path(path)
             paths = list(path.parent.glob(path.name))
@@ -120,7 +174,9 @@ def _index_command(args: argparse.Namespace) -> None:
             root.append(path)
 
     if len(root) == 1:
-        table = b2t2.index_dataset(root[0], include_subjects=args.subjects)
+        table = b2t2.index_dataset(
+            root[0], filters=_normalize_filters(filters) or None, schema=args.schema
+        )
         pq.write_table(table, args.output)
     else:
         # Logic to hand in piped in datasets / no datasets
@@ -138,13 +194,15 @@ def _index_command(args: argparse.Namespace) -> None:
         else:
             executor_cls = concurrent.futures.ProcessPoolExecutor
 
-        schema = b2t2.get_arrow_schema()
+        schema = b2t2.get_arrow_schema(schema=args.schema)
         with pq.ParquetWriter(args.output, schema=schema) as writer:
             for table in b2t2.batch_index_dataset(
                 list(root),
                 max_workers=max_workers,
                 executor_cls=executor_cls,
+                filters=_normalize_filters(filters) or None,
                 show_progress=not args.no_progress,
+                schema=args.schema,
             ):
                 writer.write_table(table)
 
