@@ -181,6 +181,11 @@ def entity_arrow_schema(adapter: BIDSSchemaAdapter) -> pa.Schema:
     return pa.schema(fields, metadata=schema_metadata)
 
 
+def _char_class_for(adapter: BIDSSchemaAdapter, fmt: str) -> str:
+    """Return the character class for a BIDS format name, defaulting to `special`."""
+    return adapter.format_patterns.get(fmt, adapter.format_patterns["special"])
+
+
 def get_dataset_types(adapter: BIDSSchemaAdapter) -> tuple[str, ...]:
     """Return the dataset types defined by the BIDS schema.
 
@@ -224,7 +229,6 @@ def get_json_data_suffixes(adapter: BIDSSchemaAdapter) -> frozenset[str]:
     _collect(adapter.rules.get("files"))
     _collect(adapter.rules.get("tabular_data"))
 
-    # JSON data files: extensions subset of {.json, .tsv}.
     _text_exts: frozenset[str] = frozenset({".json", ".tsv"})
     return frozenset(
         suffix

@@ -153,6 +153,7 @@ def _normalize_filters(
 
 
 def _index_command(args: argparse.Namespace) -> None:
+    """Handle the ``index`` subcommand: index one or more datasets to parquet."""
     filters = _parse_filters(args.filter)
 
     if args.subjects is not None:
@@ -179,15 +180,12 @@ def _index_command(args: argparse.Namespace) -> None:
         )
         pq.write_table(table, args.output)
     else:
-        # Logic to hand in piped in datasets / no datasets
         if len(root) == 0 and not sys.stdin.isatty():
-            # read datasets from stdin, one per line
             root = (line.strip() for line in sys.stdin if line.strip())
         elif len(root) == 0:
             _logger.error("No datasets to index given; exiting.")
             sys.exit(1)
 
-        # Set up for parallelism
         max_workers = None if args.workers == -1 else args.workers
         if args.use_threads:
             executor_cls = concurrent.futures.ThreadPoolExecutor
@@ -208,6 +206,7 @@ def _index_command(args: argparse.Namespace) -> None:
 
 
 def _find_command(args: argparse.Namespace) -> None:
+    """Handle the ``find`` subcommand: log every BIDS dataset found under a root."""
     _check_path(args.root)
 
     for dataset in b2t2.find_bids_datasets(
@@ -219,6 +218,7 @@ def _find_command(args: argparse.Namespace) -> None:
 
 
 def _check_path(path: str) -> None:
+    """Exit early if ``path`` is a cloud path but ``cloudpathlib`` is unavailable."""
     if path.startswith(("s3://", "gs://")) and not b2t2.cloudpathlib_is_available():
         _logger.error(
             "Cloudpathlib is required to use cloud paths. "

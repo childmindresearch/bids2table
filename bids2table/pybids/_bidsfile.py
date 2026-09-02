@@ -16,7 +16,7 @@ class BIDSFile:
     Entities are lazily parsed and cached on first access.
 
     Example:
-        >>> from bids2table_compat import BIDSFile
+        >>> from bids2table.pybids import BIDSFile
         >>> f = BIDSFile('sub-01/func/sub-01_task-rest_bold.nii.gz')
         >>> entities = f.get_entities()
         >>> print(entities)
@@ -24,11 +24,7 @@ class BIDSFile:
     """
 
     def __init__(self, path: str) -> None:
-        """Initialize BIDSFile.
-
-        Args:
-            path: Path to BIDS file (absolute or relative)
-        """
+        """Initialize a BIDSFile from a path (absolute or relative)."""
         self.path = str(path)
         self._entities: dict[str, Any] | None = None
 

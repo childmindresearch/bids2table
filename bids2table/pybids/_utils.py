@@ -13,36 +13,29 @@ class Query(Enum):
     ANY = auto()  # Match any value (don't filter)
 
     def __repr__(self) -> str:
+        """String representation of the query."""
         return "Query"
 
 
 def listify(obj: Any) -> list:  # noqa: ANN401 - passed object can be anything
     """Convert an object to a list if it isn't already one.
 
-    This is a PyBIDS utility function that niworkflows and other packages use.
+    PyBIDS utility function that niworkflows and other packages depend on.
 
-    Parameters
-    ----------
-    obj : Any
-        Object to convert to list
+    Args:
+        obj: Object to convert. ``None`` becomes an empty list; a list or tuple
+            is returned as a list; anything else is wrapped in a one-element list.
 
     Returns:
-    -------
-    list
-        If obj is None, returns empty list
-        If obj is already a list/tuple, returns as list
-        Otherwise returns [obj]
+        A list (possibly empty) containing the object.
 
     Examples:
-    --------
-    >>> listify(None)
-    []
-    >>> listify("test")
-    ['test']
-    >>> listify(["a", "b"])
-    ['a', 'b']
-    >>> listify(("a", "b"))
-    ['a', 'b']
+        >>> listify(None)
+        []
+        >>> listify("test")
+        ['test']
+        >>> listify(["a", "b"])
+        ['a', 'b']
     """
     if obj is None:
         return []
