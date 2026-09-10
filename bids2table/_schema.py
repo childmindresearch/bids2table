@@ -198,6 +198,7 @@ def get_dataset_types(adapter: BIDSSchemaAdapter) -> tuple[str, ...]:
     return tuple(adapter.rules["directories"].keys())
 
 
+@lru_cache
 def get_json_data_suffixes(adapter: BIDSSchemaAdapter) -> frozenset[str]:
     """Return suffixes whose JSON files are actual data, not sidecar metadata.
 
@@ -237,6 +238,7 @@ def get_json_data_suffixes(adapter: BIDSSchemaAdapter) -> frozenset[str]:
     )
 
 
+@lru_cache
 def get_entity_directory_order(adapter: BIDSSchemaAdapter) -> deque[str]:
     """Return entity prefixes ordered by directory nesting depth.
 

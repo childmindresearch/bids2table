@@ -277,6 +277,7 @@ def get_root_entity_types(adapter: BIDSSchemaAdapter) -> tuple[str, ...]:
     return tuple(prefix for prefix in ("sub", "tpl") if prefix in order)
 
 
+@lru_cache
 def get_file_entity_prefixes(adapter: BIDSSchemaAdapter) -> tuple[str, ...]:
     """Return entity prefixes valid in filenames (non-directory, non-special).
 

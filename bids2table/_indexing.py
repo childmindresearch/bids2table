@@ -157,6 +157,9 @@ def clear_schema_caches() -> None:
     _get_bids_dataset.cache_clear()
     _load_bidsignore_patterns.cache_clear()
     _read_dataset_description.cache_clear()
+    get_entity_directory_order.cache_clear()
+    get_json_data_suffixes.cache_clear()
+    get_file_entity_prefixes.cache_clear()
 
 
 def get_arrow_schema(*, schema: SchemaSpec | BIDSSchemaAdapter = None) -> pa.Schema:
