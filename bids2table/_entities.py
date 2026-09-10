@@ -231,13 +231,6 @@ def format_bids_path(
         A formatted `Path` instance.
     """
     adapter = load_bids_schema(schema)
-    return _format_bids_path(entities, int_format, adapter)
-
-
-def _format_bids_path(
-    entities: dict[str, Any], int_format: str, adapter: BIDSSchemaAdapter
-) -> Path:
-    """Build a BIDS path from entities using a resolved `BIDSSchemaAdapter`."""
     dir_order = get_entity_directory_order(adapter)
     special = {
         cfg.get("name", entity)
