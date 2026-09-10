@@ -234,6 +234,7 @@ def find_bids_datasets(
         Root paths of all BIDS datasets under `root`.
     """
     root = as_path(root)
+    adapter = load_bids_schema(schema)
 
     if isinstance(exclude, str):
         exclude = [exclude]
@@ -244,7 +245,7 @@ def find_bids_datasets(
     entry_count = 1
     ds_count = 0
 
-    if _is_bids_dataset(root, schema):
+    if _is_bids_dataset(root, adapter):
         ds_count += 1
         yield root
 
@@ -253,7 +254,7 @@ def find_bids_datasets(
     while stack:
         top, depth = stack.pop()
 
-        inside_bids = _is_bids_dataset(top, schema)
+        inside_bids = _is_bids_dataset(top, adapter)
         depth += 1
 
         for entry in top.iterdir():
@@ -262,7 +263,7 @@ def find_bids_datasets(
             if any(re.fullmatch(pat, entry.name) for pat in exclude_patterns):
                 continue
 
-            if _is_bids_dataset(entry, schema):
+            if _is_bids_dataset(entry, adapter):
                 ds_count += 1
                 yield entry
 
@@ -459,7 +460,7 @@ def _get_dataset_type(root: PathT, desc: dict[str, Any]) -> str:
 
 
 @lru_cache
-def _is_bids_dataset(path: PathT, schema: SchemaSpec = None) -> bool:
+def _is_bids_dataset(path: PathT, adapter: BIDSSchemaAdapter | None = None) -> bool:
     """Test if a path is a BIDS dataset root directory."""
     # BIDS datasets should not contain a file extension.
     if path.suffix:
@@ -468,7 +469,8 @@ def _is_bids_dataset(path: PathT, schema: SchemaSpec = None) -> bool:
     if path.name.startswith("."):
         return False
 
-    adapter = load_bids_schema(schema)
+    if adapter is None:
+        adapter = load_bids_schema()
     root_prefixes = get_root_entity_types(adapter)
     pattern = _compile_entity_dir_pattern(root_prefixes, adapter)
 
