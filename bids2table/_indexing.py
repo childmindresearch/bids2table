@@ -33,7 +33,7 @@ from bids2table._pathlib import CloudPath, PathT, as_path, cloudpathlib_is_avail
 from bids2table._schema import (
     BIDSSchemaAdapter,
     SchemaSpec,
-    _char_class_for,
+    _entity_dir_alternate,
     _load_from_path,
     entity_arrow_schema,
     get_entity_directory_order,
@@ -52,15 +52,11 @@ def _compile_entity_dir_pattern(
     prefixes: tuple[str, ...], adapter: BIDSSchemaAdapter
 ) -> re.Pattern[str]:
     """Compile a regex matching ``prefix-value`` for the given entity-dir prefixes."""
-    alternates = []
-    for prefix in prefixes:
-        for cfg in adapter.entity_schema.values():
-            if cfg.get("name") == prefix:
-                char_class = _char_class_for(adapter, cfg.get("format", "special"))
-                alternates.append(f"{prefix}-{char_class}")
-                break
-        else:
-            alternates.append(f"{prefix}-[a-zA-Z0-9]+")
+    alternates = [
+        alt
+        for prefix in prefixes
+        if (alt := _entity_dir_alternate(adapter, prefix)) is not None
+    ]
     return re.compile("|".join(f"({a})" for a in alternates))
 
 

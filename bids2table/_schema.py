@@ -186,6 +186,14 @@ def _char_class_for(adapter: BIDSSchemaAdapter, fmt: str) -> str:
     return adapter.format_patterns.get(fmt, adapter.format_patterns["special"])
 
 
+def _entity_dir_alternate(adapter: BIDSSchemaAdapter, name: str) -> str | None:
+    """Return the ``name-{char_class}`` regex alternate for ``name``, else None."""
+    for cfg in adapter.entity_schema.values():
+        if cfg.get("name") == name:
+            return f"{name}-{_char_class_for(adapter, cfg.get('format', 'special'))}"
+    return None
+
+
 def get_dataset_types(adapter: BIDSSchemaAdapter) -> tuple[str, ...]:
     """Return the dataset types defined by the BIDS schema.
 
