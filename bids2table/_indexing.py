@@ -517,12 +517,10 @@ def _find_bids_entity_dirs(
     ]
 
     if include_pattern:
-        if isinstance(include_pattern, str):
-            include_pattern = [include_pattern]
         kept = []
         for path in paths:
             key, _, value = path.name.partition("-")
-            if any(_match_single(value, key, pat) for pat in include_pattern):
+            if _match_filters({key: value}, {key: include_pattern}):
                 kept.append(path)
         paths = kept
     return paths
