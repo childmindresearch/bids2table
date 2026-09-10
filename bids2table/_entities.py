@@ -281,13 +281,7 @@ def get_root_entity_types(adapter: BIDSSchemaAdapter) -> tuple[str, ...]:
         A tuple of prefix strings (e.g., ``("sub", "tpl")``).
     """
     order = get_entity_directory_order(adapter)
-    roots: set[str] = set()
-    for prefix in order:
-        if prefix in roots:
-            continue
-        if prefix in ("sub", "tpl"):
-            roots.add(prefix)
-    return tuple(sorted(roots))
+    return tuple(prefix for prefix in ("sub", "tpl") if prefix in order)
 
 
 def get_file_entity_prefixes(adapter: BIDSSchemaAdapter) -> tuple[str, ...]:
