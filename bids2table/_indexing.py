@@ -536,14 +536,9 @@ def _resolve_entity_dirs(
 ) -> list[PathT]:
     """Resolve the entity dirs for a dataset root.
 
-    Tries the primary root prefixes (e.g. ``sub``, ``tpl``) first, falling back
-    to all known entity prefixes if none match.
+    Matches the primary root entity prefixes (e.g. ``sub``, ``tpl``).
     """
     root_prefixes = get_root_entity_types(adapter)
-    entity_prefixes = tuple(
-        frozenset(get_entity_directory_order(adapter))
-        | frozenset(get_file_entity_prefixes(adapter))
-    )
     pattern = _compile_entity_dir_pattern(root_prefixes, adapter)
     # Extract include pattern for the primary entity key from filters.
     include_pattern = None
@@ -552,12 +547,7 @@ def _resolve_entity_dirs(
             if prefix in filters:
                 include_pattern = filters[prefix]
                 break
-    # Try primary root entity prefixes.
-    dirs = _find_bids_entity_dirs(root, root_prefixes, pattern, include_pattern)
-    if dirs:
-        return dirs
-    # Fallback: try all known entity prefixes.
-    return _find_bids_entity_dirs(root, entity_prefixes, pattern, include_pattern)
+    return _find_bids_entity_dirs(root, root_prefixes, pattern, include_pattern)
 
 
 def _index_bids_entity_dir(
