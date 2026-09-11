@@ -55,8 +55,8 @@ git clone -b 1.9.0 https://github.com/bids-standard/bids-examples.git
 
 You can search a directory for valid BIDS datasets using `b2t2 find`
 
-```
-(bids2table) clane$ b2t2 find bids-examples | head -n 10
+```sh
+b2t2 find bids-examples | head -n 10
 bids-examples/asl002
 bids-examples/ds002
 bids-examples/ds005
@@ -73,26 +73,43 @@ bids-examples/eeg_cbm
 
 Indexing datasets is done with `b2t2 index`. Here we index a single example dataset, saving the output as a parquet file.
 
-```
-(bids2table) clane$ b2t2 index -o ds102.parquet bids-examples/ds102
+```sh
+b2t2 index -o ds102.parquet bids-examples/ds102
 ds102: 100%|███████████████████████████████████████| 26/26 [00:00<00:00, 154.12it/s, sub=26, N=130]
 ```
 
 You can also index a list of datasets. Note that each iteration in the progress bar represents one dataset.
 
-```
-(bids2table) clane$ b2t2 index -o bids-examples.parquet bids-examples/*
+```sh
+b2t2 index -o bids-examples.parquet bids-examples/*
 100%|████████████████████████████████████████████| 87/87 [00:00<00:00, 113.59it/s, ds=None, N=9727]
 ```
 
 You can pipe the output of `b2t2 find` to `b2t2 index` to create an index of all datasets under a root directory.
 
-```
-(bids2table) clane$ b2t2 find bids-examples | b2t2 index -o bids-examples.parquet
+```sh
+b2t2 find bids-examples | b2t2 index -o bids-examples.parquet
 97it [00:01, 96.05it/s, ds=ieeg_filtered_speech, N=10K]
 ```
 
 The resulting index will include both top-level datasets (as in the previous command) as well nested derivatives datasets.
+
+### Filtering files
+
+Use `--filter` to index only files matching an entity key and value pattern. The syntax is `ENTITY=PATTERN`, where `PATTERN` is a literal value or a glob (e.g. `--filter sub=01` or `--filter sub=0*`):
+
+```sh
+b2t2 index -o ds102_sub01.parquet --filter sub=01 bids-examples/ds102
+```
+
+Repeat the flag to add more filters. Multiple patterns for the same entity are combined with OR, and different entities with AND — the example below indexes sub-01's `bold` and `events` files:
+
+```sh
+b2t2 index -o ds.parquet --filter suffix=bold --filter suffix=events --filter sub=01 bids-examples/ds102
+```
+
+> [!WARNING]
+> **Note:** `--subjects` is deprecated; use `--filter sub=...` instead. It still works but emits a `DeprecationWarning`.
 
 ### Indexing datasets hosted on S3
 
@@ -104,8 +121,8 @@ pip install cloudpathlib[s3]
 
 As an example, here we index all datasets on [OpenNeuro](https://openneuro.org/)
 
-```
-(bids2table) clane$ b2t2 index -o openneuro.parquet \
+```sh
+b2t2 index -o openneuro.parquet \
   -j 8 --use-threads s3://openneuro.org/ds*
 100%|█████████████████████████████████████| 1408/1408 [12:25<00:00,  1.89it/s, ds=ds006193, N=1.2M]
 ```
@@ -164,3 +181,9 @@ tab = b2t2.index_dataset("/data/ds001", schema="/path/to/custom-schema")
 
 Different `schema` arguments may be used for different calls within the same
 process; per-call schemas propagate to worker processes when `max_workers > 0`.
+
+From the command line, pass the same schema directory or file to `--schema`:
+
+```sh
+b2t2 index -o ds.parquet --schema /path/to/custom-schema bids-examples/ds102
+```

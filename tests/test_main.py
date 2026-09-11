@@ -149,3 +149,53 @@ def test_main_index_schema_flag(tmp_path: Path, cli_prog: str):
     with patch_argv(argv):
         cli.main()
     assert out.exists()
+
+
+def test_main_index_filter_and_schema(tmp_path: Path, cli_prog: str):
+    """--filter and --schema can be combined in a single index invocation.
+
+    Asserts both flags take effect: the filter reduces the row count and the
+    custom schema's metadata reaches the output columns.
+    """
+    import json
+
+    import bidsschematools
+    import pyarrow.parquet as pq
+
+    # Two subjects so the filter visibly reduces the row count.
+    ds = tmp_path / "ds"
+    for sub in ("A01", "A02"):
+        (ds / f"sub-{sub}" / "anat").mkdir(parents=True)
+        (ds / f"sub-{sub}" / "anat" / f"sub-{sub}_T1w.nii.gz").touch()
+    (ds / "dataset_description.json").write_text('{"Name": "ds"}')
+
+    # A modified copy of the default schema so we can prove --schema took effect.
+    default_schema = Path(bidsschematools.__file__).parent / "data" / "schema.json"
+    schema = json.loads(default_schema.read_text())
+    marker = "Modified by combined CLI test"
+    schema["objects"]["entities"]["subject"]["description"] = marker
+    custom_schema = tmp_path / "custom_schema.json"
+    custom_schema.write_text(json.dumps(schema))
+
+    out = tmp_path / "output.parquet"
+    argv = [
+        cli_prog,
+        "index",
+        "-o",
+        str(out),
+        "-f",
+        "sub=A01",
+        "--schema",
+        str(custom_schema),
+        str(ds),
+    ]
+    with patch_argv(argv):
+        cli.main()
+    assert out.exists()
+
+    table = pq.read_table(out)
+    # --filter took effect: only sub-A01 remains.
+    assert table.num_rows == 1
+    assert table.column("sub").to_pylist() == ["A01"]
+    # --schema took effect: the custom description reached the column metadata.
+    assert table.schema.field("sub").metadata[b"description"] == marker.encode()

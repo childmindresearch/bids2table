@@ -29,7 +29,7 @@ class BIDSLayout:
     fast indexing and efficient querying under the hood.
 
     Example:
-        >>> from bids2table_compat import BIDSLayout
+        >>> from bids2table.pybids import BIDSLayout
         >>> layout = BIDSLayout('/path/to/dataset', validate=False)
         >>> subjects = layout.get_subjects()
         >>> files = layout.get(subject='01', suffix='T1w')
@@ -59,11 +59,10 @@ class BIDSLayout:
         reset_database: bool = False,
         **kwargs: Any,  # noqa: ANN401, ARG002 - additional kwargs (any type) can be passed
     ) -> None:
-        # Initialize BIDSLayout with dataset indexing.
         self.root = Path(root).absolute()
         self.reset_database = reset_database
 
-        # Handle legacy database_path parameter
+        # Handle the legacy (deprecated) database_path parameter.
         if database_path is not None and cache_path is None:
             warnings.warn(
                 "database_path is deprecated, use cache_path instead. "
@@ -72,20 +71,16 @@ class BIDSLayout:
                 stacklevel=2,
             )
 
-        # Set cache path
         if cache_path is None:
             self.cache_path = self.root / ".bids2table_cache.parquet"
         else:
             self.cache_path = Path(cache_path)
 
-        # Load or create index
         self._tab = self._load_or_create_index()
 
-        # Handle derivatives
         if derivatives is not None:
             self._add_derivatives(derivatives)
 
-        # Load the entity schema and create a LUT
         entity_schema = self._tab.schema
         self._entity_map = {}
         for entity in entity_schema:
@@ -97,10 +92,8 @@ class BIDSLayout:
             self._entity_map[dname.decode("utf-8")] = name.decode("utf-8")
             self._entity_map[name.decode("utf-8")] = name.decode("utf-8")
 
-        # Flatten extra entities after
         self._flatten_extra_entities()
 
-        # Convert to pandas DataFrame for querying
         self.df = self._tab.to_pandas(types_mapper=pd.ArrowDtype)
 
     def _flatten_extra_entities(self) -> None:
@@ -129,12 +122,7 @@ class BIDSLayout:
         self._tab = self._tab.select(cols)
 
     def _load_or_create_index(self) -> pa.Table:
-        """Load cached index or create new one.
-
-        Returns:
-            PyArrow table with indexed BIDS files
-        """
-        # If reset_database is True, skip cache and force re-index
+        """Load the cached index if present, otherwise build and cache a new one."""
         if not self.reset_database and self.cache_path.exists():
             # Check if cache is stale (optional - could be expensive)
             # For now, trust the cache exists means it's valid
@@ -147,7 +135,6 @@ class BIDSLayout:
                     stacklevel=3,
                 )
 
-        # Create new index
         tab = index_dataset(str(self.root))
 
         # Save cache (unless reset_database is True, which implies benchmarking)
@@ -164,16 +151,10 @@ class BIDSLayout:
         return tab
 
     def _add_derivatives(self, derivatives: str | Path | list[str | Path]) -> None:
-        """Add derivative datasets to the index.
-
-        Args:
-            derivatives: Path or list of paths to derivative datasets
-        """
-        # Normalize to list
+        """Index derivative datasets and append their files to the layout's table."""
         if not isinstance(derivatives, list):
             derivatives = [derivatives]
 
-        # Index each derivative dataset
         deriv_tabs = []
         for deriv_path in derivatives:
             deriv_path = Path(deriv_path)
@@ -187,7 +168,6 @@ class BIDSLayout:
             deriv_tab = index_dataset(str(deriv_path))
             deriv_tabs.append(deriv_tab)
 
-        # Concatenate with main table
         if deriv_tabs:
             self._tab = pa.concat_tables([self._tab, *deriv_tabs])
 
@@ -243,6 +223,7 @@ class BIDSLayout:
     def _format_results(
         self, df: pd.DataFrame, return_type: str
     ) -> list[str | BIDSFile]:
+        """Format the filtered rows according to ``return_type``."""
         if return_type == "filename":
             return df["path"].tolist()
         if return_type == "file":
@@ -274,7 +255,6 @@ class BIDSLayout:
             ['01', '02']  # Only subjects with BOLD data
         """
         if filters:
-            # Apply filters first
             filtered_df = self.df.copy()
             for key, value in filters.items():
                 key = self._entity_map.get(key, key)
@@ -306,11 +286,9 @@ class BIDSLayout:
         """
         result_df = self.df.copy()
 
-        # Filter by subject if provided
         if subject is not None:
             result_df = result_df[result_df["sub"] == subject]
 
-        # Apply additional filters
         for key, value in filters.items():
             key = self._entity_map.get(key, key)
             if key in result_df.columns:
@@ -336,7 +314,6 @@ class BIDSLayout:
             >>> metadata['RepetitionTime']
             2.0
         """  # noqa: E501
-        # Convert to absolute path if relative
         if not Path(path).is_absolute():
             path = str(self.root / path)
 
@@ -375,7 +352,6 @@ class BIDSLayout:
             >>> entities['sub']
             ['01', '02']  # Only subjects with BOLD data
         """
-        # Apply filters if provided
         if filters:
             filtered_df = self.df.copy()
             for key, value in filters.items():
@@ -385,12 +361,11 @@ class BIDSLayout:
         else:
             filtered_df = self.df
 
-        # Extract unique values for each entity column
         entities = {}
         for evalue in self._entity_map.values():
             if evalue in filtered_df.columns:
                 unique_vals = filtered_df[evalue].dropna().unique().tolist()
-                if unique_vals:  # Only include if not empty
+                if unique_vals:
                     entities[evalue] = sorted(unique_vals)
 
         return entities
@@ -466,5 +441,9 @@ class BIDSLayout:
         )
 
     def to_df(self) -> pd.DataFrame:
-        """Explicit method to return converted dataframe, mirroring pybids."""
+        """Return the indexed files as a pandas DataFrame, mirroring pybids.
+
+        Returns:
+            The pandas DataFrame of indexed BIDS files.
+        """
         return self.df
