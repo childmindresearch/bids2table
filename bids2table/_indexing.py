@@ -499,6 +499,10 @@ def _is_bids_dataset(path: PathT, schema: SchemaSpec = None) -> bool:
         path, root_prefixes, pattern
     )
 
+    Args:
+        root: Directory to check.
+        prefixes: Entity prefixes to look for (e.g., ``("sub", "tpl")``).
+        pattern: Compiled regex to validate directory names.
 
 def _contains_bids_entity_dirs(
     root: PathT,
