@@ -33,7 +33,7 @@ from bids2table._pathlib import CloudPath, PathT, as_path, cloudpathlib_is_avail
 from bids2table._schema import (
     BIDSSchemaAdapter,
     SchemaSpec,
-    _char_class_for,
+    _entity_dir_alternate,
     _load_from_path,
     entity_arrow_schema,
     get_entity_directory_order,
@@ -52,15 +52,11 @@ def _compile_entity_dir_pattern(
     prefixes: tuple[str, ...], adapter: BIDSSchemaAdapter
 ) -> re.Pattern[str]:
     """Compile a regex matching ``prefix-value`` for the given entity-dir prefixes."""
-    alternates = []
-    for prefix in prefixes:
-        for cfg in adapter.entity_schema.values():
-            if cfg.get("name") == prefix:
-                char_class = _char_class_for(adapter, cfg.get("format", "special"))
-                alternates.append(f"{prefix}-{char_class}")
-                break
-        else:
-            alternates.append(f"{prefix}-[a-zA-Z0-9]+")
+    alternates = [
+        alt
+        for prefix in prefixes
+        if (alt := _entity_dir_alternate(adapter, prefix)) is not None
+    ]
     return re.compile("|".join(f"({a})" for a in alternates))
 
 
@@ -155,6 +151,11 @@ def clear_schema_caches() -> None:
     _cache_parse_bids_entities.cache_clear()
     _is_bids_dataset.cache_clear()
     _get_bids_dataset.cache_clear()
+    _load_bidsignore_patterns.cache_clear()
+    _read_dataset_description.cache_clear()
+    get_entity_directory_order.cache_clear()
+    get_json_data_suffixes.cache_clear()
+    get_file_entity_prefixes.cache_clear()
 
 
 def get_arrow_schema(*, schema: SchemaSpec | BIDSSchemaAdapter = None) -> pa.Schema:
@@ -234,6 +235,7 @@ def find_bids_datasets(
         Root paths of all BIDS datasets under `root`.
     """
     root = as_path(root)
+    adapter = load_bids_schema(schema)
 
     if isinstance(exclude, str):
         exclude = [exclude]
@@ -244,7 +246,7 @@ def find_bids_datasets(
     entry_count = 1
     ds_count = 0
 
-    if _is_bids_dataset(root, schema):
+    if _is_bids_dataset(root, adapter):
         ds_count += 1
         yield root
 
@@ -253,7 +255,7 @@ def find_bids_datasets(
     while stack:
         top, depth = stack.pop()
 
-        inside_bids = _is_bids_dataset(top, schema)
+        inside_bids = _is_bids_dataset(top, adapter)
         depth += 1
 
         for entry in top.iterdir():
@@ -262,7 +264,7 @@ def find_bids_datasets(
             if any(re.fullmatch(pat, entry.name) for pat in exclude_patterns):
                 continue
 
-            if _is_bids_dataset(entry, schema):
+            if _is_bids_dataset(entry, adapter):
                 ds_count += 1
                 yield entry
 
@@ -459,7 +461,7 @@ def _get_dataset_type(root: PathT, desc: dict[str, Any]) -> str:
 
 
 @lru_cache
-def _is_bids_dataset(path: PathT, schema: SchemaSpec = None) -> bool:
+def _is_bids_dataset(path: PathT, adapter: BIDSSchemaAdapter | None = None) -> bool:
     """Test if a path is a BIDS dataset root directory."""
     # BIDS datasets should not contain a file extension.
     if path.suffix:
@@ -468,7 +470,8 @@ def _is_bids_dataset(path: PathT, schema: SchemaSpec = None) -> bool:
     if path.name.startswith("."):
         return False
 
-    adapter = load_bids_schema(schema)
+    if adapter is None:
+        adapter = load_bids_schema()
     root_prefixes = get_root_entity_types(adapter)
     pattern = _compile_entity_dir_pattern(root_prefixes, adapter)
 
@@ -513,12 +516,10 @@ def _find_bids_entity_dirs(
     ]
 
     if include_pattern:
-        if isinstance(include_pattern, str):
-            include_pattern = [include_pattern]
         kept = []
         for path in paths:
             key, _, value = path.name.partition("-")
-            if any(_match_single(value, key, pat) for pat in include_pattern):
+            if _match_filters({key: value}, {key: include_pattern}):
                 kept.append(path)
         paths = kept
     return paths
@@ -532,14 +533,9 @@ def _resolve_entity_dirs(
 ) -> list[PathT]:
     """Resolve the entity dirs for a dataset root.
 
-    Tries the primary root prefixes (e.g. ``sub``, ``tpl``) first, falling back
-    to all known entity prefixes if none match.
+    Matches the primary root entity prefixes (e.g. ``sub``, ``tpl``).
     """
     root_prefixes = get_root_entity_types(adapter)
-    entity_prefixes = tuple(
-        frozenset(get_entity_directory_order(adapter))
-        | frozenset(get_file_entity_prefixes(adapter))
-    )
     pattern = _compile_entity_dir_pattern(root_prefixes, adapter)
     # Extract include pattern for the primary entity key from filters.
     include_pattern = None
@@ -548,12 +544,7 @@ def _resolve_entity_dirs(
             if prefix in filters:
                 include_pattern = filters[prefix]
                 break
-    # Try primary root entity prefixes.
-    dirs = _find_bids_entity_dirs(root, root_prefixes, pattern, include_pattern)
-    if dirs:
-        return dirs
-    # Fallback: try all known entity prefixes.
-    return _find_bids_entity_dirs(root, entity_prefixes, pattern, include_pattern)
+    return _find_bids_entity_dirs(root, root_prefixes, pattern, include_pattern)
 
 
 def _index_bids_entity_dir(

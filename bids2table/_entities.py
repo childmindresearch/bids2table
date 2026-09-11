@@ -14,7 +14,7 @@ from bids2table._logging import setup_logger
 from bids2table._schema import (
     BIDSSchemaAdapter,
     SchemaSpec,
-    _char_class_for,
+    _entity_dir_alternate,
     decode_metadata,
     entity_arrow_schema,
     get_entity_directory_order,
@@ -51,8 +51,8 @@ def _build_datatype_pattern(adapter: BIDSSchemaAdapter) -> re.Pattern[str]:
         name = cfg.get("name", entity)
         if name not in dir_names:
             continue
-        char_class = _char_class_for(adapter, cfg.get("format", "special"))
-        alts.append(rf"{name}-{char_class}[/\\]")
+        if (alt := _entity_dir_alternate(adapter, name)) is not None:
+            alts.append(rf"{alt}[/\\]")
     if not alts:
         raise ValueError("No directory entities found in BIDS schema")
     return re.compile(rf"(?:{'|'.join(alts)})+([a-z]+)[/\\]")
@@ -231,13 +231,6 @@ def format_bids_path(
         A formatted `Path` instance.
     """
     adapter = load_bids_schema(schema)
-    return _format_bids_path(entities, int_format, adapter)
-
-
-def _format_bids_path(
-    entities: dict[str, Any], int_format: str, adapter: BIDSSchemaAdapter
-) -> Path:
-    """Build a BIDS path from entities using a resolved `BIDSSchemaAdapter`."""
     dir_order = get_entity_directory_order(adapter)
     special = {
         cfg.get("name", entity)
@@ -281,15 +274,10 @@ def get_root_entity_types(adapter: BIDSSchemaAdapter) -> tuple[str, ...]:
         A tuple of prefix strings (e.g., ``("sub", "tpl")``).
     """
     order = get_entity_directory_order(adapter)
-    roots: set[str] = set()
-    for prefix in order:
-        if prefix in roots:
-            continue
-        if prefix in ("sub", "tpl"):
-            roots.add(prefix)
-    return tuple(sorted(roots))
+    return tuple(prefix for prefix in ("sub", "tpl") if prefix in order)
 
 
+@lru_cache
 def get_file_entity_prefixes(adapter: BIDSSchemaAdapter) -> tuple[str, ...]:
     """Return entity prefixes valid in filenames (non-directory, non-special).
 
