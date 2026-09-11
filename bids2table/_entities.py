@@ -12,9 +12,11 @@ import pyarrow as pa
 
 from bids2table._logging import setup_logger
 from bids2table._schema import (
+    BIDSSchemaAdapter,
     SchemaSpec,
     decode_metadata,
     entity_arrow_schema,
+    get_entity_directory_order,
     load_bids_schema,
 )
 
@@ -214,3 +216,114 @@ def format_bids_path(entities: dict[str, Any], int_format: str = "%d") -> Path:
     if ses := entities.get("ses"):
         path = f"ses-{ses}" / path
     return f"sub-{entities['sub']}" / path
+
+
+def get_entity_name(entity_type: str, adapter: BIDSSchemaAdapter) -> str | None:
+    """Return the BIDS short name for an entity type.
+
+    Args:
+        entity_type: Full entity name (e.g., ``"subject"``).
+        adapter: A ``BIDSSchemaAdapter``.
+
+    Returns:
+        Short name string (e.g., ``"sub"``), or ``None`` if the entity
+        is not defined in the schema (a warning is logged).
+    """
+    if entity_type not in adapter.entity_schema:
+        _logger.warning(
+            "Entity type %r is not defined in the BIDS schema.", entity_type
+        )
+        return None
+    cfg = adapter.entity_schema[entity_type]
+    return cfg.get("name", entity_type)
+
+
+def get_entity_regex(
+    entity_type: str, adapter: BIDSSchemaAdapter
+) -> re.Pattern[str] | None:
+    """Return a compiled regex that matches ``prefix-value`` for an entity.
+
+    The pattern is built from the entity's short name and format pattern.
+    Format patterns come from ``adapter.format_patterns`` (derived from the
+    BIDS schema), so they stay in sync with schema version changes.
+
+    Args:
+        entity_type: Full entity name (e.g., ``"subject"``).
+        adapter: A ``BIDSSchemaAdapter``.
+
+    Returns:
+        A compiled ``re.Pattern[str]``, or ``None`` if the entity is
+        not defined in the schema (a warning is logged).
+    """
+    name = get_entity_name(entity_type, adapter)
+    if name is None:
+        return None
+    cfg = adapter.entity_schema.get(entity_type, {})
+    char_class = adapter.format_patterns.get(
+        cfg.get("format", ""), adapter.format_patterns["special"]
+    )
+    return re.compile(f"{name}-{char_class}")
+
+
+def get_entity_glob_pattern(entity_type: str, adapter: BIDSSchemaAdapter) -> str | None:
+    """Return a glob-ready pattern for an entity (e.g. ``"sub-*"``).
+
+    Args:
+        entity_type: Full entity name.
+        adapter: A ``BIDSSchemaAdapter``.
+
+    Returns:
+        The glob pattern, or ``None`` if the entity is not defined
+        in the schema (a warning is logged).
+    """
+    name = get_entity_name(entity_type, adapter)
+    if name is None:
+        return None
+    return f"{name}-*"
+
+
+def get_root_entity_types(adapter: BIDSSchemaAdapter) -> tuple[str, ...]:
+    """Return entity prefixes that form root-level BIDS directories.
+
+    Derived from the BFS directory order — ``"sub"`` (subject) is always
+    first; ``"tpl"`` (template) appears in derivatives schemas.
+
+    Args:
+        adapter: A ``BIDSSchemaAdapter``.
+
+    Returns:
+        A tuple of prefix strings (e.g., ``("sub", "tpl")``).
+    """
+    order = get_entity_directory_order(adapter)
+    roots: set[str] = set()
+    for prefix in order:
+        if prefix in roots:
+            continue
+        if prefix in ("sub", "tpl"):
+            roots.add(prefix)
+    return tuple(sorted(roots))
+
+
+def get_file_entity_prefixes(adapter: BIDSSchemaAdapter) -> tuple[str, ...]:
+    """Return entity prefixes valid in filenames (non-directory, non-special).
+
+    Excludes all directory entities (``subject``, ``session``, ``template``,
+    etc.) and special entities (``datatype``, ``suffix``, ``extension``).
+
+    Args:
+        adapter: A ``BIDSSchemaAdapter``.
+
+    Returns:
+        A tuple of short name strings.
+    """
+    dir_names = set(get_entity_directory_order(adapter))
+    special = {"datatype", "suffix", "extension"}
+    prefixes: list[str] = []
+    for entity, cfg in adapter.entity_schema.items():
+        if entity in special:
+            continue
+        name = cfg.get("name", entity)
+        if name in dir_names:
+            continue
+        prefixes.append(name)
+    return tuple(sorted(prefixes))
