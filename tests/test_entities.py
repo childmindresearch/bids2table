@@ -104,14 +104,17 @@ def test_validate_warns(path: str, msg: str, caplog: pytest.LogCaptureFixture):
     [
         "sub-A01/func/sub-A01_run-1_bold.nii.gz",
         "sub-A01/ses-1/func/sub-A01_ses-1_run-1_bold.nii.gz",
+        "tpl-MNI152NLin2009aAsym/anat/tpl-MNI152NLin2009aAsym_T1w.nii.gz",
+        "tpl-MNI152NLin2009aAsym/anat/tpl-MNI152NLin2009aAsym_run-2_T1w.nii.gz",
     ],
 )
 def test_format_bids_path(path: str):
-    """Round-trip a BIDS path through parse → validate → format."""
+    """Round-trip a BIDS path through parse → validate → format → parse."""
     entities = parse_bids_entities(path)
     valid_entities, _ = validate_bids_entities(entities)
     path2 = format_bids_path(valid_entities)
     assert path == str(path2)
+    assert parse_bids_entities(path2) == entities
 
 
 @pytest.mark.parametrize(
