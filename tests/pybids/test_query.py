@@ -27,3 +27,18 @@ def test_query_sentinels_are_singletons():
 def test_query_repr(query: Query):
     """Test Query string representation."""
     assert repr(query) == "Query"
+
+
+def test_query_documented_sentinels_present():
+    """The three documented sentinels exist and are distinct members.
+
+    Uses a subset check (not an equality on the member set) so the enum is
+    free to grow later (e.g. adding ``REQUIRED``); see test_compat_gaps.py B4.
+    """
+    assert {"OPTIONAL", "NONE", "ANY"} <= set(Query.__members__)
+
+
+def test_query_sentinels_are_query_members():
+    """Each documented sentinel is a genuine ``Query`` instance."""
+    for name in ("OPTIONAL", "NONE", "ANY"):
+        assert isinstance(getattr(Query, name), Query)
