@@ -51,6 +51,9 @@ repos:
   rev: v2.4.1
   hooks:
   - id: codespell
+    args:
+    # 'fron': regex literal lifted from the upstream pybids tests (test_get_with_regex_search)
+    - --ignore-words-list=fron
     additional_dependencies:
     - tomli
 
