@@ -12,6 +12,7 @@ from bids2table.pybids import (
     BIDSLayout,
     Query,
 )
+from tests.pybids.conftest import BIDS_EXAMPLES, DatasetCopyFactory, LayoutFactory
 
 
 # Fixture for test dataset
@@ -296,3 +297,350 @@ class TestBIDSLayoutEntityMapping:
 
         # Should return same files (or both empty)
         assert set(files1) == set(files2)
+
+
+# ---------------------------------------------------------------------------
+# Green lifts: concrete pybids-API behavior pinned on the workhorse datasets.
+#
+# These extend the shallow type/non-emptiness checks above with exact values
+# re-derived from the current bids-examples checkout (see .notes/pybids-tests/).
+# They use the ``make_layout`` factory from conftest (hermetic temp cache).
+# ---------------------------------------------------------------------------
+
+
+class TestQuerySentinels:
+    """Query sentinel semantics with exact counts (7t_trt)."""
+
+    @pytest.mark.parametrize("sentinel", [Query.OPTIONAL, Query.ANY])
+    def test_noop_sentinels(self, sentinel: Query, make_layout: LayoutFactory):
+        """OPTIONAL and ANY both leave the result set unchanged."""
+        layout = make_layout("7t_trt")
+        assert len(layout.get(acq=sentinel, return_type="filename")) == len(layout.df)
+
+    def test_none_partitions_with_concrete_values(self, make_layout: LayoutFactory):
+        """NONE (missing) plus the concrete values partition the full set."""
+        layout = make_layout("7t_trt")
+        present = len(
+            layout.get(acq=["fullbrain", "prefrontal"], return_type="filename")
+        )
+        missing = len(layout.get(acq=Query.NONE, return_type="filename"))
+        assert present + missing == len(layout.df)
+        assert present == 262
+        assert missing == 373
+
+    def test_none_intersects_concrete_filter(self, make_layout: LayoutFactory):
+        """NONE + a concrete filter: every bold file here has an acquisition."""
+        layout = make_layout("7t_trt")
+        assert layout.get(acq=Query.NONE, suffix="bold", return_type="filename") == []
+
+    def test_concrete_value_split(self, make_layout: LayoutFactory):
+        """Each concrete acquisition value has a stable, known count."""
+        layout = make_layout("7t_trt")
+        assert len(layout.get(acq="fullbrain", return_type="filename")) == 175
+        assert len(layout.get(acq="prefrontal", return_type="filename")) == 87
+
+
+class TestSubjectsAndSessions:
+    """Exact subject/session lists (re-derived per dataset)."""
+
+    def test_7t_trt_subjects(self, make_layout: LayoutFactory):
+        """7t_trt has subjects 01 through 22."""
+        layout = make_layout("7t_trt")
+        assert layout.get_subjects() == [f"{i:02d}" for i in range(1, 23)]
+
+    def test_7t_trt_sessions(self, make_layout: LayoutFactory):
+        """7t_trt has two sessions, present for every subject."""
+        layout = make_layout("7t_trt")
+        assert layout.get_sessions() == ["1", "2"]
+        assert layout.get_sessions(subject="01") == ["1", "2"]
+
+    def test_ds005_subjects_and_no_sessions(self, make_layout: LayoutFactory):
+        """ds005 has subjects 01-16 and no session entity."""
+        layout = make_layout("ds005")
+        assert layout.get_subjects() == [f"{i:02d}" for i in range(1, 17)]
+        assert layout.get_sessions() == []
+
+    def test_ds000117_includes_emptyroom(self, make_layout: LayoutFactory):
+        """ds000117 has 17 subjects, including an empty-room recording."""
+        layout = make_layout("ds000117")
+        subjects = layout.get_subjects()
+        assert len(subjects) == 17
+        assert "emptyroom" in subjects
+
+    def test_get_subjects_subset_with_filter(self, make_layout: LayoutFactory):
+        """Filtering subjects by datatype yields a subset of all subjects."""
+        layout = make_layout("7t_trt")
+        filtered = layout.get_subjects(datatype="anat")
+        assert set(filtered).issubset(set(layout.get_subjects()))
+
+
+class TestMetadataValues:
+    """Exact sidecar metadata values via BIDS inheritance."""
+
+    def test_7t_trt_bold_fullbrain_tr(self, make_layout: LayoutFactory):
+        """Fullbrain BOLD has a 3.0s repetition time."""
+        layout = make_layout("7t_trt")
+        f = str(layout.get(suffix="bold", acq="fullbrain", return_type="filename")[0])
+        assert layout.get_metadata(f)["RepetitionTime"] == 3.0
+
+    def test_7t_trt_bold_prefrontal_tr(self, make_layout: LayoutFactory):
+        """Prefrontal BOLD has a 4.0s repetition time."""
+        layout = make_layout("7t_trt")
+        f = str(layout.get(suffix="bold", acq="prefrontal", return_type="filename")[0])
+        assert layout.get_metadata(f)["RepetitionTime"] == 4.0
+
+    def test_7t_trt_bold_sidecar_keys_and_types(self, make_layout: LayoutFactory):
+        """A fullbrain BOLD sidecar has a known key set and value types."""
+        layout = make_layout("7t_trt")
+        f = str(layout.get(suffix="bold", acq="fullbrain", return_type="filename")[0])
+        md = layout.get_metadata(f)
+        assert set(md) == {
+            "CogAtlasID",
+            "EchoTime",
+            "EffectiveEchoSpacing",
+            "PhaseEncodingDirection",
+            "RepetitionTime",
+            "SliceEncodingDirection",
+            "SliceTiming",
+            "TaskName",
+        }
+        # Values span scalar (str, float) and list-typed fields.
+        assert {"float", "list", "str"} <= {type(v).__name__ for v in md.values()}
+
+    def test_ds005_t1w_has_no_sidecar(self, make_layout: LayoutFactory):
+        """A T1w file with no sidecar yields empty metadata (no root-JSON bleed)."""
+        layout = make_layout("ds005")
+        f = str(layout.get(suffix="T1w", return_type="filename")[0])
+        assert layout.get_metadata(f) == {}
+
+    def test_ds005_bold_tr(self, make_layout: LayoutFactory):
+        """ds005 BOLD has a 2.0s repetition time."""
+        layout = make_layout("ds005")
+        f = str(layout.get(suffix="bold", return_type="filename")[0])
+        assert layout.get_metadata(f)["RepetitionTime"] == 2.0
+
+    def test_ds000117_meg_metadata(self, make_layout: LayoutFactory):
+        """A MEG (.fif) sidecar carries channel and filter metadata."""
+        layout = make_layout("ds000117")
+        fif = layout.get(ext=".fif", return_type="filename")
+        assert fif
+        md = layout.get_metadata(str(fif[0]))
+        assert md["MEGChannelCount"] == 306
+        assert isinstance(md["MEGChannelCount"], int)
+        assert "SoftwareFilters" in md
+        assert "SubjectArtefactDescription" in md
+
+    def test_ds000117_anatomical_landmarks(self, make_layout: LayoutFactory):
+        """The T1w sidecar carries Nasion/LPA/RPA landmark coordinates."""
+        layout = make_layout("ds000117")
+        f = str(layout.get(suffix="T1w", return_type="filename")[0])
+        assert layout.get_metadata(f)["AnatomicalLandmarkCoordinates"] == {
+            "Nasion": [43, 111, 95],
+            "LPA": [140, 74, 16],
+            "RPA": [143, 74, 173],
+        }
+
+    def test_metadata_relative_and_absolute_agree(self, make_layout: LayoutFactory):
+        """Relative (from get()) and absolute paths resolve to the same metadata."""
+        layout = make_layout("7t_trt")
+        f = str(layout.get(suffix="bold", acq="fullbrain", return_type="filename")[0])
+        assert layout.get_metadata(f) == layout.get_metadata(str(layout.root / f))
+
+
+class TestGetReturnShapes:
+    """get() return_type shapes with exact values (7t_trt)."""
+
+    def test_dir_exact_sorted_unique(self, make_layout: LayoutFactory):
+        """return_type='dir' returns the exact sorted unique parent directories."""
+        layout = make_layout("7t_trt")
+        assert layout.get(sub="01", return_type="dir") == [
+            "sub-01",
+            "sub-01/ses-1",
+            "sub-01/ses-1/anat",
+            "sub-01/ses-1/fmap",
+            "sub-01/ses-1/func",
+            "sub-01/ses-2",
+            "sub-01/ses-2/fmap",
+            "sub-01/ses-2/func",
+        ]
+
+    def test_dir_is_sorted_and_unique(self, make_layout: LayoutFactory):
+        """return_type='dir' is always sorted and de-duplicated."""
+        layout = make_layout("7t_trt")
+        dirs = layout.get(return_type="dir")
+        assert dirs == sorted(dirs)
+        assert len(dirs) == len(set(dirs))
+
+    def test_id_count_matches_rows(self, make_layout: LayoutFactory):
+        """return_type='id' returns one id per indexed row."""
+        layout = make_layout("7t_trt")
+        assert len(layout.get(return_type="id")) == len(layout.df)
+
+    def test_file_objects_expose_path(self, make_layout: LayoutFactory):
+        """return_type='file' returns BIDSFile objects whose str() is the path."""
+        layout = make_layout("7t_trt")
+        for f in layout.get(return_type="file")[:5]:
+            assert isinstance(f, BIDSFile)
+            assert f.path == str(f)
+
+    def test_multi_entity_intersection_counts(self, make_layout: LayoutFactory):
+        """Single- and list-valued filters give exact, additive counts."""
+        layout = make_layout("7t_trt")
+        assert len(layout.get(subject="01", return_type="filename")) == 29
+        assert len(layout.get(sub=["01", "02"], return_type="filename")) == 58
+
+    def test_filter_on_absent_value_is_empty(self, make_layout: LayoutFactory):
+        """Filtering on a value not present in the dataset returns no files."""
+        layout = make_layout("7t_trt")
+        assert layout.get(subject="99", return_type="filename") == []
+
+
+class TestDerivatives:
+    """Derivatives plumbing on the synthetic + fmriprep pair."""
+
+    @pytest.mark.parametrize("mode", ["path", "list"])
+    def test_derivatives_appended(self, mode: str, make_layout: LayoutFactory):
+        """The derivatives= argument accepts a Path or a one-item list."""
+        raw = len(make_layout("synthetic").df)
+        deriv = BIDS_EXAMPLES / "synthetic" / "derivatives" / "fmriprep"
+        value = [deriv] if mode == "list" else deriv
+        assert len(make_layout("synthetic", derivatives=value).df) == raw + 150
+
+    def test_derivative_rows_distinguishable(self, make_layout: LayoutFactory):
+        """Raw and derivative rows carry distinct dataset_type values."""
+        deriv = BIDS_EXAMPLES / "synthetic" / "derivatives" / "fmriprep"
+        layout = make_layout("synthetic", derivatives=deriv)
+        assert {
+            "raw",
+            "derivative",
+        } <= set(layout.df["dataset_type"].dropna().unique())
+
+    def test_nonexistent_derivative_is_skipped(self, make_layout: LayoutFactory):
+        """A missing derivative path logs a warning and is skipped, not fatal."""
+        layout = make_layout("synthetic", derivatives=BIDS_EXAMPLES / "does_not_exist")
+        assert len(layout.df) == 110
+
+
+class TestIndexHygiene:
+    """The indexer selects a BIDS data-file subset, not every on-disk file."""
+
+    def _layout(self, root: Path) -> BIDSLayout:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            return BIDSLayout(root, cache_path=Path(tmpdir) / "c.parquet")
+
+    def test_minimal_dataset_indexes_only_data_files(self, tmp_path: Path):
+        """Only the data file is indexed; sidecar/README/participants are not."""
+        ds = tmp_path / "ds"
+        (ds / "sub-01" / "anat").mkdir(parents=True)
+        (ds / "dataset_description.json").write_text('{"Name": "ds"}')
+        (ds / "sub-01" / "anat" / "sub-01_T1w.nii.gz").touch()
+        (ds / "sub-01" / "anat" / "sub-01_T1w.json").touch()  # sidecar: excluded
+        (ds / "README").write_text("dataset readme")  # extensionless: excluded
+        (ds / "participants.tsv").touch()  # no entity prefix: excluded
+
+        layout = self._layout(ds)
+        assert layout.df["path"].tolist() == ["sub-01/anat/sub-01_T1w.nii.gz"]
+
+    def test_emptying_datatype_dir_drops_files(
+        self, mutable_dataset: DatasetCopyFactory
+    ):
+        """Removing a subject's T1w files drops them from a re-indexed layout."""
+        root = mutable_dataset("ds005")
+        before = len(self._layout(root).get(suffix="T1w", return_type="filename"))
+        assert before == 16
+
+        for f in (root / "sub-01" / "anat").glob("sub-01_T1w*"):
+            f.unlink()
+
+        after = self._layout(root).get(sub="01", suffix="T1w", return_type="filename")
+        assert after == []
+
+
+class TestCacheSurface:
+    """Cache / legacy-DB constructor surface (hermetic, no checkout writes)."""
+
+    ROOT = Path(__file__).resolve().parents[2] / "bids-examples" / "7t_trt"
+
+    def test_database_path_alone_is_deprecated(self, tmp_path: Path):
+        """Passing only database_path emits a DeprecationWarning (use cache_path)."""
+        with pytest.warns(DeprecationWarning, match="cache_path"):
+            # reset_database=True: prevents the default cache write into the
+            # bids-examples checkout (cache_path=None -> root/.bids2table_cache).
+            BIDSLayout(
+                self.ROOT,
+                database_path=tmp_path / "legacy.db",
+                reset_database=True,
+            )
+
+    def test_database_path_with_cache_is_not_deprecated(self, tmp_path: Path):
+        """Passing both database_path and cache_path is not deprecated."""
+        import warnings
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", DeprecationWarning)
+            BIDSLayout(
+                self.ROOT,
+                database_path=tmp_path / "legacy.db",
+                cache_path=tmp_path / "c.parquet",
+            )
+
+    def test_reset_database_reflects_new_files(
+        self, mutable_dataset: DatasetCopyFactory, tmp_path: Path
+    ):
+        """reset_database re-indexes (sees new files) while a stale cache does not."""
+        root = mutable_dataset("ds005")
+        cp = tmp_path / "c.parquet"
+        BIDSLayout(root, cache_path=cp)  # populate a cache
+        baseline = len(BIDSLayout(root, cache_path=cp).df)
+
+        newsub = root / "sub-99" / "anat"
+        newsub.mkdir(parents=True)
+        (newsub / "sub-99_T1w.nii.gz").touch()
+
+        stale = BIDSLayout(root, cache_path=cp)  # trusts the stale cache
+        fresh = BIDSLayout(root, cache_path=cp, reset_database=True)  # re-indexes
+        assert len(stale.df) == baseline
+        assert len(fresh.df) == baseline + 1
+
+    def test_corrupt_cache_falls_back_to_reindex(
+        self, mutable_dataset: DatasetCopyFactory, tmp_path: Path
+    ):
+        """A corrupt cache is caught and the dataset is re-indexed instead."""
+        root = mutable_dataset("ds005")
+        cp = tmp_path / "c.parquet"
+        cp.write_text("this is not a valid parquet file")
+        layout = BIDSLayout(root, cache_path=cp)
+        assert len(layout.df) > 0
+
+
+class TestLayoutIdentity:
+    """Repr, root, dataset_name, and to_df surface."""
+
+    def test_repr_shape_and_file_count(self, make_layout: LayoutFactory):
+        """repr() exposes the root, subject/session counts, and file count."""
+        layout = make_layout("7t_trt")
+        r = repr(layout)
+        assert r.startswith("BIDSLayout(")
+        assert "subjects=" in r
+        assert "sessions=" in r
+        assert "files=635" in r
+
+    def test_root_is_absolute(self, make_layout: LayoutFactory):
+        """The resolved root is an absolute path."""
+        layout = make_layout("7t_trt")
+        assert layout.root.is_absolute()
+
+    def test_dataset_name_populated(self, make_layout: LayoutFactory):
+        """The dataset_name column is a non-empty string for every row."""
+        layout = make_layout("7t_trt")
+        names = layout.df["dataset_name"].dropna().unique().tolist()
+        assert names
+        assert all(isinstance(n, str) and n for n in names)
+
+    def test_to_df_returns_the_frame(self, make_layout: LayoutFactory):
+        """to_df() returns the underlying pandas DataFrame."""
+        import pandas as pd
+
+        layout = make_layout("7t_trt")
+        assert layout.to_df() is layout.df
+        assert isinstance(layout.to_df(), pd.DataFrame)
