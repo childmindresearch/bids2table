@@ -222,7 +222,7 @@ def _check_path(path: str) -> None:
     if path.startswith(("s3://", "gs://")) and not b2t2.cloudpathlib_is_available():
         _logger.error(
             "Cloudpathlib is required to use cloud paths. "
-            "Install with e.g. `pip install cloudpathlib[cloud]`."
+            "Install with e.g. `pip install bids2table[cloud]`."
         )
         sys.exit(1)
 

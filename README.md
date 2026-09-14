@@ -29,10 +29,9 @@ matches your use case:
 | Install everything | `pip install bids2table[cloud,pybids]` |
 
 
-> [!WARNING]
-> *Deprecation Warning:* Previous versions used `bids2table[s3]` for cloud support.
-> While the `s3` extra still works for now, it will be removed upon release of `2.4.x`.
-> Please update your installation scripts to use `[cloud]`.
+> [!NOTE]
+> Previous versions used `bids2table[s3]` for cloud support. The `s3` extra has
+> been removed in `v2.4.0`; use `bids2table[cloud]` instead.
 
 ### Development Version
 
@@ -113,10 +112,10 @@ b2t2 index -o ds.parquet --filter suffix=bold --filter suffix=events --filter su
 
 ### Indexing datasets hosted on S3
 
-bids2table supports indexing datasets hosted on S3 via [cloudpathlib](https://github.com/drivendataorg/cloudpathlib). To use this functionality, make sure to install bids2table with the `s3` extra. Or you can also just install cloudpathlib directly
+bids2table supports indexing datasets hosted on S3 via [cloudpathlib](https://github.com/drivendataorg/cloudpathlib). To use this functionality, make sure to install bids2table with the `cloud` extra. Or you can also just install cloudpathlib directly
 
 ```sh
-pip install cloudpathlib[s3]
+pip install cloudpathlib[s3,gs]
 ```
 
 As an example, here we index all datasets on [OpenNeuro](https://openneuro.org/)
