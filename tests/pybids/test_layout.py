@@ -1,7 +1,6 @@
 """Tests for BIDSLayout class."""
 
 import tempfile
-from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -13,12 +12,7 @@ from bids2table.pybids import (
     BIDSLayout,
     Query,
 )
-
-BIDS_EXAMPLES = Path(__file__).resolve().parents[2] / "bids-examples"
-
-# Factory fixtures (from conftest) exposed to these tests.
-LayoutFactory = Callable[..., BIDSLayout]
-DatasetCopyFactory = Callable[[str], Path]
+from tests.pybids.conftest import BIDS_EXAMPLES, DatasetCopyFactory, LayoutFactory
 
 
 # Fixture for test dataset
@@ -317,17 +311,11 @@ class TestBIDSLayoutEntityMapping:
 class TestQuerySentinels:
     """Query sentinel semantics with exact counts (7t_trt)."""
 
-    def test_optional_is_noop(self, make_layout: LayoutFactory):
-        """OPTIONAL leaves the result set unchanged."""
+    @pytest.mark.parametrize("sentinel", [Query.OPTIONAL, Query.ANY])
+    def test_noop_sentinels(self, sentinel: Query, make_layout: LayoutFactory):
+        """OPTIONAL and ANY both leave the result set unchanged."""
         layout = make_layout("7t_trt")
-        count = len(layout.get(acq=Query.OPTIONAL, return_type="filename"))
-        assert count == len(layout.df)
-
-    def test_any_is_noop(self, make_layout: LayoutFactory):
-        """ANY leaves the result set unchanged."""
-        layout = make_layout("7t_trt")
-        count = len(layout.get(acq=Query.ANY, return_type="filename"))
-        assert count == len(layout.df)
+        assert len(layout.get(acq=sentinel, return_type="filename")) == len(layout.df)
 
     def test_none_partitions_with_concrete_values(self, make_layout: LayoutFactory):
         """NONE (missing) plus the concrete values partition the full set."""
@@ -510,20 +498,13 @@ class TestGetReturnShapes:
 class TestDerivatives:
     """Derivatives plumbing on the synthetic + fmriprep pair."""
 
-    def test_derivatives_as_path(self, make_layout: LayoutFactory):
-        """A single Path derivative is appended to the raw layout."""
-        layout = make_layout("synthetic")
-        raw = len(layout.df)
+    @pytest.mark.parametrize("mode", ["path", "list"])
+    def test_derivatives_appended(self, mode: str, make_layout: LayoutFactory):
+        """The derivatives= argument accepts a Path or a one-item list."""
+        raw = len(make_layout("synthetic").df)
         deriv = BIDS_EXAMPLES / "synthetic" / "derivatives" / "fmriprep"
-        combined = make_layout("synthetic", derivatives=deriv)
-        assert len(combined.df) == raw + 150
-
-    def test_derivatives_as_list(self, make_layout: LayoutFactory):
-        """A list-valued derivatives argument appends the same files."""
-        layout = make_layout("synthetic")
-        deriv = BIDS_EXAMPLES / "synthetic" / "derivatives" / "fmriprep"
-        combined = make_layout("synthetic", derivatives=[deriv])
-        assert len(combined.df) == len(layout.df) + 150
+        value = [deriv] if mode == "list" else deriv
+        assert len(make_layout("synthetic", derivatives=value).df) == raw + 150
 
     def test_derivative_rows_distinguishable(self, make_layout: LayoutFactory):
         """Raw and derivative rows carry distinct dataset_type values."""
@@ -583,6 +564,8 @@ class TestCacheSurface:
     def test_database_path_alone_is_deprecated(self, tmp_path: Path):
         """Passing only database_path emits a DeprecationWarning (use cache_path)."""
         with pytest.warns(DeprecationWarning, match="cache_path"):
+            # reset_database=True: prevents the default cache write into the
+            # bids-examples checkout (cache_path=None -> root/.bids2table_cache).
             BIDSLayout(
                 self.ROOT,
                 database_path=tmp_path / "legacy.db",

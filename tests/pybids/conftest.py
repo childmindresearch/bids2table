@@ -11,9 +11,18 @@ here (once its expected values are re-derived) widens the parametrized tests in
 """
 
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
+
+if TYPE_CHECKING:
+    from bids2table.pybids import BIDSLayout
+
+# Factory fixture types shared by the test modules (avoids per-file aliases).
+LayoutFactory = Callable[..., "BIDSLayout"]
+DatasetCopyFactory = Callable[[str], Path]
 
 # The datasets we pin concrete pybids-API behavior against for now. Extend to
 # the full bids-examples corpus later (see .notes/pybids-tests/overview.md).
@@ -53,7 +62,7 @@ def make_layout():
     pytest.importorskip("pandas", reason="pandas not available")
     from bids2table.pybids import BIDSLayout
 
-    memo: dict[tuple, tuple[tempfile.TemporaryDirectory, BIDSLayout]] = {}
+    memo: dict[tuple[str, str], tuple[tempfile.TemporaryDirectory, BIDSLayout]] = {}
 
     def _make(
         name: str,

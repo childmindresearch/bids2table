@@ -35,7 +35,6 @@ B9   test_target_kwarg_is_warned_and_ignored — GREEN, intended divergence:
 """
 
 import re
-from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -47,24 +46,12 @@ from bids2table.pybids import (
     BIDSLayout,
     Query,
 )
-
-# make_layout factory type (conftest fixture).
-LayoutFactory = Callable[..., BIDSLayout]
+from tests.pybids.conftest import LayoutFactory
 
 
 def _natural_sort_key(value: str) -> list[str | int]:
     """Natural-sort key: split on digit runs (pybids ``natural_sort``)."""
     return [int(part) if part.isdigit() else part for part in re.split(r"(\d+)", value)]
-
-
-def _make_minimal_dataset(root: Path) -> Path:
-    """Build a one-file BIDS dataset (``sub-01/anat/sub-01_T1w.nii.gz``)."""
-    anat = root / "sub-01" / "anat"
-    anat.mkdir(parents=True)
-    description = '{"Name": "min", "BIDSVersion": "1.9.0"}'
-    (root / "dataset_description.json").write_text(description)
-    (anat / "sub-01_T1w.nii.gz").touch()
-    return root
 
 
 @pytest.mark.xfail(
@@ -313,7 +300,12 @@ def test_validate_drops_invalid_files(tmp_path: Path) -> None:
     Upstream: pybids test_validation.py::test_layout_with_validation.
     'foobar' is not a valid BIDS suffix.
     """
-    root = _make_minimal_dataset(tmp_path / "ds")
+    root = tmp_path / "ds"
+    (root / "sub-01" / "anat").mkdir(parents=True)
+    (root / "dataset_description.json").write_text(
+        '{"Name": "min", "BIDSVersion": "1.9.0"}'
+    )
+    (root / "sub-01" / "anat" / "sub-01_T1w.nii.gz").touch()
     bad = "sub-01/anat/sub-01_foobar.nii.gz"
     (root / bad).touch()
     unvalidated = BIDSLayout(root, cache_path=tmp_path / "unvalidated.parquet")
@@ -348,9 +340,11 @@ def test_get_file_existing_returns_bidsfile(make_layout: LayoutFactory) -> None:
     Green on purpose — the missing-path half is pinned as gap B8 above.
     """
     layout = make_layout("7t_trt")
-    f = layout.get_file("sub-01/anat/sub-01_T1w.nii.gz")
+    indexed = "sub-01/ses-1/anat/sub-01_ses-1_T1w.nii.gz"
+    assert indexed in layout.get(return_type="filename")  # precondition
+    f = layout.get_file(indexed)
     assert f is not None
-    assert str(f) == "sub-01/anat/sub-01_T1w.nii.gz"
+    assert str(f) == indexed
 
 
 def test_target_kwarg_is_warned_and_ignored(make_layout: LayoutFactory) -> None:
