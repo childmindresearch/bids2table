@@ -28,6 +28,11 @@ matches your use case:
 | Enable `pybids` compatibility | `pip install bids2table[pybids]` |
 | Install everything | `pip install bids2table[cloud,pybids]` |
 
+> [!TIP]
+> Familiar with pybids? Our compatibility layer covers most querying
+> workflows — see the [migration guide](MIGRATION.md) for what's supported and
+> what's not.
+
 
 > [!WARNING]
 > *Deprecation Warning:* Previous versions used `bids2table[s3]` for cloud support.
