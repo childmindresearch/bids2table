@@ -1,21 +1,11 @@
 from pathlib import Path
 
 try:
-    from cloudpathlib import AnyPath, CloudPath, S3Client
+    from cloudpathlib import AnyPath, CloudPath, GSClient, S3Client
 
     _CLOUDPATHLIB_AVAILABLE = True
     S3Client(no_sign_request=True).set_as_default_client()
-
-    # Necessary while s3 dependencies can be installed without gcs dependencies
-    try:
-        from cloudpathlib import GSClient
-
-        GSClient().set_as_default_client()
-    # Using generalized Exception here, as DefaultCredentialsError is not available for
-    # import if GSClient is not available
-    except Exception:  # noqa: S110 - catch-all for all GSC-related errors
-        pass
-
+    GSClient().set_as_default_client()
 except Exception:
     # Assignment of cloudpath classes if cloudpathlib is unavailable
     AnyPath = CloudPath = Path  # ty:ignore[invalid-assignment] # needed for py311
