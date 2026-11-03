@@ -8,7 +8,7 @@ try:
     GSClient().set_as_default_client()
 except Exception:
     # Assignment of cloudpath classes if cloudpathlib is unavailable
-    AnyPath = CloudPath = Path  # ty:ignore[invalid-assignment] # needed for py311
+    AnyPath = CloudPath = Path
 
     _CLOUDPATHLIB_AVAILABLE = False
 
