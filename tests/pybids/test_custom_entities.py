@@ -160,7 +160,7 @@ class TestCustomEntities:
         """Test custom entity combined with get_subjects filter."""
         # Add custom entity
         layout.df["experiment_phase"] = layout.df["run"].apply(
-            lambda x: "early" if x == "01" else "late" if x else None
+            lambda x: None if pandas.isna(x) else "early" if x == "01" else "late"
         )
 
         # Get subjects that have early phase files
