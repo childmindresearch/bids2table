@@ -2,7 +2,7 @@
 # requires-python = ">=3.13"
 # dependencies = [
 #     "pytest>=9.1.1",
-#     "pytest-benchmark>=5.2.3",
+#     "pytest-benchmark>=5.3.1",
 # ]
 # ///
 """Perform benchmarking of bids2table against last tag, main and feature branches.
